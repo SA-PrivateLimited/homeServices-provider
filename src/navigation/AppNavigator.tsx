@@ -15,7 +15,7 @@ import AdminLoginScreen from '../screens/AdminLoginScreen';
 
 // Tab Navigators
 import MainTabs from './MainTabs'; // Patient tabs (existing)
-import DoctorTabNavigator from './DoctorTabNavigator'; // Doctor tabs (new)
+import ProviderTabNavigator from './ProviderTabNavigator'; // Provider tabs
 import AdminTabNavigator from './AdminTabNavigator'; // Admin tabs (new)
 
 // Shared screens
@@ -51,8 +51,8 @@ export default function AppNavigator() {
 
           if (userDoc.exists) {
             const userData = userDoc.data();
-            // HomeServicesProvider app is for doctors/providers only - set role to doctor
-            setUserRole('doctor');
+            // HomeServicesProvider app is for providers only - set role to provider
+            setUserRole('provider');
             setPhoneVerified(userData?.phoneVerified === true);
             
             // Update store with user data
@@ -63,8 +63,8 @@ export default function AppNavigator() {
               phoneVerified: userData?.phoneVerified === true,
             } as any);
           } else {
-            // New user - set as doctor for HomeServicesProvider app
-            setUserRole('doctor');
+            // New user - set as provider for HomeServicesProvider app
+            setUserRole('provider');
             setPhoneVerified(false);
           }
         } catch (error) {
@@ -99,8 +99,8 @@ export default function AppNavigator() {
       return 'PhoneVerification';
     }
     
-    // HomeServicesProvider app is for providers/doctors only - always go to DoctorMain
-    return 'DoctorMain';
+    // HomeServicesProvider app is for providers only - always go to ProviderMain
+    return 'ProviderMain';
   };
 
   return (
@@ -136,8 +136,8 @@ export default function AppNavigator() {
         {/* Patient Navigation */}
         <Stack.Screen name="Main" component={MainTabs} />
 
-        {/* Doctor Navigation */}
-        <Stack.Screen name="DoctorMain" component={DoctorTabNavigator} />
+        {/* Provider Navigation */}
+        <Stack.Screen name="ProviderMain" component={ProviderTabNavigator} />
 
         {/* Admin Navigation */}
         <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
@@ -194,7 +194,7 @@ export default function AppNavigator() {
           }}
         />
         <Stack.Screen
-          name="DoctorProfileSetup"
+          name="ProviderProfileSetup"
           component={ServiceProviderProfileSetupScreen}
           options={{
             headerShown: true,

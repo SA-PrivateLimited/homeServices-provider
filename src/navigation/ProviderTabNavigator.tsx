@@ -99,7 +99,7 @@ const JobsHistoryStack = () => {
   );
 };
 
-export default function DoctorTabNavigator() {
+export default function ProviderTabNavigator() {
   const navigation = useNavigation();
   const [showProfileSetupModal, setShowProfileSetupModal] = useState(false);
   const [hasCheckedProfile, setHasCheckedProfile] = useState(false);
@@ -180,7 +180,7 @@ export default function DoctorTabNavigator() {
   const handleSetupNow = () => {
     setShowProfileSetupModal(false);
     // Navigate to profile setup screen
-    navigation.navigate('DoctorProfileSetup' as never);
+    navigation.navigate('ProviderProfileSetup' as never);
   };
 
   const handleSetupLater = () => {

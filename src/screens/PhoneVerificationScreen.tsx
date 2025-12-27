@@ -210,7 +210,7 @@ export default function PhoneVerificationScreen({
                 // Navigate to provider dashboard
                 navigation.reset({
                   index: 0,
-                  routes: [{name: 'DoctorMain'}],
+                  routes: [{name: 'ProviderMain'}],
                 });
               },
             },

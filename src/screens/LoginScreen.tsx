@@ -76,17 +76,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
         'Provider', // Default name for phone login
       );
 
-      // Set role as 'doctor' for HomeServicesProvider app
+      // Set role as 'provider' for HomeServicesProvider app
       const userWithRole = {
         ...user,
-        role: 'doctor' as const,
+        role: 'provider' as const,
       };
 
       // Update user role in Firestore if needed
-      if (user.role !== 'doctor') {
+      if (user.role !== 'provider') {
         try {
-          await authService.updateUserRole(user.id, 'doctor');
-          userWithRole.role = 'doctor';
+          await authService.updateUserRole(user.id, 'provider');
+          userWithRole.role = 'provider';
         } catch (error) {
           // Role update failed, but continue with login
           console.warn('Failed to update user role:', error);
@@ -104,7 +104,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       } else {
         navigation.reset({
           index: 0,
-          routes: [{name: 'DoctorMain'}],
+          routes: [{name: 'ProviderMain'}],
         });
       }
     } catch (error: any) {
@@ -119,17 +119,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     try {
       const user = await authService.signInWithGoogle();
 
-      // Set role as 'doctor' for HomeServicesProvider app
+      // Set role as 'provider' for HomeServicesProvider app
       const userWithRole = {
         ...user,
-        role: 'doctor' as const,
+        role: 'provider' as const,
       };
 
       // Update user role in Firestore if needed
-      if (user.role !== 'doctor') {
+      if (user.role !== 'provider') {
         try {
-          await authService.updateUserRole(user.id, 'doctor');
-          userWithRole.role = 'doctor';
+          await authService.updateUserRole(user.id, 'provider');
+          userWithRole.role = 'provider';
         } catch (error) {
           // Role update failed, but continue with login
           console.warn('Failed to update user role:', error);
@@ -147,7 +147,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       } else {
         navigation.reset({
           index: 0,
-          routes: [{name: 'DoctorMain'}],
+          routes: [{name: 'ProviderMain'}],
         });
       }
     } catch (error: any) {

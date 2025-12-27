@@ -16,7 +16,7 @@ import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import {useStore} from '../store';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
-import DoctorHelpSupportModal from '../components/DoctorHelpSupportModal';
+import ProviderHelpSupportModal from '../components/ProviderHelpSupportModal';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
 import ProviderAddressInput from '../components/ProviderAddressInput';
 import ReviewsList from '../components/ReviewsList';
@@ -185,7 +185,7 @@ export default function ProviderProfileScreen({navigation}: any) {
   if (!profile) {
     return (
       <>
-        <DoctorHelpSupportModal
+        <ProviderHelpSupportModal
           visible={showHelpModal}
           onClose={() => setShowHelpModal(false)}
         />
@@ -208,7 +208,7 @@ export default function ProviderProfileScreen({navigation}: any) {
         <View style={[styles.section, styles.professionalSection, {backgroundColor: theme.card}]}>
           <TouchableOpacity
             style={[styles.setupButton, {backgroundColor: theme.primary}]}
-            onPress={() => navigation.navigate('DoctorProfileSetup')}>
+            onPress={() => navigation.navigate('ProviderProfileSetup')}>
             <Icon name="add-circle-outline" size={20} color="#fff" />
             <Text style={styles.setupButtonText}>Set Up Profile</Text>
           </TouchableOpacity>
@@ -303,7 +303,7 @@ export default function ProviderProfileScreen({navigation}: any) {
 
   return (
     <>
-      <DoctorHelpSupportModal
+      <ProviderHelpSupportModal
         visible={showHelpModal}
         onClose={() => setShowHelpModal(false)}
       />
@@ -418,7 +418,7 @@ export default function ProviderProfileScreen({navigation}: any) {
                   });
                 }}
                 style={{padding: 8, marginLeft: 10}}>
-                <Icon name="create-outline" size={20} color={theme.primary} />
+                <Ionicons name="create-outline" size={20} color={theme.primary} />
               </TouchableOpacity>
             </View>
           </View>

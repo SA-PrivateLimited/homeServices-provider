@@ -169,9 +169,9 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({navigation, route}) 
           .get();
 
         if (doctorProfile.empty) {
-          navigation.replace('DoctorProfileSetup');
+          navigation.replace('ProviderProfileSetup');
         } else {
-          navigation.replace('DoctorMain');
+          navigation.replace('ProviderMain');
         }
       }
     } catch (error) {

@@ -12,12 +12,12 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {useStore} from '../store';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 
-interface DoctorHelpSupportModalProps {
+interface ProviderHelpSupportModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-const DoctorHelpSupportModal: React.FC<DoctorHelpSupportModalProps> = ({
+const ProviderHelpSupportModal: React.FC<ProviderHelpSupportModalProps> = ({
   visible,
   onClose,
 }) => {
@@ -27,7 +27,7 @@ const DoctorHelpSupportModal: React.FC<DoctorHelpSupportModalProps> = ({
 
   const handleSendEmail = async () => {
     try {
-      const subject = 'HomeServices Doctor Support Request';
+      const subject = 'HomeServices Provider Support Request';
       const mailtoUrl = `mailto:${supportEmail}?subject=${encodeURIComponent(subject)}`;
 
       const canOpen = await Linking.canOpenURL(mailtoUrl);
@@ -70,7 +70,7 @@ const DoctorHelpSupportModal: React.FC<DoctorHelpSupportModalProps> = ({
 
           {/* Description */}
           <Text style={[styles.description, {color: theme.textSecondary}]}>
-            Need assistance with your doctor profile, appointments, or consultations? Our support team is here to help you.
+            Need assistance with your provider profile, jobs, or service requests? Our support team is here to help you.
           </Text>
 
           {/* Email Info */}
@@ -231,4 +231,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default DoctorHelpSupportModal;
+export default ProviderHelpSupportModal;

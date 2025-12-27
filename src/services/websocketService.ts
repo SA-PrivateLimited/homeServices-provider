@@ -22,7 +22,7 @@ class WebSocketService {
   private socket: Socket | null = null;
   private isConnected: boolean = false;
   private hooterSound: Sound | null = null;
-  private currentDoctorId: string | null = null;
+  private currentProviderId: string | null = null;
 
   constructor() {
     // Enable playback in silence mode (iOS)
@@ -36,16 +36,16 @@ class WebSocketService {
   /**
    * Initialize WebSocket connection and setup event listeners
    */
-  connect(doctorId: string): void {
-    if (!doctorId || doctorId.trim() === '') {
-      console.warn('Cannot connect WebSocket: Invalid doctor ID');
+  connect(providerId: string): void {
+    if (!providerId || providerId.trim() === '') {
+      console.warn('Cannot connect WebSocket: Invalid provider ID');
       return;
     }
 
-    // Disconnect existing connection if connecting to different doctor
+    // Disconnect existing connection if connecting to different provider
     if (this.socket?.connected) {
-      if (this.currentDoctorId === doctorId) {
-        console.log('WebSocket already connected for this doctor');
+      if (this.currentProviderId === providerId) {
+        console.log('WebSocket already connected for this provider');
         return;
       } else {
         console.log('Disconnecting existing WebSocket connection');
@@ -53,7 +53,7 @@ class WebSocketService {
       }
     }
 
-    this.currentDoctorId = doctorId;
+    this.currentProviderId = providerId;
 
     // Check if SOCKET_URL is configured
     if (!SOCKET_URL || SOCKET_URL.includes('your-production-server.com')) {
@@ -78,10 +78,10 @@ class WebSocketService {
         console.log('WebSocket connected:', this.socket?.id);
         this.isConnected = true;
 
-        // Join doctor-specific room
-        if (this.currentDoctorId) {
-          this.socket?.emit('join-doctor-room', this.currentDoctorId);
-          console.log(`Joined doctor room: ${this.currentDoctorId}`);
+        // Join provider-specific room
+        if (this.currentProviderId) {
+          this.socket?.emit('join-provider-room', this.currentProviderId);
+          console.log(`Joined provider room: ${this.currentProviderId}`);
         }
       });
 
@@ -125,8 +125,8 @@ class WebSocketService {
       this.socket.on('reconnect', (attemptNumber) => {
         console.log(`WebSocket reconnected after ${attemptNumber} attempts`);
         // Rejoin room after reconnection
-        if (this.currentDoctorId) {
-          this.socket?.emit('join-doctor-room', this.currentDoctorId);
+        if (this.currentProviderId) {
+          this.socket?.emit('join-provider-room', this.currentProviderId);
         }
       });
 
@@ -455,7 +455,7 @@ class WebSocketService {
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
-      this.currentDoctorId = null;
+      this.currentProviderId = null;
       console.log('WebSocket disconnected');
     }
 
@@ -505,10 +505,10 @@ class WebSocketService {
    * Reconnect WebSocket (useful for manual reconnection)
    */
   reconnect(): void {
-    if (this.currentDoctorId) {
+    if (this.currentProviderId) {
       this.disconnect();
       setTimeout(() => {
-        this.connect(this.currentDoctorId!);
+        this.connect(this.currentProviderId!);
       }, 1000);
     }
   }

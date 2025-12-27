@@ -32,7 +32,7 @@ export default function RoleSelectionScreen({navigation}: RoleSelectionScreenPro
       if (currentUser.role === 'admin') {
         navigation.replace('AdminMain');
       } else if (currentUser.role === 'doctor') {
-        navigation.replace('DoctorMain');
+        navigation.replace('ProviderMain');
       } else {
         navigation.replace('Main');
       }
@@ -87,7 +87,7 @@ export default function RoleSelectionScreen({navigation}: RoleSelectionScreenPro
       if (role === 'patient') {
         navigation.replace('Main');
       } else if (role === 'doctor') {
-        navigation.replace('DoctorMain');
+        navigation.replace('ProviderMain');
       }
     } catch (error) {
       alert('Failed to set user role. Please try again. If you already have a role, contact an administrator to change it.');
