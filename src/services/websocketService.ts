@@ -107,8 +107,7 @@ class WebSocketService {
           console.warn('Connection details:', {
             url: SOCKET_URL,
             providerId: this.currentProviderId,
-            errorType: error.type,
-            errorDescription: error.description,
+            error: error.toString(),
           });
         } else {
           // Server URL not configured - silently skip connection
