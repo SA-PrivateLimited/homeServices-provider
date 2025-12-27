@@ -1,0 +1,89 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    
+    // Users can read/write their own data
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid"
+      }
+    },
+    
+    // Service providers can read/write their own status and location
+    "providers": {
+      "$providerId": {
+        ".read": "$providerId === auth.uid",
+        ".write": "$providerId === auth.uid",
+        "status": {
+          ".read": "$providerId === auth.uid || auth != null",
+          ".write": "$providerId === auth.uid"
+        },
+        "location": {
+          ".read": "$providerId === auth.uid || auth != null",
+          ".write": "$providerId === auth.uid"
+        }
+      }
+    },
+    
+    // Provider status for real-time online/offline tracking
+    "providerStatus": {
+      "$providerId": {
+        ".read": "$providerId === auth.uid || auth != null",
+        ".write": "$providerId === auth.uid",
+        "isOnline": {
+          ".read": "auth != null",
+          ".write": "$providerId === auth.uid"
+        },
+        "isAvailable": {
+          ".read": "auth != null",
+          ".write": "$providerId === auth.uid"
+        },
+        "currentLocation": {
+          ".read": "auth != null",
+          ".write": "$providerId === auth.uid"
+        },
+        "lastUpdated": {
+          ".read": "auth != null",
+          ".write": "$providerId === auth.uid"
+        }
+      }
+    },
+    
+    // Service requests - customers can read/write their own, providers can read assigned ones
+    "serviceRequests": {
+      "$requestId": {
+        ".read": "auth != null && (root.child('serviceRequests').child($requestId).child('customerId').val() === auth.uid || root.child('serviceRequests').child($requestId).child('patientId').val() === auth.uid || root.child('serviceRequests').child($requestId).child('providerId').val() === auth.uid || root.child('serviceRequests').child($requestId).child('doctorId').val() === auth.uid)",
+        ".write": "auth != null && (root.child('serviceRequests').child($requestId).child('customerId').val() === auth.uid || root.child('serviceRequests').child($requestId).child('patientId').val() === auth.uid || root.child('serviceRequests').child($requestId).child('providerId').val() === auth.uid || root.child('serviceRequests').child($requestId).child('doctorId').val() === auth.uid)"
+      }
+    },
+    
+    // Job cards - real-time status updates
+    // Service providers can read/write status for their job cards
+    // Customers can read status for their job cards and write when cancelling
+    "jobCards": {
+      "$jobCardId": {
+        ".read": "auth != null && (root.child('jobCards').child($jobCardId).child('providerId').val() === auth.uid || root.child('jobCards').child($jobCardId).child('customerId').val() === auth.uid)",
+        ".write": "auth != null && (root.child('jobCards').child($jobCardId).child('providerId').val() === auth.uid || (root.child('jobCards').child($jobCardId).child('customerId').val() === auth.uid && newData.hasChild('status') && newData.child('status').val() === 'cancelled'))",
+        "status": {
+          ".read": "auth != null && (root.child('jobCards').child($jobCardId).child('providerId').val() === auth.uid || root.child('jobCards').child($jobCardId).child('customerId').val() === auth.uid)",
+          ".write": "auth != null && (root.child('jobCards').child($jobCardId).child('providerId').val() === auth.uid || (root.child('jobCards').child($jobCardId).child('customerId').val() === auth.uid && newData.val() === 'cancelled'))"
+        },
+        "updatedAt": {
+          ".read": "auth != null && (root.child('jobCards').child($jobCardId).child('providerId').val() === auth.uid || root.child('jobCards').child($jobCardId).child('customerId').val() === auth.uid)",
+          ".write": "auth != null && (root.child('jobCards').child($jobCardId).child('providerId').val() === auth.uid || root.child('jobCards').child($jobCardId).child('customerId').val() === auth.uid)"
+        }
+      }
+    },
+    
+    // Real-time notifications
+    "notifications": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid"
+      }
+    }
+  }
+}
+

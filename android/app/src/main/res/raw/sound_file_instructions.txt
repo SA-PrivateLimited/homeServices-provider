@@ -1,0 +1,33 @@
+HOOTER SOUND FILE INSTRUCTIONS
+================================
+
+This directory needs a hooter sound file named: hooter.mp3
+
+To add the sound file:
+
+1. Download or create a hooter/notification sound (MP3 format)
+   - You can find free sounds at:
+     * Freesound.org
+     * ZapSplat.com
+     * Pixabay (Audio section)
+
+2. Name the file: hooter.mp3
+
+3. Place it in this directory:
+   HomeServicesProvider/android/app/src/main/res/raw/hooter.mp3
+
+4. The sound file should be:
+   - Format: MP3
+   - Duration: 1-3 seconds (recommended)
+   - Volume: Normalized for consistent playback
+   - Sample rate: 44.1kHz or 48kHz
+
+Alternative approach:
+- You can use any existing notification sound by renaming it to hooter.mp3
+- For testing, you can use a simple beep or bell sound
+
+For iOS:
+- Add the same hooter.mp3 file to the Xcode project
+- Right-click on project → Add Files → Select hooter.mp3
+- Make sure "Copy items if needed" is checked
+- Add to both targets if necessary

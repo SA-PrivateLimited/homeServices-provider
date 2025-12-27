@@ -1,0 +1,518 @@
+/**
+ * WebSocket Service for HomeServicesProvider
+ * Listens for real-time booking notifications and plays hooter sound
+ */
+
+import io, { Socket } from 'socket.io-client';
+import Sound from 'react-native-sound';
+import { Alert, Platform } from 'react-native';
+import { createJobCard } from './jobCardService';
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
+import { getProviderStatus, getDistanceToCustomer, formatDistance } from './providerLocationService';
+
+// WebSocket URL - Set this to your actual server URL
+// For development: Use your local IP address (e.g., 'http://192.168.1.100:3000')
+// For production: Use your production server URL
+const SOCKET_URL = __DEV__
+  ? 'http://10.0.2.2:3000' // Android emulator localhost
+  : process.env.SOCKET_URL || 'https://your-production-server.com'; // Set via environment variable
+
+class WebSocketService {
+  private socket: Socket | null = null;
+  private isConnected: boolean = false;
+  private hooterSound: Sound | null = null;
+  private currentDoctorId: string | null = null;
+
+  constructor() {
+    // Enable playback in silence mode (iOS)
+    try {
+      Sound.setCategory('Playback', true);
+    } catch (error) {
+      console.warn('Failed to set sound category:', error);
+    }
+  }
+
+  /**
+   * Initialize WebSocket connection and setup event listeners
+   */
+  connect(doctorId: string): void {
+    if (!doctorId || doctorId.trim() === '') {
+      console.warn('Cannot connect WebSocket: Invalid doctor ID');
+      return;
+    }
+
+    // Disconnect existing connection if connecting to different doctor
+    if (this.socket?.connected) {
+      if (this.currentDoctorId === doctorId) {
+        console.log('WebSocket already connected for this doctor');
+        return;
+      } else {
+        console.log('Disconnecting existing WebSocket connection');
+        this.disconnect();
+      }
+    }
+
+    this.currentDoctorId = doctorId;
+
+    // Check if SOCKET_URL is configured
+    if (!SOCKET_URL || SOCKET_URL.includes('your-production-server.com')) {
+      console.log('WebSocket URL not configured. WebSocket features will be disabled.');
+      console.log('To enable: Set SOCKET_URL environment variable or update websocketService.ts');
+      return;
+    }
+
+    try {
+      // Initialize socket connection
+      this.socket = io(SOCKET_URL, {
+        transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 10,
+        timeout: 20000,
+        forceNew: true,
+      });
+
+      // Connection events
+      this.socket.on('connect', () => {
+        console.log('WebSocket connected:', this.socket?.id);
+        this.isConnected = true;
+
+        // Join doctor-specific room
+        if (this.currentDoctorId) {
+          this.socket?.emit('join-doctor-room', this.currentDoctorId);
+          console.log(`Joined doctor room: ${this.currentDoctorId}`);
+        }
+      });
+
+      this.socket.on('disconnect', () => {
+        console.log('WebSocket disconnected');
+        this.isConnected = false;
+      });
+
+      this.socket.on('connect_error', (error) => {
+        // Only log error if server URL is configured (not a placeholder)
+        if (SOCKET_URL && !SOCKET_URL.includes('your-production-server.com')) {
+          console.warn('WebSocket connection error (will retry):', error.message || error);
+        } else {
+          // Server URL not configured - silently skip connection
+          console.log('WebSocket server not configured. Skipping connection.');
+        }
+        this.isConnected = false;
+        // Don't show alert for connection errors - they're handled by reconnection
+      });
+
+      this.socket.on('reconnect_error', (error) => {
+        // Only log if server URL is configured
+        if (SOCKET_URL && !SOCKET_URL.includes('your-production-server.com')) {
+          console.warn('WebSocket reconnection error (will retry):', error.message || error);
+        }
+      });
+
+      this.socket.on('reconnect_failed', () => {
+        // Only show alert if server URL is configured
+        if (SOCKET_URL && !SOCKET_URL.includes('your-production-server.com')) {
+          console.warn('WebSocket reconnection failed after all attempts');
+          // Don't show alert - WebSocket is optional for app functionality
+          // Alert.alert(
+          //   'Connection Failed',
+          //   'Unable to connect to the server. Please check your internet connection.',
+          //   [{text: 'OK'}]
+          // );
+        }
+      });
+
+      this.socket.on('reconnect', (attemptNumber) => {
+        console.log(`WebSocket reconnected after ${attemptNumber} attempts`);
+        // Rejoin room after reconnection
+        if (this.currentDoctorId) {
+          this.socket?.emit('join-doctor-room', this.currentDoctorId);
+        }
+      });
+
+      // Listen for new booking events
+      this.socket.on('new-booking', (bookingData: any) => {
+        console.log('New booking received:', bookingData);
+        this.handleNewBooking(bookingData);
+      });
+
+      // Load hooter sound
+      this.loadHooterSound();
+    } catch (error) {
+      console.error('Error initializing WebSocket:', error);
+    }
+  }
+
+  /**
+   * Load the hooter sound file
+   */
+  private loadHooterSound(): void {
+    // Only load sound if not already loaded
+    if (this.hooterSound) {
+      return;
+    }
+
+    try {
+      // Load sound from assets
+      // For Android: Place sound file in android/app/src/main/res/raw/
+      // For iOS: Add sound file to Xcode project
+      this.hooterSound = new Sound('hooter.wav', Sound.MAIN_BUNDLE, (error) => {
+        if (error) {
+          console.warn('Hooter sound file not found. Sound notifications will be disabled.');
+          console.warn('To enable: Place hooter.wav in android/app/src/main/res/raw/ (Android) or add to Xcode project (iOS)');
+          this.hooterSound = null;
+          return;
+        }
+        console.log('Hooter sound loaded successfully');
+        if (this.hooterSound) {
+          console.log('Duration:', this.hooterSound.getDuration(), 'seconds');
+        }
+      });
+    } catch (error) {
+      console.warn('Error loading hooter sound:', error);
+      this.hooterSound = null;
+    }
+  }
+
+  /**
+   * Play hooter sound when new booking is received
+   */
+  private playHooterSound(): void {
+    if (!this.hooterSound) {
+      console.warn('Hooter sound not loaded');
+      return;
+    }
+
+    this.hooterSound.setVolume(1.0);
+    this.hooterSound.play((success) => {
+      if (success) {
+        console.log('Hooter sound played successfully');
+      } else {
+        console.error('Failed to play hooter sound');
+        // Reset the sound for next play
+        this.hooterSound?.reset();
+      }
+    });
+  }
+
+  /**
+   * Handle incoming booking notification
+   */
+  private async handleNewBooking(bookingData: any): Promise<void> {
+    console.log('Processing new booking:', bookingData);
+
+    // Play hooter sound
+    this.playHooterSound();
+
+    // Check if provider is authenticated
+    const currentUser = auth().currentUser;
+    if (!currentUser) {
+      Alert.alert('Error', 'Please login to accept bookings');
+      return;
+    }
+
+    // Show alert notification with accept/reject options
+    const scheduledTime = bookingData.scheduledTime instanceof Date
+      ? bookingData.scheduledTime.toLocaleString()
+      : bookingData.scheduledTime
+      ? new Date(bookingData.scheduledTime).toLocaleString()
+      : 'Not specified';
+
+    let message = `New service request from ${bookingData.patientName || bookingData.customerName || 'Customer'}`;
+    if (bookingData.patientPhone || bookingData.customerPhone) {
+      message += `\n\nContact: ${bookingData.patientPhone || bookingData.customerPhone}`;
+    }
+    if (bookingData.patientAge) {
+      message += `\nAge: ${bookingData.patientAge} years`;
+    }
+    if (bookingData.scheduledTime) {
+      message += `\nScheduled Time: ${scheduledTime}`;
+    }
+    if (bookingData.consultationFee) {
+      message += `\nService Fee: ₹${bookingData.consultationFee}`;
+    }
+    
+    // Get customer address
+    const customerAddress = bookingData.customerAddress || bookingData.patientAddress;
+    
+    // Add customer address if available
+    if (customerAddress) {
+      message += `\n\n📍 Customer Address:`;
+      if (customerAddress.address) {
+        message += `\n${customerAddress.address}`;
+      }
+      if (customerAddress.pincode) {
+        message += `\nPincode: ${customerAddress.pincode}`;
+      }
+      if (customerAddress.city || customerAddress.state) {
+        const locationParts = [];
+        if (customerAddress.city) locationParts.push(customerAddress.city);
+        if (customerAddress.state) locationParts.push(customerAddress.state);
+        message += `\n${locationParts.join(', ')}`;
+      }
+
+      // Calculate and show distance if both provider and customer locations are available
+      try {
+        const providerStatus = await getProviderStatus(currentUser.uid);
+        if (
+          providerStatus?.currentLocation &&
+          customerAddress.latitude &&
+          customerAddress.longitude
+        ) {
+          const distanceInfo = getDistanceToCustomer(
+            providerStatus.currentLocation,
+            {
+              latitude: customerAddress.latitude,
+              longitude: customerAddress.longitude,
+            },
+          );
+          message += `\n\n📏 Distance: ${distanceInfo.distanceFormatted}`;
+          message += `\n⏱️ ETA: ~${distanceInfo.etaMinutes} min`;
+        }
+      } catch (error) {
+        console.log('Could not calculate distance:', error);
+      }
+    }
+
+    // Get provider document - support both phone auth (UID) and Google auth (email)
+    let provider: any = null;
+    
+    if (currentUser.email) {
+      const emailQuery = await firestore()
+        .collection('providers')
+        .where('email', '==', currentUser.email)
+        .limit(1)
+        .get();
+      
+      if (!emailQuery.empty) {
+        provider = emailQuery.docs[0].data();
+      }
+    }
+    
+    // If not found by email, try by UID (phone auth)
+    if (!provider) {
+      const uidDoc = await firestore()
+        .collection('providers')
+        .doc(currentUser.uid)
+        .get();
+      
+      if (uidDoc.exists) {
+        provider = uidDoc.data();
+      }
+    }
+
+    if (!provider) {
+      Alert.alert('Error', 'Provider profile not found. Please complete your profile setup.');
+      return;
+    }
+    const providerAddress = provider.address;
+
+    if (!providerAddress || !providerAddress.pincode) {
+      Alert.alert(
+        '🔔 New Service Request!',
+        message + '\n\n⚠️ Please set up your address in profile settings to accept this request.',
+        [
+          {
+            text: 'OK',
+            style: 'default',
+          },
+        ],
+        { cancelable: true }
+      );
+      return;
+    }
+
+    Alert.alert(
+      '🔔 New Service Request!',
+      message,
+      [
+        {
+          text: 'Reject',
+          style: 'cancel',
+          onPress: async () => {
+            try {
+              await this.rejectBooking(bookingData);
+              Alert.alert('Success', 'Service request rejected successfully.');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to reject service request. Please try again.');
+            }
+          },
+        },
+        {
+          text: 'Accept',
+          style: 'default',
+          onPress: async () => {
+            try {
+              // Update booking/consultation status to accepted
+              await this.acceptBooking(bookingData, currentUser.uid);
+              
+              // Create job card with customer details
+              const jobCardId = await createJobCard(bookingData, providerAddress);
+              Alert.alert(
+                'Success',
+                'Service request accepted! Job card created successfully.',
+                [{text: 'OK'}]
+              );
+              console.log('Job card created:', jobCardId);
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to accept service request. Please try again.');
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  }
+
+  /**
+   * Accept a booking/consultation
+   * Updates the status to 'accepted' and assigns provider
+   */
+  private async acceptBooking(bookingData: any, providerId: string): Promise<void> {
+    try {
+      const consultationId = bookingData.consultationId || bookingData.id || bookingData.bookingId;
+      
+      if (!consultationId) {
+        throw new Error('Consultation ID not found in booking data');
+      }
+
+      // Update consultation/service request status to accepted
+      await firestore()
+        .collection('consultations')
+        .doc(consultationId)
+        .update({
+          status: 'accepted',
+          doctorId: providerId, // Assign provider
+          providerId: providerId, // Also set providerId for compatibility
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      
+      console.log('Booking accepted:', consultationId);
+    } catch (error: any) {
+      console.error('Error accepting booking:', error);
+      throw new Error(`Failed to accept booking: ${error.message}`);
+    }
+  }
+
+  /**
+   * Reject a booking/consultation
+   * Updates the status to 'rejected'
+   */
+  private async rejectBooking(bookingData: any): Promise<void> {
+    try {
+      const consultationId = bookingData.consultationId || bookingData.id || bookingData.bookingId;
+      
+      if (!consultationId) {
+        throw new Error('Consultation ID not found in booking data');
+      }
+
+      // Update consultation/service request status to rejected
+      await firestore()
+        .collection('consultations')
+        .doc(consultationId)
+        .update({
+          status: 'rejected',
+          rejectionReason: 'Provider rejected the service request',
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+      
+      console.log('Booking rejected:', consultationId);
+    } catch (error: any) {
+      console.error('Error rejecting booking:', error);
+      throw new Error(`Failed to reject booking: ${error.message}`);
+    }
+  }
+
+  /**
+   * Register a callback for new bookings
+   */
+  onNewBooking(callback: (bookingData: any) => void): void {
+    if (this.socket) {
+      this.socket.on('new-booking', callback);
+    }
+  }
+
+  /**
+   * Remove booking callback
+   */
+  offNewBooking(callback?: (bookingData: any) => void): void {
+    if (this.socket) {
+      if (callback) {
+        this.socket.off('new-booking', callback);
+      } else {
+        this.socket.off('new-booking');
+      }
+    }
+  }
+
+  /**
+   * Disconnect WebSocket and release resources
+   */
+  disconnect(): void {
+    if (this.socket) {
+      // Remove all event listeners before disconnecting
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+      this.isConnected = false;
+      this.currentDoctorId = null;
+      console.log('WebSocket disconnected');
+    }
+
+    // Release sound resources
+    if (this.hooterSound) {
+      try {
+        this.hooterSound.stop();
+        this.hooterSound.release();
+      } catch (error) {
+        console.warn('Error releasing sound:', error);
+      }
+      this.hooterSound = null;
+      console.log('Hooter sound resources released');
+    }
+  }
+
+  /**
+   * Get connection status
+   */
+  getConnectionStatus(): boolean {
+    return this.isConnected;
+  }
+
+  /**
+   * Get socket instance (for advanced use cases)
+   */
+  getSocket(): Socket | null {
+    return this.socket;
+  }
+
+  /**
+   * Manually play hooter sound (for testing)
+   */
+  testHooterSound(): void {
+    console.log('Testing hooter sound...');
+    this.playHooterSound();
+  }
+
+  /**
+   * Check if WebSocket URL is configured
+   */
+  isConfigured(): boolean {
+    return !!(SOCKET_URL && !SOCKET_URL.includes('your-production-server.com'));
+  }
+
+  /**
+   * Reconnect WebSocket (useful for manual reconnection)
+   */
+  reconnect(): void {
+    if (this.currentDoctorId) {
+      this.disconnect();
+      setTimeout(() => {
+        this.connect(this.currentDoctorId!);
+      }, 1000);
+    }
+  }
+}
+
+// Export singleton instance
+export default new WebSocketService();
