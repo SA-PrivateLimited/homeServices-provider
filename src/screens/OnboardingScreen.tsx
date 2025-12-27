@@ -179,7 +179,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({navigation, route}) 
       if (userRole === 'patient') {
         navigation.replace('Main');
       } else {
-        navigation.replace('DoctorMain');
+        navigation.replace('ProviderMain');
       }
     }
   };

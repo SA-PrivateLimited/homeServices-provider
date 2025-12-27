@@ -22,7 +22,7 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // Empty stack - MainTabs is not used for provider app
-// Provider app uses DoctorTabNavigator instead
+// Provider app uses ProviderTabNavigator instead
 const ConsultationsStack = () => {
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
