@@ -379,7 +379,7 @@ export default function ProviderProfileScreen({navigation}: any) {
       <View style={[styles.section, styles.professionalSection, {backgroundColor: theme.card}]}>
         <TouchableOpacity
           style={[styles.editButton, {backgroundColor: theme.primary}]}
-          onPress={() => navigation.navigate('DoctorProfileSetup')}>
+          onPress={() => navigation.navigate('ProviderProfileSetup')}>
           <Icon name="edit" size={20} color="#fff" />
           <Text style={styles.editButtonText}>Edit Profile</Text>
         </TouchableOpacity>
