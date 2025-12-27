@@ -69,19 +69,29 @@ class WebSocketService {
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionAttempts: 10,
+        reconnectionDelayMax: 5000,
         timeout: 20000,
         forceNew: true,
+        autoConnect: true,
+        // Add path if your server uses a custom path (default is '/socket.io/')
+        path: '/socket.io/',
       });
 
       // Connection events
       this.socket.on('connect', () => {
-        console.log('WebSocket connected:', this.socket?.id);
+        console.log('WebSocket connected successfully:', {
+          socketId: this.socket?.id,
+          providerId: this.currentProviderId,
+          url: SOCKET_URL,
+        });
         this.isConnected = true;
 
         // Join provider-specific room
         if (this.currentProviderId) {
           this.socket?.emit('join-provider-room', this.currentProviderId);
           console.log(`Joined provider room: ${this.currentProviderId}`);
+        } else {
+          console.warn('WebSocket connected but no provider ID available');
         }
       });
 
@@ -94,6 +104,12 @@ class WebSocketService {
         // Only log error if server URL is configured (not a placeholder)
         if (SOCKET_URL && !SOCKET_URL.includes('your-production-server.com')) {
           console.warn('WebSocket connection error (will retry):', error.message || error);
+          console.warn('Connection details:', {
+            url: SOCKET_URL,
+            providerId: this.currentProviderId,
+            errorType: error.type,
+            errorDescription: error.description,
+          });
         } else {
           // Server URL not configured - silently skip connection
           console.log('WebSocket server not configured. Skipping connection.');
