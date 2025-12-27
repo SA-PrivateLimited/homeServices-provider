@@ -57,19 +57,40 @@ export const createJobCard = async (
       throw new Error('User not authenticated');
     }
 
-    // Get provider details
-    const providerDoc = await firestore()
-      .collection('providers')
-      .where('email', '==', currentUser.email)
-      .limit(1)
-      .get();
-
-    if (providerDoc.empty) {
-      throw new Error('Provider profile not found');
+    // Get provider details - support both phone auth (UID) and Google auth (email)
+    let provider: any = null;
+    let providerId: string = '';
+    
+    // Try to find by email first (Google auth)
+    if (currentUser.email) {
+      const emailQuery = await firestore()
+        .collection('providers')
+        .where('email', '==', currentUser.email)
+        .limit(1)
+        .get();
+      
+      if (!emailQuery.empty) {
+        provider = emailQuery.docs[0].data();
+        providerId = emailQuery.docs[0].id;
+      }
+    }
+    
+    // If not found by email, try by UID (phone auth)
+    if (!provider) {
+      const uidDoc = await firestore()
+        .collection('providers')
+        .doc(currentUser.uid)
+        .get();
+      
+      if (uidDoc.exists) {
+        provider = uidDoc.data();
+        providerId = currentUser.uid;
+      }
     }
 
-    const provider = providerDoc.docs[0].data();
-    const providerId = providerDoc.docs[0].id;
+    if (!provider || !providerId) {
+      throw new Error('Provider profile not found. Please complete your profile setup.');
+    }
 
     // Get customer address from booking data or user profile
     let customerAddress = {
