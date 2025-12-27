@@ -99,7 +99,8 @@ class WebSocketService {
         // Join provider-specific room
         if (this.currentProviderId) {
           this.socket?.emit('join-provider-room', this.currentProviderId);
-          console.log(`✅ Joined provider room: ${this.currentProviderId}`);
+          console.log(`✅ Joined provider room: provider-${this.currentProviderId}`);
+          console.log(`📋 Provider ID for notifications: ${this.currentProviderId}`);
         } else {
           console.warn('WebSocket connected but no provider ID available');
         }

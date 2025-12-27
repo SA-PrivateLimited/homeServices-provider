@@ -220,8 +220,9 @@ const App = () => {
     setOneSignalUserId();
 
     // Initialize WebSocket connection for real-time booking notifications
-    if (currentUser?.id && currentUser?.role === 'doctor') {
-      console.log('Initializing WebSocket for doctor:', currentUser.id);
+    // Check for both 'provider' and 'doctor' roles for backward compatibility
+    if (currentUser?.id && (currentUser?.role === 'provider' || currentUser?.role === 'doctor')) {
+      console.log('Initializing WebSocket for provider:', currentUser.id);
       WebSocketService.connect(currentUser.id);
     } else if (!currentUser?.id) {
       // Disconnect WebSocket when user logs out
