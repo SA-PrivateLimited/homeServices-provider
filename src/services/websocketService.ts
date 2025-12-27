@@ -15,7 +15,7 @@ import { getProviderStatus, getDistanceToCustomer, formatDistance } from './prov
 // For development: Use your local IP address (e.g., 'http://192.168.1.100:3000')
 // For production: Use your production server URL
 const SOCKET_URL = __DEV__
-  ? 'http://10.0.2.2:3000' // Android emulator localhost
+  ? 'http://10.0.2.2:3001' // Android emulator localhost (using port 3001 to avoid conflicts)
   : process.env.SOCKET_URL || 'https://your-production-server.com'; // Set via environment variable
 
 class WebSocketService {
