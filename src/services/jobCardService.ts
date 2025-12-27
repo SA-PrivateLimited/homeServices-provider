@@ -173,13 +173,14 @@ export const createJobCard = async (
     const jobCardId = jobCardRef.id;
 
     // Also create status entry in Realtime Database for real-time updates
+    // Write to the root jobCard node first (for creation permission check)
     await database()
-      .ref(`jobCards/${jobCardId}/status`)
+      .ref(`jobCards/${jobCardId}`)
       .set({
-        status: jobCard.status,
-        updatedAt: Date.now(),
         providerId: providerId,
         customerId: jobCard.customerId,
+        status: jobCard.status,
+        updatedAt: Date.now(),
       });
 
     return jobCardId;
