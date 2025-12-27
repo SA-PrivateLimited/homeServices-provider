@@ -171,8 +171,18 @@ class WebSocketService {
 
       // Listen for new booking events
       this.socket.on('new-booking', (bookingData: any) => {
-        console.log('New booking received:', bookingData);
+        console.log('🔔 New booking received via WebSocket:', {
+          bookingId: bookingData.consultationId || bookingData.id || bookingData.bookingId,
+          customerName: bookingData.customerName || bookingData.patientName,
+          providerId: this.currentProviderId,
+          bookingData: bookingData,
+        });
         this.handleNewBooking(bookingData);
+      });
+
+      // Add error handler for socket errors
+      this.socket.on('error', (error: any) => {
+        console.error('❌ WebSocket error:', error);
       });
 
       // Load hooter sound

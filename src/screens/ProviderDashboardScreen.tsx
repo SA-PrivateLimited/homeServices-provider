@@ -77,13 +77,16 @@ export default function ProviderDashboardScreen({navigation}: any) {
   // Start/stop location tracking based on online status
   useEffect(() => {
     if (isOnline && currentUser?.uid) {
+      console.log('🟢 Provider going online, connecting WebSocket with UID:', currentUser.uid);
       // Start location tracking when going online
       const stopTracking = startLocationTracking();
       setLocationTracking(() => stopTracking);
       
       // Connect WebSocket for real-time job notifications
+      // Use UID as provider document ID matches user UID
       websocketService.connect(currentUser.uid);
     } else {
+      console.log('🔴 Provider going offline, disconnecting WebSocket');
       // Stop location tracking when going offline
       if (locationTracking) {
         locationTracking();
