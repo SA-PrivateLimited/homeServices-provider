@@ -3,7 +3,13 @@
 
 # Environment
 .env
+
+# Firebase Service Account Keys (NEVER commit these!)
 firebase/serviceAccountKey.json
+*firebase-adminsdk*.json
+*serviceAccountKey*.json
+*service-account*.json
+*medifind*.json
 
 # Xcode
 build/
