@@ -277,10 +277,11 @@ export const updateJobCardStatus = async (
       });
 
     // Update in Realtime Database (for real-time synchronization)
+    // Update the root node to ensure providerId is available for permission checks
     await database()
-      .ref(`jobCards/${jobCardId}/status`)
-      .set({
-        status,
+      .ref(`jobCards/${jobCardId}`)
+      .update({
+        status: status,
         updatedAt: Date.now(),
       });
   } catch (error) {
