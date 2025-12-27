@@ -63,8 +63,8 @@ export default function ProviderProfileScreen({navigation}: any) {
     let profileFound = false;
 
     const loadProfile = (providerData: ProviderProfile) => {
-      if (profileFound) return; // Prevent duplicate updates
-      profileFound = true;
+      // Always update profile to ensure fresh data after edits
+      // The onSnapshot will fire when data changes, so we should always update
       setProfile(providerData);
       // Load provider address
       if ((providerData as any).address) {
@@ -73,6 +73,7 @@ export default function ProviderProfileScreen({navigation}: any) {
       // Reset image error when profile updates
       setImageError(false);
       setLoading(false);
+      profileFound = true;
     };
 
     // Check by UID first (phone auth or if saved with UID as doc ID)
