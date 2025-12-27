@@ -75,24 +75,39 @@ class WebSocketService {
         autoConnect: true,
         // Add path if your server uses a custom path (default is '/socket.io/')
         path: '/socket.io/',
+        // Additional options for better compatibility
+        upgrade: true,
+        rememberUpgrade: false,
+        // Add query parameters for debugging
+        query: {
+          providerId: this.currentProviderId,
+          clientType: 'provider-app',
+        },
       });
 
       // Connection events
       this.socket.on('connect', () => {
-        console.log('WebSocket connected successfully:', {
+        const transport = (this.socket as any)?.io?.engine?.transport?.name || 'unknown';
+        console.log('✅ WebSocket connected successfully:', {
           socketId: this.socket?.id,
           providerId: this.currentProviderId,
           url: SOCKET_URL,
+          transport: transport,
         });
         this.isConnected = true;
 
         // Join provider-specific room
         if (this.currentProviderId) {
           this.socket?.emit('join-provider-room', this.currentProviderId);
-          console.log(`Joined provider room: ${this.currentProviderId}`);
+          console.log(`✅ Joined provider room: ${this.currentProviderId}`);
         } else {
           console.warn('WebSocket connected but no provider ID available');
         }
+      });
+
+      // Listen for room-joined confirmation
+      this.socket.on('room-joined', (data: any) => {
+        console.log('✅ Room join confirmed:', data);
       });
 
       this.socket.on('disconnect', () => {
@@ -100,15 +115,23 @@ class WebSocketService {
         this.isConnected = false;
       });
 
-      this.socket.on('connect_error', (error) => {
+      this.socket.on('connect_error', (error: any) => {
         // Only log error if server URL is configured (not a placeholder)
         if (SOCKET_URL && !SOCKET_URL.includes('your-production-server.com')) {
-          console.warn('WebSocket connection error (will retry):', error.message || error);
+          const errorMessage = error?.message || error?.toString() || 'Unknown error';
+          console.warn('WebSocket connection error (will retry):', errorMessage);
           console.warn('Connection details:', {
             url: SOCKET_URL,
             providerId: this.currentProviderId,
-            error: error.toString(),
+            error: errorMessage,
+            description: error?.description || 'No description',
+            type: error?.type || 'Unknown',
           });
+          
+          // Check if it's a network error vs server error
+          if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Network')) {
+            console.warn('⚠️ Server might not be running. Start server with: cd HomeServices/server && npm start');
+          }
         } else {
           // Server URL not configured - silently skip connection
           console.log('WebSocket server not configured. Skipping connection.');
