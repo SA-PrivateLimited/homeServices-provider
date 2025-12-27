@@ -221,13 +221,16 @@ const App = () => {
 
     // Initialize WebSocket connection for real-time booking notifications
     // Check for both 'provider' and 'doctor' roles for backward compatibility
-    if (currentUser?.id && (currentUser?.role === 'provider' || currentUser?.role === 'doctor')) {
-      console.log('Initializing WebSocket for provider:', currentUser.id);
+    const userRole = (currentUser as any)?.role;
+    if (currentUser?.id && (userRole === 'provider' || userRole === 'doctor')) {
+      console.log('✅ Initializing WebSocket for provider:', currentUser.id, 'role:', userRole);
       WebSocketService.connect(currentUser.id);
     } else if (!currentUser?.id) {
       // Disconnect WebSocket when user logs out
       console.log('Disconnecting WebSocket - user logged out');
       WebSocketService.disconnect();
+    } else {
+      console.log('⚠️ WebSocket not initialized - user role:', userRole, 'user ID:', currentUser?.id);
     }
 
     // Cleanup on unmount
