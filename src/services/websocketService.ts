@@ -210,7 +210,7 @@ class WebSocketService {
    */
   private loadHooterSound(): void {
     // Only load sound if not already loaded
-    if (this.hooterSoundLoaded) {
+    if (this.hooterSoundLoaded || this.hooterSound) {
       return;
     }
 
@@ -218,25 +218,46 @@ class WebSocketService {
       // Load sound from assets
       // For Android: Place sound file in android/app/src/main/res/raw/
       // For iOS: Add sound file to Xcode project
+      // Note: Sound file exists at android/app/src/main/res/raw/hooter.wav
       this.hooterSound = new Sound('hooter.wav', Sound.MAIN_BUNDLE, (error) => {
         if (error) {
-          console.warn('Hooter sound file not found. Sound notifications will be disabled.');
-          console.warn('To enable: Place hooter.wav in android/app/src/main/res/raw/ (Android) or add to Xcode project (iOS)');
+          console.warn('❌ Hooter sound file not found or failed to load:', error);
+          console.warn('File should be at: android/app/src/main/res/raw/hooter.wav');
           this.hooterSound = null;
           this.hooterSoundLoaded = false;
           return;
         }
-        console.log('✅ Hooter sound loaded successfully');
-        this.hooterSoundLoaded = true;
+        
         if (this.hooterSound) {
-          console.log('Duration:', this.hooterSound.getDuration(), 'seconds');
+          try {
+            const duration = this.hooterSound.getDuration();
+            console.log('✅ Hooter sound loaded successfully, duration:', duration, 'seconds');
+            this.hooterSoundLoaded = true;
+          } catch (durationError) {
+            console.warn('⚠️ Sound loaded but duration check failed:', durationError);
+            // Still mark as loaded if sound object exists
+            this.hooterSoundLoaded = true;
+          }
+        } else {
+          console.warn('⚠️ Sound callback succeeded but sound object is null');
+          this.hooterSoundLoaded = false;
         }
       });
     } catch (error) {
-      console.warn('Error loading hooter sound:', error);
+      console.warn('❌ Error loading hooter sound:', error);
       this.hooterSound = null;
       this.hooterSoundLoaded = false;
     }
+  }
+
+  /**
+   * Test hooter sound (public method for testing)
+   */
+  testHooterSound(): void {
+    console.log('🔊 Testing hooter sound...');
+    console.log('Sound object:', this.hooterSound ? 'exists' : 'null');
+    console.log('Sound loaded flag:', this.hooterSoundLoaded);
+    this.playHooterSound();
   }
 
   /**

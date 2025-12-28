@@ -419,6 +419,22 @@ export default function ProviderDashboardScreen({navigation}: any) {
           </Text>
         </View>
       )}
+
+      {/* Test Hooter Sound Button (for testing) */}
+      <View style={styles.testSection}>
+        <TouchableOpacity
+          style={[styles.testButton, {backgroundColor: theme.card, borderColor: theme.border}]}
+          onPress={() => {
+            console.log('🔊 Testing hooter sound...');
+            websocketService.testHooterSound();
+            Alert.alert('Test', 'Hooter sound test triggered. Check console for details.');
+          }}>
+          <Icon name="volume-up" size={24} color={theme.primary} />
+          <Text style={[styles.testButtonText, {color: theme.text}]}>
+            Test Hooter Sound
+          </Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
     </View>
   );

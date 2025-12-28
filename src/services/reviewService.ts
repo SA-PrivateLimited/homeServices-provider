@@ -122,21 +122,51 @@ export const getProviderReviews = async (
   providerId: string,
 ): Promise<Review[]> => {
   try {
-    const snapshot = await firestore()
-      .collection(COLLECTIONS.REVIEWS)
-      .where('providerId', '==', providerId)
-      .orderBy('createdAt', 'desc')
-      .get();
+    // Try with orderBy first (requires index)
+    let snapshot;
+    try {
+      snapshot = await firestore()
+        .collection(COLLECTIONS.REVIEWS)
+        .where('providerId', '==', providerId)
+        .orderBy('createdAt', 'desc')
+        .get();
+    } catch (queryError: any) {
+      // If orderBy fails (missing index), fetch without orderBy and sort in memory
+      if (queryError.code === 'failed-precondition') {
+        console.warn('Missing index for reviews query. Fetching without orderBy and sorting in memory.');
+        snapshot = await firestore()
+          .collection(COLLECTIONS.REVIEWS)
+          .where('providerId', '==', providerId)
+          .get();
+      } else {
+        throw queryError;
+      }
+    }
 
-    return snapshot.docs.map(doc => ({
+    let reviews = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
       createdAt: doc.data()?.createdAt?.toDate() || new Date(),
       updatedAt: doc.data()?.updatedAt?.toDate(),
     })) as Review[];
-  } catch (error) {
+
+    // Sort by createdAt descending if we didn't use orderBy
+    if (reviews.length > 0 && !snapshot.query._queryConstraints.some((c: any) => c.type === 'orderBy')) {
+      reviews = reviews.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+
+    return reviews;
+  } catch (error: any) {
     console.error('Error fetching provider reviews:', error);
-    throw new Error('Failed to fetch reviews');
+    
+    // Provide more specific error messages
+    if (error.code === 'permission-denied') {
+      throw new Error('Permission denied. Please check Firestore rules.');
+    } else if (error.code === 'failed-precondition') {
+      throw new Error('Missing database index. Please create index for reviews: providerId + createdAt');
+    }
+    
+    throw new Error(`Failed to fetch reviews: ${error.message || 'Unknown error'}`);
   }
 };
 

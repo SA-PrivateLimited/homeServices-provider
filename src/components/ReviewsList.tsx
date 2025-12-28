@@ -42,8 +42,13 @@ export default function ReviewsList({
       setLoading(true);
       const providerReviews = await getProviderReviews(providerId);
       setReviews(providerReviews);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading reviews:', error);
+      // Show error message but don't throw - component will show empty state
+      if (error.message?.includes('index')) {
+        console.warn('Missing Firestore index. Please create index for reviews: providerId + createdAt');
+      }
+      setReviews([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
