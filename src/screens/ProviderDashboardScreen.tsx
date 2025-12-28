@@ -266,8 +266,8 @@ export default function ProviderDashboardScreen({navigation}: any) {
         return;
       }
 
-      // Accept booking
-      await websocketService.acceptBooking(bookingData, currentUser.uid);
+      // Accept booking with provider profile details
+      await websocketService.acceptBooking(bookingData, currentUser.uid, provider);
       
       // Create job card
       const jobCardId = await createJobCard(bookingData, provider.address);

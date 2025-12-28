@@ -240,9 +240,9 @@ class WebSocketService {
 
   /**
    * Accept a booking/consultation
-   * Updates the status to 'accepted' and assigns provider
+   * Updates the status to 'accepted' and assigns provider with provider details
    */
-  async acceptBooking(bookingData: any, providerId: string): Promise<void> {
+  async acceptBooking(bookingData: any, providerId: string, providerProfile?: any): Promise<void> {
     try {
       const consultationId = bookingData.consultationId || bookingData.id || bookingData.bookingId;
       
@@ -250,18 +250,32 @@ class WebSocketService {
         throw new Error('Consultation ID not found in booking data');
       }
 
-      // Update consultation/service request status to accepted
+      // Prepare provider details to store
+      const providerDetails: any = {
+        status: 'accepted',
+        doctorId: providerId, // Assign provider
+        providerId: providerId, // Also set providerId for compatibility
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      };
+
+      // Add provider details if available
+      if (providerProfile) {
+        providerDetails.providerName = providerProfile.name || providerProfile.providerName || '';
+        providerDetails.providerPhone = providerProfile.phoneNumber || providerProfile.phone || '';
+        providerDetails.providerEmail = providerProfile.email || '';
+        providerDetails.providerSpecialization = providerProfile.specialization || providerProfile.specialty || '';
+        providerDetails.providerRating = providerProfile.rating || 0;
+        providerDetails.providerImage = providerProfile.profileImage || '';
+        providerDetails.providerAddress = providerProfile.address || null;
+      }
+
+      // Update consultation/service request status to accepted with provider details
       await firestore()
         .collection('consultations')
         .doc(consultationId)
-        .update({
-          status: 'accepted',
-          doctorId: providerId, // Assign provider
-          providerId: providerId, // Also set providerId for compatibility
-          updatedAt: firestore.FieldValue.serverTimestamp(),
-        });
+        .update(providerDetails);
       
-      console.log('Booking accepted:', consultationId);
+      console.log('Booking accepted with provider details:', consultationId);
     } catch (error: any) {
       console.error('Error accepting booking:', error);
       throw new Error(`Failed to accept booking: ${error.message}`);

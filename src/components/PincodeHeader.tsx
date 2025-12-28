@@ -6,7 +6,6 @@ import {lightTheme, darkTheme} from '../utils/theme';
 import {usePincodeDetection} from '../hooks/usePincodeDetection';
 import PincodeInputModal from './PincodeInputModal';
 import PincodeSuccessModal from './PincodeSuccessModal';
-import PincodeTooltip from './PincodeTooltip';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 
@@ -27,7 +26,6 @@ const PincodeHeader: React.FC<PincodeHeaderProps> = ({onPress}) => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [savedPincode, setSavedPincode] = useState<string>('');
   const [savedAddress, setSavedAddress] = useState<string>('');
-  const [showTooltip, setShowTooltip] = useState(false);
   const [locationData, setLocationData] = useState<{
     address?: string;
     city?: string;
@@ -77,16 +75,11 @@ const PincodeHeader: React.FC<PincodeHeaderProps> = ({onPress}) => {
   }, [currentPincode]);
 
   const handlePress = () => {
-    if (currentPincode && locationData) {
-      // Show tooltip if pincode and location are available
-      setShowTooltip(true);
+    // Always open input modal on press
+    if (onPress) {
+      onPress();
     } else {
-      // Open input modal if no pincode or location
-      if (onPress) {
-        onPress();
-      } else {
-        setModalVisible(true);
-      }
+      setModalVisible(true);
     }
   };
 
@@ -140,9 +133,6 @@ const PincodeHeader: React.FC<PincodeHeaderProps> = ({onPress}) => {
             {currentPincode || 'Set Location'}
           </Text>
         )}
-        {currentPincode && locationData && (
-          <Icon name="information-circle-outline" size={14} color={theme.textSecondary} style={styles.infoIcon} />
-        )}
         {currentPincode && !locationData && (
           <Icon name="chevron-down" size={14} color={theme.textSecondary} />
         )}
@@ -161,14 +151,6 @@ const PincodeHeader: React.FC<PincodeHeaderProps> = ({onPress}) => {
         address={savedAddress}
       />
 
-      {currentPincode && (
-        <PincodeTooltip
-          visible={showTooltip}
-          onClose={() => setShowTooltip(false)}
-          pincode={currentPincode}
-          location={locationData || undefined}
-        />
-      )}
     </>
   );
 };
