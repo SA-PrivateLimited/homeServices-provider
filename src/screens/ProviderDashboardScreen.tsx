@@ -30,8 +30,10 @@ import {
   startLocationTracking,
 } from '../services/providerLocationService';
 import websocketService from '../services/websocketService';
+import soundService from '../services/soundService';
 import {getProviderJobCards} from '../services/jobCardService';
-import SwipeableBookingCard from '../components/SwipeableBookingCard';
+import BookingAlertModal from '../components/BookingAlertModal';
+import SuccessModal from '../components/SuccessModal';
 import {createJobCard} from '../services/jobCardService';
 
 export default function ProviderDashboardScreen({navigation}: any) {
@@ -48,6 +50,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const [rating, setRating] = useState(0);
   const [locationTracking, setLocationTracking] = useState<(() => void) | null>(null);
   const [incomingBooking, setIncomingBooking] = useState<any>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -71,8 +74,16 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
     // Subscribe to incoming bookings
     const unsubscribeBooking = websocketService.onNewBooking((bookingData) => {
+      console.log('📱 Dashboard received booking callback:', bookingData);
+      console.log('📱 Setting incomingBooking state with:', {
+        id: bookingData?.consultationId || bookingData?.id || bookingData?.bookingId,
+        customerName: bookingData?.customerName || bookingData?.patientName,
+      });
       setIncomingBooking(bookingData);
+      console.log('✅ Incoming booking state updated, modal should show now');
     });
+    
+    console.log('✅ Booking callback registered in dashboard');
 
     return () => {
       unsubscribe();
@@ -113,6 +124,19 @@ export default function ProviderDashboardScreen({navigation}: any) {
       websocketService.disconnect();
     };
   }, [isOnline, currentUser?.uid]);
+
+  // Debug: Log modal visibility (must be before any conditional returns)
+  useEffect(() => {
+    if (incomingBooking) {
+      console.log('🔍 Dashboard - incomingBooking set:', {
+        id: incomingBooking?.consultationId || incomingBooking?.id || incomingBooking?.bookingId,
+        customerName: incomingBooking?.customerName || incomingBooking?.patientName,
+      });
+      console.log('🔍 Dashboard - modal should be visible:', true);
+    } else {
+      console.log('🔍 Dashboard - incomingBooking is null, modal should be hidden');
+    }
+  }, [incomingBooking]);
 
   const loadDashboardData = async () => {
     try {
@@ -201,6 +225,17 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const handleAcceptBooking = async () => {
     if (!incomingBooking || !currentUser) return;
 
+    // Store booking data before clearing state
+    const bookingData = incomingBooking;
+    
+    // Stop continuous sound immediately
+    websocketService.stopSound();
+    
+    // Close modal immediately - this will unmount the BookingAlertModal component
+    setIncomingBooking(null);
+    
+    console.log('✅ Modal closed, booking accepted');
+
     try {
       setLoading(true);
       
@@ -228,19 +263,22 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
       if (!provider || !provider.address || !provider.address.pincode) {
         Alert.alert('Error', 'Please set up your address in profile settings to accept requests.');
-        setIncomingBooking(null);
         return;
       }
 
       // Accept booking
-      await websocketService.acceptBooking(incomingBooking, currentUser.uid);
+      await websocketService.acceptBooking(bookingData, currentUser.uid);
       
       // Create job card
-      const jobCardId = await createJobCard(incomingBooking, provider.address);
+      const jobCardId = await createJobCard(bookingData, provider.address);
       
-      Alert.alert('Success', 'Service request accepted! Job card created successfully.');
-      setIncomingBooking(null);
+      // Refresh dashboard data
       loadDashboardData();
+      
+      // Show success modal after a short delay
+      setTimeout(() => {
+        setShowSuccessModal(true);
+      }, 300);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to accept service request.');
     } finally {
@@ -250,6 +288,9 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
   const handleRejectBooking = async () => {
     if (!incomingBooking) return;
+
+    // Stop continuous sound
+    websocketService.stopSound();
 
     try {
       setLoading(true);
@@ -264,6 +305,8 @@ export default function ProviderDashboardScreen({navigation}: any) {
   };
 
   const handleDismissBooking = () => {
+    // Stop continuous sound when modal is dismissed
+    websocketService.stopSound();
     setIncomingBooking(null);
   };
 
@@ -277,15 +320,30 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
   return (
     <View style={[styles.container, {backgroundColor: theme.background}]}>
-      {/* Swipeable Booking Card */}
+      {/* Booking Alert Modal */}
       {incomingBooking && (
-        <SwipeableBookingCard
+        <BookingAlertModal
+          key={incomingBooking?.consultationId || incomingBooking?.id || incomingBooking?.bookingId || 'booking-modal'}
+          visible={!!incomingBooking}
           bookingData={incomingBooking}
           onAccept={handleAcceptBooking}
           onReject={handleRejectBooking}
           onDismiss={handleDismissBooking}
         />
       )}
+
+      {/* Success Modal */}
+      <SuccessModal
+        visible={showSuccessModal}
+        title="Success"
+        message="Service request accepted! Job card created successfully."
+        icon="checkmark-circle"
+        iconColor="#34C759"
+        buttonText="OK"
+        onClose={() => {
+          setShowSuccessModal(false);
+        }}
+      />
       
       <ScrollView
         style={styles.scrollView}
@@ -420,21 +478,6 @@ export default function ProviderDashboardScreen({navigation}: any) {
         </View>
       )}
 
-      {/* Test Hooter Sound Button (for testing) */}
-      <View style={styles.testSection}>
-        <TouchableOpacity
-          style={[styles.testButton, {backgroundColor: theme.card, borderColor: theme.border}]}
-          onPress={() => {
-            console.log('🔊 Testing hooter sound...');
-            websocketService.testHooterSound();
-            Alert.alert('Test', 'Hooter sound test triggered. Check console for details.');
-          }}>
-          <Icon name="volume-up" size={24} color={theme.primary} />
-          <Text style={[styles.testButtonText, {color: theme.text}]}>
-            Test Hooter Sound
-          </Text>
-        </TouchableOpacity>
-      </View>
     </ScrollView>
     </View>
   );
@@ -442,12 +485,6 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollView: {
     flex: 1,
   },
   scrollView: {
@@ -565,24 +602,6 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 14,
-  },
-  testSection: {
-    padding: 20,
-    paddingTop: 0,
-  },
-  testButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    gap: 12,
-  },
-  testButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
   },
 });
 

@@ -4,12 +4,8 @@
  */
 
 import io, { Socket } from 'socket.io-client';
-import Sound from 'react-native-sound';
-import { Alert, Platform } from 'react-native';
-import { createJobCard } from './jobCardService';
+import soundService from './soundService';
 import firestore from '@react-native-firebase/firestore';
-import auth from '@react-native-firebase/auth';
-import { getProviderStatus, getDistanceToCustomer, formatDistance } from './providerLocationService';
 
 // WebSocket URL - Set this to your actual server URL
 // For development: Use your local IP address (e.g., 'http://192.168.1.100:3000')
@@ -21,18 +17,11 @@ const SOCKET_URL = __DEV__
 class WebSocketService {
   private socket: Socket | null = null;
   private isConnected: boolean = false;
-  private hooterSound: Sound | null = null;
   private currentProviderId: string | null = null;
-  private hooterSoundLoaded: boolean = false;
   private bookingCallbacks: Array<(bookingData: any) => void> = [];
 
   constructor() {
-    // Enable playback in silence mode (iOS)
-    try {
-    Sound.setCategory('Playback', true);
-    } catch (error) {
-      console.warn('Failed to set sound category:', error);
-    }
+    // Sound is now handled by soundService
   }
 
   /**
@@ -66,7 +55,9 @@ class WebSocketService {
       }
     }
 
-    this.currentProviderId = providerId;
+    // Store provider ID before connecting
+    const providerIdToConnect = providerId;
+    this.currentProviderId = providerIdToConnect;
 
     // Check if SOCKET_URL is configured
     if (!SOCKET_URL || SOCKET_URL.includes('your-production-server.com')) {
@@ -93,7 +84,7 @@ class WebSocketService {
         rememberUpgrade: false,
         // Add query parameters for debugging
         query: {
-          providerId: this.currentProviderId,
+          providerId: providerIdToConnect,
           clientType: 'provider-app',
         },
       });
@@ -103,17 +94,19 @@ class WebSocketService {
         const transport = (this.socket as any)?.io?.engine?.transport?.name || 'unknown';
         console.log('✅ WebSocket connected successfully:', {
           socketId: this.socket?.id,
-          providerId: this.currentProviderId,
+          providerId: providerIdToConnect,
           url: SOCKET_URL,
           transport: transport,
         });
         this.isConnected = true;
 
-        // Join provider-specific room
-        if (this.currentProviderId) {
-          this.socket?.emit('join-provider-room', this.currentProviderId);
-          console.log(`✅ Joined provider room: provider-${this.currentProviderId}`);
-          console.log(`📋 Provider ID for notifications: ${this.currentProviderId}`);
+        // Join provider-specific room - use the stored providerId
+        const providerIdForRoom = providerIdToConnect || this.currentProviderId;
+        if (providerIdForRoom) {
+          console.log(`📤 Emitting join-provider-room for provider: ${providerIdForRoom}`);
+          this.socket?.emit('join-provider-room', providerIdForRoom);
+          console.log(`✅ Join request sent for provider room: provider-${providerIdForRoom}`);
+          console.log(`📋 Provider ID for notifications: ${providerIdForRoom}`);
         } else {
           console.warn('WebSocket connected but no provider ID available');
         }
@@ -122,6 +115,8 @@ class WebSocketService {
       // Listen for room-joined confirmation
       this.socket.on('room-joined', (data: any) => {
         console.log('✅ Room join confirmed:', data);
+        console.log(`✅ Provider ${this.currentProviderId} is now in room: ${data.room}`);
+        console.log(`📊 Room size: ${data.roomSize || 'unknown'}`);
       });
 
       this.socket.on('disconnect', () => {
@@ -197,331 +192,50 @@ class WebSocketService {
       this.socket.on('error', (error: any) => {
         console.error('❌ WebSocket error:', error);
       });
-
-      // Load hooter sound
-      this.loadHooterSound();
     } catch (error) {
       console.error('Error initializing WebSocket:', error);
     }
   }
 
   /**
-   * Load the hooter sound file
-   */
-  private loadHooterSound(): void {
-    // Only load sound if not already loaded
-    if (this.hooterSoundLoaded && this.hooterSound) {
-      console.log('✅ Hooter sound already loaded');
-      return;
-    }
-
-    if (this.hooterSound && !this.hooterSoundLoaded) {
-      // Sound object exists but not marked as loaded - verify it's ready
-      try {
-        const duration = this.hooterSound.getDuration();
-        if (duration > 0) {
-          console.log('✅ Hooter sound object exists and is ready, marking as loaded');
-          this.hooterSoundLoaded = true;
-          return;
-        }
-      } catch (e) {
-        // Sound exists but not ready, continue to reload
-        console.warn('⚠️ Sound object exists but not ready, reloading...');
-        this.hooterSound = null;
-      }
-    }
-
-    try {
-      console.log('🔊 Loading hooter sound from assets...');
-      // Load sound from assets
-      // For Android: Place sound file in android/app/src/main/res/raw/
-      // For iOS: Add sound file to Xcode project
-      // Note: Sound file exists at android/app/src/main/res/raw/hooter.wav
-      
-      // Create sound instance - the object is available immediately
-      const soundInstance = new Sound('hooter.wav', Sound.MAIN_BUNDLE, (error) => {
-        // Callback is called when sound is ready (or if error occurred)
-        if (error) {
-          console.warn('❌ Hooter sound file not found or failed to load:', error);
-          console.warn('Error details:', JSON.stringify(error));
-          console.warn('File should be at: android/app/src/main/res/raw/hooter.wav');
-          this.hooterSound = null;
-          this.hooterSoundLoaded = false;
-          return;
-        }
-        
-        // Success - sound is ready
-        // Verify the sound instance is valid
-        try {
-          if (soundInstance && soundInstance.getDuration) {
-            const duration = soundInstance.getDuration();
-            console.log('✅ Hooter sound loaded successfully, duration:', duration, 'seconds');
-            this.hooterSound = soundInstance;
-            this.hooterSoundLoaded = true;
-          } else {
-            console.warn('⚠️ Sound callback succeeded but instance is invalid');
-            this.hooterSoundLoaded = false;
-          }
-        } catch (verifyError) {
-          console.warn('⚠️ Error verifying sound after load:', verifyError);
-          // Still try to use it
-          this.hooterSound = soundInstance;
-          this.hooterSoundLoaded = true;
-        }
-      });
-      
-      // Assign immediately - sound object is created synchronously
-      // The callback will be called asynchronously when ready
-      this.hooterSound = soundInstance;
-      console.log('📦 Sound instance created, waiting for callback...');
-    } catch (error) {
-      console.warn('❌ Error creating sound instance:', error);
-      this.hooterSound = null;
-      this.hooterSoundLoaded = false;
-    }
-  }
-
-  /**
    * Test hooter sound (public method for testing)
+   * @deprecated Use soundService.playHooterSound() directly instead
    */
   testHooterSound(): void {
-    console.log('🔊 Testing hooter sound...');
-    console.log('Sound object:', this.hooterSound ? 'exists' : 'null');
-    console.log('Sound loaded flag:', this.hooterSoundLoaded);
-    this.playHooterSound();
-  }
-
-  /**
-   * Play hooter sound when new booking is received
-   */
-  private playHooterSound(): void {
-    // Check if sound is loaded
-    if (!this.hooterSound) {
-      console.warn('⚠️ Hooter sound not loaded yet, attempting to load...');
-      this.loadHooterSound();
-      // Wait a bit for async loading, then try again
-      setTimeout(() => {
-        if (this.hooterSound && this.hooterSoundLoaded) {
-          console.log('🔄 Retrying hooter sound playback after load...');
-          this.playHooterSound();
-        } else {
-          console.warn('⚠️ Hooter sound still not loaded after retry');
-        }
-      }, 1000);
-      return;
-    }
-
-    if (!this.hooterSoundLoaded) {
-      console.warn('⚠️ Hooter sound object exists but not marked as loaded, attempting to play anyway...');
-    }
-
-    try {
-      console.log('🔊 Attempting to play hooter sound...');
-      // Store reference to avoid issues with 'this' context
-      const soundRef = this.hooterSound;
-      
-      // Reset sound to beginning before playing
-      soundRef.reset();
-      soundRef.setVolume(1.0);
-      
-      soundRef.play((success) => {
-        if (success) {
-          console.log('✅ Hooter sound played successfully');
-        } else {
-          console.error('❌ Failed to play hooter sound - callback returned false');
-          // Reset the sound for next play
-          try {
-            soundRef.reset();
-          } catch (resetError) {
-            console.error('Error resetting sound:', resetError);
-          }
-        }
-      });
-    } catch (error) {
-      console.error('❌ Error playing hooter sound:', error);
-      // Try to reload sound on error
-      this.hooterSound = null;
-      this.hooterSoundLoaded = false;
-      this.loadHooterSound();
-    }
+    console.log('🔊 Testing hooter sound via WebSocketService (deprecated, use soundService instead)');
+    soundService.playHooterSound();
   }
 
   /**
    * Handle incoming booking notification
+   * Plays sound and notifies UI components via callbacks
+   * The modal UI will handle displaying the booking details
    */
   private async handleNewBooking(bookingData: any): Promise<void> {
-    console.log('Processing new booking:', bookingData);
+    console.log('🔔 Processing new booking:', bookingData);
+    console.log('📋 Number of registered callbacks:', this.bookingCallbacks.length);
 
-    // Play hooter sound
-    this.playHooterSound();
+    // Start continuous hooter sound (will play until accepted or dismissed)
+    soundService.startContinuousPlay();
 
     // Notify all registered callbacks (for UI components)
-    this.bookingCallbacks.forEach(callback => {
+    // This will trigger the BookingAlertModal to appear in the dashboard
+    this.bookingCallbacks.forEach((callback, index) => {
       try {
+        console.log(`📞 Calling callback ${index + 1}/${this.bookingCallbacks.length}`);
         callback(bookingData);
+        console.log(`✅ Callback ${index + 1} executed successfully`);
       } catch (error) {
-        console.error('Error in booking callback:', error);
+        console.error(`❌ Error in booking callback ${index + 1}:`, error);
       }
     });
+  }
 
-    // Check if provider is authenticated
-    const currentUser = auth().currentUser;
-    if (!currentUser) {
-      Alert.alert('Error', 'Please login to accept bookings');
-      return;
-    }
-
-    // Show alert notification with accept/reject options
-    const scheduledTime = bookingData.scheduledTime instanceof Date
-      ? bookingData.scheduledTime.toLocaleString()
-      : bookingData.scheduledTime
-      ? new Date(bookingData.scheduledTime).toLocaleString()
-      : 'Not specified';
-
-    let message = `New service request from ${bookingData.patientName || bookingData.customerName || 'Customer'}`;
-    if (bookingData.patientPhone || bookingData.customerPhone) {
-      message += `\n\nContact: ${bookingData.patientPhone || bookingData.customerPhone}`;
-    }
-    if (bookingData.patientAge) {
-      message += `\nAge: ${bookingData.patientAge} years`;
-    }
-    if (bookingData.scheduledTime) {
-      message += `\nScheduled Time: ${scheduledTime}`;
-    }
-    if (bookingData.consultationFee) {
-      message += `\nService Fee: ₹${bookingData.consultationFee}`;
-    }
-    
-    // Get customer address
-    const customerAddress = bookingData.customerAddress || bookingData.patientAddress;
-    
-    // Add customer address if available
-    if (customerAddress) {
-      message += `\n\n📍 Customer Address:`;
-      if (customerAddress.address) {
-        message += `\n${customerAddress.address}`;
-      }
-      if (customerAddress.pincode) {
-        message += `\nPincode: ${customerAddress.pincode}`;
-      }
-      if (customerAddress.city || customerAddress.state) {
-        const locationParts = [];
-        if (customerAddress.city) locationParts.push(customerAddress.city);
-        if (customerAddress.state) locationParts.push(customerAddress.state);
-        message += `\n${locationParts.join(', ')}`;
-      }
-
-      // Calculate and show distance if both provider and customer locations are available
-      try {
-        const providerStatus = await getProviderStatus(currentUser.uid);
-        if (
-          providerStatus?.currentLocation &&
-          customerAddress.latitude &&
-          customerAddress.longitude
-        ) {
-          const distanceInfo = getDistanceToCustomer(
-            providerStatus.currentLocation,
-            {
-              latitude: customerAddress.latitude,
-              longitude: customerAddress.longitude,
-            },
-          );
-          message += `\n\n📏 Distance: ${distanceInfo.distanceFormatted}`;
-          message += `\n⏱️ ETA: ~${distanceInfo.etaMinutes} min`;
-        }
-      } catch (error) {
-        console.log('Could not calculate distance:', error);
-      }
-    }
-
-    // Get provider document - support both phone auth (UID) and Google auth (email)
-    let provider: any = null;
-    
-    if (currentUser.email) {
-      const emailQuery = await firestore()
-        .collection('providers')
-        .where('email', '==', currentUser.email)
-        .limit(1)
-        .get();
-      
-      if (!emailQuery.empty) {
-        provider = emailQuery.docs[0].data();
-      }
-    }
-    
-    // If not found by email, try by UID (phone auth)
-    if (!provider) {
-      const uidDoc = await firestore()
-        .collection('providers')
-        .doc(currentUser.uid)
-        .get();
-      
-      if (uidDoc.exists) {
-        provider = uidDoc.data();
-      }
-    }
-
-    if (!provider) {
-      Alert.alert('Error', 'Provider profile not found. Please complete your profile setup.');
-      return;
-    }
-    const providerAddress = provider.address;
-
-    if (!providerAddress || !providerAddress.pincode) {
-      Alert.alert(
-        '🔔 New Service Request!',
-        message + '\n\n⚠️ Please set up your address in profile settings to accept this request.',
-        [
-          {
-            text: 'OK',
-            style: 'default',
-          },
-        ],
-        { cancelable: true }
-      );
-      return;
-    }
-
-    Alert.alert(
-      '🔔 New Service Request!',
-      message,
-      [
-        {
-          text: 'Reject',
-          style: 'cancel',
-          onPress: async () => {
-            try {
-              await this.rejectBooking(bookingData);
-              Alert.alert('Success', 'Service request rejected successfully.');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to reject service request. Please try again.');
-            }
-          },
-        },
-        {
-          text: 'Accept',
-          style: 'default',
-          onPress: async () => {
-            try {
-              // Update booking/consultation status to accepted
-              await this.acceptBooking(bookingData, currentUser.uid);
-              
-              // Create job card with customer details
-              const jobCardId = await createJobCard(bookingData, providerAddress);
-              Alert.alert(
-                'Success',
-                'Service request accepted! Job card created successfully.',
-                [{text: 'OK'}]
-              );
-              console.log('Job card created:', jobCardId);
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to accept service request. Please try again.');
-            }
-          },
-        },
-      ],
-      { cancelable: true }
-    );
+  /**
+   * Stop continuous sound (called when booking is accepted or dismissed)
+   */
+  stopSound(): void {
+    soundService.stopContinuousPlay();
   }
 
   /**
@@ -608,17 +322,7 @@ class WebSocketService {
       console.log('WebSocket disconnected');
     }
 
-    // Release sound resources
-    if (this.hooterSound) {
-      try {
-        this.hooterSound.stop();
-      this.hooterSound.release();
-      } catch (error) {
-        console.warn('Error releasing sound:', error);
-      }
-      this.hooterSound = null;
-      console.log('Hooter sound resources released');
-    }
+    // Sound is managed by soundService, not here
   }
 
   /**
