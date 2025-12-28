@@ -581,14 +581,6 @@ class WebSocketService {
   }
 
   /**
-   * Manually play hooter sound (for testing)
-   */
-  testHooterSound(): void {
-    console.log('Testing hooter sound...');
-    this.playHooterSound();
-  }
-
-  /**
    * Check if WebSocket URL is configured
    */
   isConfigured(): boolean {
