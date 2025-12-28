@@ -198,6 +198,75 @@ export default function ProviderDashboardScreen({navigation}: any) {
     setRefreshing(false);
   };
 
+  const handleAcceptBooking = async () => {
+    if (!incomingBooking || !currentUser) return;
+
+    try {
+      setLoading(true);
+      
+      // Get provider profile
+      let provider: any = null;
+      if (currentUser.email) {
+        const emailQuery = await firestore()
+          .collection('providers')
+          .where('email', '==', currentUser.email)
+          .limit(1)
+          .get();
+        if (!emailQuery.empty) {
+          provider = emailQuery.docs[0].data();
+        }
+      }
+      if (!provider) {
+        const uidDoc = await firestore()
+          .collection('providers')
+          .doc(currentUser.uid)
+          .get();
+        if (uidDoc.exists) {
+          provider = uidDoc.data();
+        }
+      }
+
+      if (!provider || !provider.address || !provider.address.pincode) {
+        Alert.alert('Error', 'Please set up your address in profile settings to accept requests.');
+        setIncomingBooking(null);
+        return;
+      }
+
+      // Accept booking
+      await websocketService.acceptBooking(incomingBooking, currentUser.uid);
+      
+      // Create job card
+      const jobCardId = await createJobCard(incomingBooking, provider.address);
+      
+      Alert.alert('Success', 'Service request accepted! Job card created successfully.');
+      setIncomingBooking(null);
+      loadDashboardData();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to accept service request.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectBooking = async () => {
+    if (!incomingBooking) return;
+
+    try {
+      setLoading(true);
+      await websocketService.rejectBooking(incomingBooking);
+      Alert.alert('Success', 'Service request rejected successfully.');
+      setIncomingBooking(null);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to reject service request.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDismissBooking = () => {
+    setIncomingBooking(null);
+  };
+
   if (loading && !refreshing) {
     return (
       <View style={[styles.container, {backgroundColor: theme.background}]}>
@@ -207,11 +276,22 @@ export default function ProviderDashboardScreen({navigation}: any) {
   }
 
   return (
-    <ScrollView
-      style={[styles.container, {backgroundColor: theme.background}]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }>
+    <View style={[styles.container, {backgroundColor: theme.background}]}>
+      {/* Swipeable Booking Card */}
+      {incomingBooking && (
+        <SwipeableBookingCard
+          bookingData={incomingBooking}
+          onAccept={handleAcceptBooking}
+          onReject={handleRejectBooking}
+          onDismiss={handleDismissBooking}
+        />
+      )}
+      
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }>
       {/* Online/Offline Toggle - Big Button */}
       <View style={styles.toggleSection}>
         <TouchableOpacity
