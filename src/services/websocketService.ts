@@ -23,14 +23,27 @@ class WebSocketService {
   private isConnected: boolean = false;
   private hooterSound: Sound | null = null;
   private currentProviderId: string | null = null;
+  private hooterSoundLoaded: boolean = false;
+  private bookingCallbacks: Array<(bookingData: any) => void> = [];
 
   constructor() {
     // Enable playback in silence mode (iOS)
     try {
-      Sound.setCategory('Playback', true);
+    Sound.setCategory('Playback', true);
     } catch (error) {
       console.warn('Failed to set sound category:', error);
     }
+  }
+
+  /**
+   * Register callback for new bookings (used by UI components)
+   */
+  onNewBooking(callback: (bookingData: any) => void): () => void {
+    this.bookingCallbacks.push(callback);
+    // Return unsubscribe function
+    return () => {
+      this.bookingCallbacks = this.bookingCallbacks.filter(cb => cb !== callback);
+    };
   }
 
   /**
@@ -197,7 +210,7 @@ class WebSocketService {
    */
   private loadHooterSound(): void {
     // Only load sound if not already loaded
-    if (this.hooterSound) {
+    if (this.hooterSoundLoaded) {
       return;
     }
 
@@ -210,9 +223,11 @@ class WebSocketService {
           console.warn('Hooter sound file not found. Sound notifications will be disabled.');
           console.warn('To enable: Place hooter.wav in android/app/src/main/res/raw/ (Android) or add to Xcode project (iOS)');
           this.hooterSound = null;
+          this.hooterSoundLoaded = false;
           return;
         }
-        console.log('Hooter sound loaded successfully');
+        console.log('✅ Hooter sound loaded successfully');
+        this.hooterSoundLoaded = true;
         if (this.hooterSound) {
           console.log('Duration:', this.hooterSound.getDuration(), 'seconds');
         }
@@ -220,6 +235,7 @@ class WebSocketService {
     } catch (error) {
       console.warn('Error loading hooter sound:', error);
       this.hooterSound = null;
+      this.hooterSoundLoaded = false;
     }
   }
 
@@ -227,21 +243,31 @@ class WebSocketService {
    * Play hooter sound when new booking is received
    */
   private playHooterSound(): void {
-    if (!this.hooterSound) {
-      console.warn('Hooter sound not loaded');
+    if (!this.hooterSound || !this.hooterSoundLoaded) {
+      console.warn('Hooter sound not loaded yet');
+      // Try to reload if not loaded
+      if (!this.hooterSoundLoaded) {
+        this.loadHooterSound();
+      }
       return;
     }
 
+    try {
+      // Reset sound to beginning before playing
+      this.hooterSound.reset();
     this.hooterSound.setVolume(1.0);
     this.hooterSound.play((success) => {
       if (success) {
-        console.log('Hooter sound played successfully');
+          console.log('✅ Hooter sound played successfully');
       } else {
         console.error('Failed to play hooter sound');
         // Reset the sound for next play
         this.hooterSound?.reset();
       }
     });
+    } catch (error) {
+      console.error('Error playing hooter sound:', error);
+    }
   }
 
   /**
@@ -252,6 +278,15 @@ class WebSocketService {
 
     // Play hooter sound
     this.playHooterSound();
+
+    // Notify all registered callbacks (for UI components)
+    this.bookingCallbacks.forEach(callback => {
+      try {
+        callback(bookingData);
+      } catch (error) {
+        console.error('Error in booking callback:', error);
+      }
+    });
 
     // Check if provider is authenticated
     const currentUser = auth().currentUser;
@@ -417,7 +452,7 @@ class WebSocketService {
    * Accept a booking/consultation
    * Updates the status to 'accepted' and assigns provider
    */
-  private async acceptBooking(bookingData: any, providerId: string): Promise<void> {
+  async acceptBooking(bookingData: any, providerId: string): Promise<void> {
     try {
       const consultationId = bookingData.consultationId || bookingData.id || bookingData.bookingId;
       
@@ -447,7 +482,7 @@ class WebSocketService {
    * Reject a booking/consultation
    * Updates the status to 'rejected'
    */
-  private async rejectBooking(bookingData: any): Promise<void> {
+  async rejectBooking(bookingData: any): Promise<void> {
     try {
       const consultationId = bookingData.consultationId || bookingData.id || bookingData.bookingId;
       
@@ -512,7 +547,7 @@ class WebSocketService {
     if (this.hooterSound) {
       try {
         this.hooterSound.stop();
-        this.hooterSound.release();
+      this.hooterSound.release();
       } catch (error) {
         console.warn('Error releasing sound:', error);
       }

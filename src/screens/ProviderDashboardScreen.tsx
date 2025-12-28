@@ -31,6 +31,8 @@ import {
 } from '../services/providerLocationService';
 import websocketService from '../services/websocketService';
 import {getProviderJobCards} from '../services/jobCardService';
+import SwipeableBookingCard from '../components/SwipeableBookingCard';
+import {createJobCard} from '../services/jobCardService';
 
 export default function ProviderDashboardScreen({navigation}: any) {
   const {isDarkMode} = useStore();
@@ -45,6 +47,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const [completedToday, setCompletedToday] = useState(0);
   const [rating, setRating] = useState(0);
   const [locationTracking, setLocationTracking] = useState<(() => void) | null>(null);
+  const [incomingBooking, setIncomingBooking] = useState<any>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -66,8 +69,14 @@ export default function ProviderDashboardScreen({navigation}: any) {
         }
       );
 
+    // Subscribe to incoming bookings
+    const unsubscribeBooking = websocketService.onNewBooking((bookingData) => {
+      setIncomingBooking(bookingData);
+    });
+
     return () => {
       unsubscribe();
+      unsubscribeBooking();
       if (locationTracking) {
         locationTracking();
       }
@@ -331,11 +340,18 @@ export default function ProviderDashboardScreen({navigation}: any) {
         </View>
       )}
     </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
   },
   toggleSection: {
