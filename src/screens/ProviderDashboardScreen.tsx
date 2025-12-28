@@ -566,5 +566,23 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
   },
+  testSection: {
+    padding: 20,
+    paddingTop: 0,
+  },
+  testButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    gap: 12,
+  },
+  testButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
 });
 
