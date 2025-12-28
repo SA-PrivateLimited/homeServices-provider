@@ -508,9 +508,22 @@ class WebSocketService {
   }
 
   /**
-   * Register a callback for new bookings
+   * Register a callback for new bookings (used by UI components)
+   * Returns unsubscribe function
    */
-  onNewBooking(callback: (bookingData: any) => void): void {
+  onNewBooking(callback: (bookingData: any) => void): () => void {
+    this.bookingCallbacks.push(callback);
+    // Return unsubscribe function
+    return () => {
+      this.bookingCallbacks = this.bookingCallbacks.filter(cb => cb !== callback);
+    };
+  }
+
+  /**
+   * Old method - kept for backward compatibility but not used
+   * @deprecated Use the new onNewBooking method that returns unsubscribe function
+   */
+  private registerBookingCallback(callback: (bookingData: any) => void): void {
     if (this.socket) {
       this.socket.on('new-booking', callback);
     }
