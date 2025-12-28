@@ -210,16 +210,25 @@ class WebSocketService {
    */
   private loadHooterSound(): void {
     // Only load sound if not already loaded
-    if (this.hooterSoundLoaded) {
+    if (this.hooterSoundLoaded && this.hooterSound) {
       console.log('✅ Hooter sound already loaded');
       return;
     }
 
-    if (this.hooterSound) {
-      // Sound object exists but not marked as loaded - mark it now
-      console.log('✅ Hooter sound object exists, marking as loaded');
-      this.hooterSoundLoaded = true;
-      return;
+    if (this.hooterSound && !this.hooterSoundLoaded) {
+      // Sound object exists but not marked as loaded - verify it's ready
+      try {
+        const duration = this.hooterSound.getDuration();
+        if (duration > 0) {
+          console.log('✅ Hooter sound object exists and is ready, marking as loaded');
+          this.hooterSoundLoaded = true;
+          return;
+        }
+      } catch (e) {
+        // Sound exists but not ready, continue to reload
+        console.warn('⚠️ Sound object exists but not ready, reloading...');
+        this.hooterSound = null;
+      }
     }
 
     try {
@@ -228,39 +237,45 @@ class WebSocketService {
       // For Android: Place sound file in android/app/src/main/res/raw/
       // For iOS: Add sound file to Xcode project
       // Note: Sound file exists at android/app/src/main/res/raw/hooter.wav
+      
+      // Create sound instance - the object is available immediately
       const soundInstance = new Sound('hooter.wav', Sound.MAIN_BUNDLE, (error) => {
+        // Callback is called when sound is ready (or if error occurred)
         if (error) {
           console.warn('❌ Hooter sound file not found or failed to load:', error);
+          console.warn('Error details:', JSON.stringify(error));
           console.warn('File should be at: android/app/src/main/res/raw/hooter.wav');
           this.hooterSound = null;
           this.hooterSoundLoaded = false;
           return;
         }
         
-        // Use the soundInstance from closure, not this.hooterSound (which might be null in callback)
-        if (soundInstance) {
-          try {
+        // Success - sound is ready
+        // Verify the sound instance is valid
+        try {
+          if (soundInstance && soundInstance.getDuration) {
             const duration = soundInstance.getDuration();
             console.log('✅ Hooter sound loaded successfully, duration:', duration, 'seconds');
-            // Update instance reference
             this.hooterSound = soundInstance;
             this.hooterSoundLoaded = true;
-          } catch (durationError) {
-            console.warn('⚠️ Sound loaded but duration check failed:', durationError);
-            // Still mark as loaded if sound object exists
-            this.hooterSound = soundInstance;
-            this.hooterSoundLoaded = true;
+          } else {
+            console.warn('⚠️ Sound callback succeeded but instance is invalid');
+            this.hooterSoundLoaded = false;
           }
-        } else {
-          console.warn('⚠️ Sound callback succeeded but sound instance is null');
-          this.hooterSoundLoaded = false;
+        } catch (verifyError) {
+          console.warn('⚠️ Error verifying sound after load:', verifyError);
+          // Still try to use it
+          this.hooterSound = soundInstance;
+          this.hooterSoundLoaded = true;
         }
       });
       
-      // Assign immediately (before callback)
+      // Assign immediately - sound object is created synchronously
+      // The callback will be called asynchronously when ready
       this.hooterSound = soundInstance;
+      console.log('📦 Sound instance created, waiting for callback...');
     } catch (error) {
-      console.warn('❌ Error loading hooter sound:', error);
+      console.warn('❌ Error creating sound instance:', error);
       this.hooterSound = null;
       this.hooterSoundLoaded = false;
     }
