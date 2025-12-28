@@ -434,6 +434,9 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
   toggleSection: {
     padding: 20,
     alignItems: 'center',
