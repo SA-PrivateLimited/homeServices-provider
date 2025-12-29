@@ -40,12 +40,22 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
   const theme = isDarkMode ? darkTheme : lightTheme;
   const defaultIconColor = iconColor || theme.primary;
 
+  // Don't render if not visible
+  if (!visible) {
+    return null;
+  }
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}>
+      onRequestClose={() => {
+        console.log('✅ Success modal onRequestClose called');
+        onClose();
+      }}
+      statusBarTranslucent
+      hardwareAccelerated>
       <View style={styles.overlay}>
         <View style={[styles.modalContainer, {backgroundColor: theme.card}]}>
           {/* Success Icon */}
@@ -93,8 +103,13 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
           {/* Action Button */}
           <TouchableOpacity
             style={[styles.button, {backgroundColor: defaultIconColor}]}
-            onPress={onClose}
-            activeOpacity={0.8}>
+            onPress={() => {
+              console.log('✅ Success modal close button pressed');
+              // Immediately close the modal
+              onClose();
+            }}
+            activeOpacity={0.7}
+            hitSlop={{top: 20, bottom: 20, left: 20, right: 20}}>
             <Text style={styles.buttonText}>{buttonText}</Text>
           </TouchableOpacity>
         </View>

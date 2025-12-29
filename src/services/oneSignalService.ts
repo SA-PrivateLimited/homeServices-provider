@@ -93,9 +93,13 @@ class OneSignalService {
         return;
       }
 
-      // Log notification attempt only in development
-      if (__DEV__) {
-      }
+      // Log notification attempt
+      console.log('📤 Sending OneSignal notification to external user ID:', externalUserId);
+      console.log('📤 Notification payload:', {
+        title: notification.title,
+        body: notification.body,
+        type: notification.type,
+      });
 
       // OneSignal REST API v2 uses Bearer token auth
       // API Key format: os_v2_app_... (User Auth Key from OneSignal Dashboard)
@@ -121,23 +125,28 @@ class OneSignalService {
       const result = await response.json();
 
       if (!response.ok) {
-        // Log error silently - notifications are non-critical and shouldn't break booking flow
-        // Only log in development mode for debugging
+        // Log error for debugging
         const errorMessage = result.errors?.[0] || result.message || 'Failed to send notification';
-        
-        // Suppress warnings for invalid API keys - they're not critical for app functionality
-        // The booking should proceed even if notifications fail
-        if (__DEV__) {
-        }
+        console.error('❌ OneSignal notification failed:', {
+          status: response.status,
+          error: errorMessage,
+          result,
+          externalUserId,
+        });
         
         // Don't throw - notifications are non-critical and shouldn't break booking flow
         return;
       }
 
-      // Log success only in development
-      if (__DEV__) {
+      // Log success
+      console.log('✅ OneSignal notification sent successfully:', {
+        recipients: result.recipients,
+        id: result.id,
+        externalUserId,
+      });
+      
       if (!result.recipients || result.recipients === 0) {
-        }
+        console.warn('⚠️ OneSignal notification sent but no recipients found. User may not have OneSignal initialized or external ID not set.');
       }
     } catch (error: any) {
       // Don't throw - notifications are non-critical
@@ -365,6 +374,78 @@ class OneSignalService {
       body: `Your consultation with ${consultation.patientName} starts in 1 hour`,
       type: 'reminder',
       consultationId: consultation.id,
+    });
+  }
+
+  /**
+   * Notify customer when provider accepts their service request
+   */
+  async notifyCustomerServiceAccepted(
+    customerId: string,
+    providerName: string,
+    serviceType: string,
+    consultationId: string,
+  ): Promise<void> {
+    console.log('📱 Sending OneSignal notification - Service Accepted:', {
+      customerId,
+      providerName,
+      serviceType,
+      consultationId,
+    });
+    await this.sendToUser(customerId, {
+      title: 'Service Request Accepted',
+      body: `${providerName} has accepted your ${serviceType} service request`,
+      type: 'consultation',
+      consultationId,
+      status: 'accepted',
+    });
+  }
+
+  /**
+   * Notify customer when provider starts service
+   */
+  async notifyCustomerServiceStarted(
+    customerId: string,
+    providerName: string,
+    serviceType: string,
+    consultationId: string,
+  ): Promise<void> {
+    console.log('📱 Sending OneSignal notification - Service Started:', {
+      customerId,
+      providerName,
+      serviceType,
+      consultationId,
+    });
+    await this.sendToUser(customerId, {
+      title: 'Service Started',
+      body: `${providerName} has started your ${serviceType} service`,
+      type: 'consultation',
+      consultationId,
+      status: 'in-progress',
+    });
+  }
+
+  /**
+   * Notify customer when provider completes service
+   */
+  async notifyCustomerServiceCompleted(
+    customerId: string,
+    providerName: string,
+    serviceType: string,
+    consultationId: string,
+  ): Promise<void> {
+    console.log('📱 Sending OneSignal notification - Service Completed:', {
+      customerId,
+      providerName,
+      serviceType,
+      consultationId,
+    });
+    await this.sendToUser(customerId, {
+      title: 'Service Completed',
+      body: `${providerName} has completed your ${serviceType} service`,
+      type: 'consultation',
+      consultationId,
+      status: 'completed',
     });
   }
 }

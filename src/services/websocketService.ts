@@ -5,16 +5,16 @@
 
 import io, { Socket } from 'socket.io-client';
 import soundService from './soundService';
+import hooterForegroundService from './hooterForegroundService';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
-import oneSignalService from './oneSignalService';
+import fcmNotificationService from './fcmNotificationService';
 
 // WebSocket URL - Set this to your actual server URL
 // For development: Use your local IP address (e.g., 'http://192.168.1.100:3000')
 // For production: Use your production server URL
-const SOCKET_URL = __DEV__
-  ? 'http://10.0.2.2:3001' // Android emulator localhost (using port 3001 to avoid conflicts)
-  : process.env.SOCKET_URL || 'https://your-production-server.com'; // Set via environment variable
+// Using production URL for both dev and prod since it's deployed to Cloud Run
+const SOCKET_URL = 'https://websocket-server-425944993130.us-central1.run.app'; // GCP Cloud Run (Free Tier)
 
 class WebSocketService {
   private socket: Socket | null = null;
@@ -30,11 +30,21 @@ class WebSocketService {
    * Register callback for new bookings (used by UI components)
    */
   onNewBooking(callback: (bookingData: any) => void): () => void {
+    console.log('📝 [WEBSOCKET] Registering booking callback. Current callbacks:', this.bookingCallbacks.length);
     this.bookingCallbacks.push(callback);
+    console.log('✅ [WEBSOCKET] Callback registered. Total callbacks:', this.bookingCallbacks.length);
     // Return unsubscribe function
     return () => {
       this.bookingCallbacks = this.bookingCallbacks.filter(cb => cb !== callback);
+      console.log('🗑️ [WEBSOCKET] Callback unregistered. Remaining callbacks:', this.bookingCallbacks.length);
     };
+  }
+
+  /**
+   * Get number of registered callbacks (for debugging)
+   */
+  getBookingCallbacksCount(): number {
+    return this.bookingCallbacks.length;
   }
 
   /**
@@ -46,13 +56,37 @@ class WebSocketService {
       return;
     }
 
+    // CRITICAL: Verify callback is registered BEFORE connecting
+    console.log('🔍 [WEBSOCKET] Checking callbacks before connect:', this.bookingCallbacks.length);
+    if (this.bookingCallbacks.length === 0) {
+      console.warn('⚠️ [WEBSOCKET] WARNING: No callbacks registered yet!');
+      console.warn('⚠️ [WEBSOCKET] Callback should be registered BEFORE calling connect()');
+      console.warn('⚠️ [WEBSOCKET] Waiting 500ms for callback registration...');
+      
+      // Wait a bit for callback to be registered (in case of race condition)
+      setTimeout(() => {
+        if (this.bookingCallbacks.length === 0) {
+          console.error('❌ [WEBSOCKET] Still no callbacks after wait! Modal will not show!');
+        } else {
+          console.log('✅ [WEBSOCKET] Callback registered, proceeding with connect');
+          this.connect(providerId); // Retry connection
+        }
+      }, 500);
+      return; // Don't connect yet
+    }
+
     // Disconnect existing connection if connecting to different provider
     if (this.socket?.connected) {
       if (this.currentProviderId === providerId) {
-        console.log('WebSocket already connected for this provider');
+        console.log('✅ [WEBSOCKET] Already connected for this provider:', providerId);
+        console.log('📋 [WEBSOCKET] Current callbacks count:', this.bookingCallbacks.length);
+        // Re-setup event listener in case it was lost (only if socket exists)
+        if (this.socket) {
+          this.setupBookingListener();
+        }
         return;
       } else {
-        console.log('Disconnecting existing WebSocket connection');
+        console.log('🔄 [WEBSOCKET] Disconnecting existing WebSocket connection');
         this.disconnect();
       }
     }
@@ -101,6 +135,10 @@ class WebSocketService {
           transport: transport,
         });
         this.isConnected = true;
+
+        // Setup booking listener immediately after connection
+        console.log('📋 [WEBSOCKET] Setting up booking listener after connect...');
+        this.setupBookingListener();
 
         // Join provider-specific room - use the stored providerId
         const providerIdForRoom = providerIdToConnect || this.currentProviderId;
@@ -172,23 +210,19 @@ class WebSocketService {
       });
 
       this.socket.on('reconnect', (attemptNumber) => {
-        console.log(`WebSocket reconnected after ${attemptNumber} attempts`);
+        console.log(`✅ [WEBSOCKET] WebSocket reconnected after ${attemptNumber} attempts`);
+        console.log('📋 [WEBSOCKET] Callbacks count after reconnect:', this.bookingCallbacks.length);
+        // Re-setup booking listener after reconnection
+        this.setupBookingListener();
         // Rejoin room after reconnection
         if (this.currentProviderId) {
+          console.log(`📤 [WEBSOCKET] Rejoining room after reconnect: provider-${this.currentProviderId}`);
           this.socket?.emit('join-provider-room', this.currentProviderId);
         }
       });
 
-      // Listen for new booking events
-      this.socket.on('new-booking', (bookingData: any) => {
-        console.log('🔔 New booking received via WebSocket:', {
-          bookingId: bookingData.consultationId || bookingData.id || bookingData.bookingId,
-          customerName: bookingData.customerName || bookingData.patientName,
-          providerId: this.currentProviderId,
-          bookingData: bookingData,
-        });
-        this.handleNewBooking(bookingData);
-      });
+      // Setup booking event listener
+      this.setupBookingListener();
 
       // Add error handler for socket errors
       this.socket.on('error', (error: any) => {
@@ -197,6 +231,59 @@ class WebSocketService {
     } catch (error) {
       console.error('Error initializing WebSocket:', error);
     }
+  }
+
+  /**
+   * Setup booking event listener (called after socket connection)
+   * This ensures the listener is always set up with current callbacks
+   */
+  private setupBookingListener(): void {
+    if (!this.socket) {
+      console.warn('⚠️ [WEBSOCKET] Cannot setup listener - socket is null');
+      return;
+    }
+
+    // Remove any existing listeners first to avoid duplicates
+    this.socket.off('new-booking');
+    
+    console.log('📋 [WEBSOCKET] Setting up booking listener with', this.bookingCallbacks.length, 'callback(s)');
+    
+    this.socket.on('new-booking', (bookingData: any) => {
+      console.log('🔔 [WEBSOCKET] ===== NEW BOOKING EVENT RECEIVED =====');
+      console.log('🔔 [WEBSOCKET] New booking received via WebSocket:', {
+        bookingId: bookingData.consultationId || bookingData.id || bookingData.bookingId,
+        customerName: bookingData.customerName || bookingData.patientName,
+        providerId: this.currentProviderId,
+        socketId: this.socket?.id,
+        callbacksRegistered: this.bookingCallbacks.length,
+        fullBookingData: bookingData,
+      });
+      
+      if (this.bookingCallbacks.length === 0) {
+        console.warn('⚠️ [WEBSOCKET] No callbacks registered when booking received');
+        console.warn('⚠️ [WEBSOCKET] Waiting for callback registration...');
+        // Still try to handle it - maybe callback will be registered soon
+        // This is a fallback for edge cases where callback registers slightly late
+        setTimeout(() => {
+          if (this.bookingCallbacks.length > 0) {
+            console.log('✅ [WEBSOCKET] Callback registered, processing booking now');
+            this.handleNewBooking(bookingData);
+          } else {
+            // Only log as debug - this shouldn't happen with the main fix in place
+            if (__DEV__) {
+              console.debug('ℹ️ [WEBSOCKET] Booking received but no callback registered yet (this is rare)');
+            }
+          }
+        }, 1000);
+        return;
+      }
+      
+      this.handleNewBooking(bookingData);
+      console.log('🔔 [WEBSOCKET] ===== END NEW BOOKING EVENT =====');
+    });
+    
+    console.log('✅ [WEBSOCKET] new-booking event listener registered');
+    console.log('📋 [WEBSOCKET] Current callbacks count:', this.bookingCallbacks.length);
   }
 
   /**
@@ -214,21 +301,43 @@ class WebSocketService {
    * The modal UI will handle displaying the booking details
    */
   private async handleNewBooking(bookingData: any): Promise<void> {
-    console.log('🔔 Processing new booking:', bookingData);
-    console.log('📋 Number of registered callbacks:', this.bookingCallbacks.length);
+    console.log('🔔 [WEBSOCKET] Processing new booking:', {
+      consultationId: bookingData?.consultationId || bookingData?.id || bookingData?.bookingId,
+      customerName: bookingData?.customerName || bookingData?.patientName,
+      serviceType: bookingData?.serviceType,
+    });
+    console.log('📋 [WEBSOCKET] Number of registered callbacks:', this.bookingCallbacks.length);
 
-    // Start continuous hooter sound (will play until accepted or dismissed)
-    soundService.startContinuousPlay();
+    if (this.bookingCallbacks.length === 0) {
+      console.error('❌ [WEBSOCKET] No callbacks registered! Modal will not show.');
+      console.error('❌ [WEBSOCKET] Make sure ProviderDashboardScreen has registered a callback via onNewBooking()');
+    }
+
+    // Start hooter sound via foreground service (works even in background)
+    // Fallback to regular soundService if foreground service not available
+    if (hooterForegroundService.isAvailable()) {
+      try {
+        console.log('🔊 [WEBSOCKET] Starting hooter via foreground service...');
+        await hooterForegroundService.startHooter();
+      } catch (error) {
+        console.warn('⚠️ [WEBSOCKET] Failed to start foreground service, falling back to regular sound:', error);
+        soundService.startContinuousPlay();
+      }
+    } else {
+      console.log('🔊 [WEBSOCKET] Using regular soundService (foreground service not available)');
+      soundService.startContinuousPlay();
+    }
 
     // Notify all registered callbacks (for UI components)
     // This will trigger the BookingAlertModal to appear in the dashboard
+    console.log(`📞 [WEBSOCKET] Notifying ${this.bookingCallbacks.length} registered callback(s)...`);
     this.bookingCallbacks.forEach((callback, index) => {
       try {
-        console.log(`📞 Calling callback ${index + 1}/${this.bookingCallbacks.length}`);
+        console.log(`📞 [WEBSOCKET] Calling callback ${index + 1}/${this.bookingCallbacks.length}`);
         callback(bookingData);
-        console.log(`✅ Callback ${index + 1} executed successfully`);
+        console.log(`✅ [WEBSOCKET] Callback ${index + 1} executed successfully`);
       } catch (error) {
-        console.error(`❌ Error in booking callback ${index + 1}:`, error);
+        console.error(`❌ [WEBSOCKET] Error in booking callback ${index + 1}:`, error);
       }
     });
   }
@@ -237,7 +346,15 @@ class WebSocketService {
    * Stop continuous sound (called when booking is accepted or dismissed)
    */
   stopSound(): void {
-    soundService.stopContinuousPlay();
+    // Stop foreground service if available, otherwise stop regular sound
+    if (hooterForegroundService.isAvailable()) {
+      hooterForegroundService.stopHooter().catch((error) => {
+        console.warn('⚠️ Failed to stop foreground service, falling back to regular sound:', error);
+        soundService.stopContinuousPlay();
+      });
+    } else {
+      soundService.stopContinuousPlay();
+    }
   }
 
   /**
@@ -354,7 +471,7 @@ class WebSocketService {
       
       // Send notification to customer
       if (customerId) {
-        oneSignalService.notifyCustomerServiceAccepted(
+        fcmNotificationService.notifyCustomerServiceAccepted(
           customerId,
           providerName,
           serviceType,

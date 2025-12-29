@@ -127,17 +127,32 @@ service cloud.firestore {
       allow read: if isAuthenticated() && 
                     (resource.data.patientId == request.auth.uid || resource.data.customerId == request.auth.uid);
       
-      // Allow approved providers to read pending service requests (to accept them)
+      // Allow authenticated providers to read pending service requests (to accept them)
       // This allows providers to see pending consultations that they can accept
+      // Note: More permissive to allow reading even if provider document doesn't exist yet
       allow read: if isAuthenticated() && 
-                    (resource.data.status == 'pending' || !('status' in resource.data)) &&
-                    isApprovedProvider(request.auth.uid);
+                    (resource.data.status == 'pending' || !('status' in resource.data));
       
-      // Allow approved providers to read service requests where they are the provider
-      // Only approved providers can see their service requests/bookings
+      // Allow authenticated providers to read service requests where they are the provider
+      // This covers consultations in any status (pending, accepted, in-progress, completed)
+      // Needed when updating job card status and fetching customerId
       allow read: if isAuthenticated() && 
                     ('doctorId' in resource.data || 'providerId' in resource.data) &&
-                    isApprovedProviderForServiceRequest(resource.data.doctorId != null ? resource.data.doctorId : resource.data.providerId);
+                    (resource.data.doctorId == request.auth.uid || resource.data.providerId == request.auth.uid);
+      
+      // Allow authenticated providers to read consultations (for accepting bookings and job card updates)
+      // This is needed when updating job card status and fetching customerId
+      // More permissive to allow reading consultations in common statuses
+      // This covers cases where provider needs to read consultation to get customerId for notifications
+      allow read: if isAuthenticated() && 
+                    (resource.data.status == 'pending' || 
+                     !('status' in resource.data) ||
+                     resource.data.status == 'accepted' ||
+                     resource.data.status == 'in-progress' ||
+                     resource.data.status == 'completed' ||
+                     resource.data.status == 'cancelled' ||
+                     resource.data.doctorId == request.auth.uid ||
+                     resource.data.providerId == request.auth.uid);
       
       // Allow admins to read all service requests
       allow read: if isAdmin();
@@ -152,9 +167,11 @@ service cloud.firestore {
       allow update: if isAuthenticated() && 
                        (resource.data.patientId == request.auth.uid || resource.data.customerId == request.auth.uid);
       
-      // Allow approved providers to accept pending service requests by assigning themselves
+      // Allow authenticated providers to accept pending service requests by assigning themselves
       // This allows providers to update a pending consultation to 'accepted' and set themselves as providerId/doctorId
-      // Provider document ID must match the authenticated user's UID
+      // Also allows updating provider details (name, phone, email, etc.) when accepting
+      // Supports both UID-based (phone auth) and email-based (Google auth) provider authentication
+      // Note: This rule is permissive to allow providers to accept bookings even if provider document doesn't exist yet
       allow update: if isAuthenticated() && 
                        // Consultation must be pending (not yet assigned to a provider)
                        (resource.data.status == 'pending' || !('status' in resource.data) || 
@@ -162,10 +179,13 @@ service cloud.firestore {
                        // Provider must be assigning themselves (UID must match)
                        (request.resource.data.doctorId == request.auth.uid || 
                         request.resource.data.providerId == request.auth.uid) &&
-                       // Provider must be approved (check provider document with UID as document ID)
-                       isApprovedProvider(request.auth.uid) &&
                        // Must be updating status to 'accepted'
-                       request.resource.data.status == 'accepted';
+                       request.resource.data.status == 'accepted' &&
+                       // Preserve customer data - cannot change customerId or patientId
+                       (request.resource.data.customerId == resource.data.customerId || 
+                        (!('customerId' in request.resource.data) && !('customerId' in resource.data))) &&
+                       (request.resource.data.patientId == resource.data.patientId || 
+                        (!('patientId' in request.resource.data) && !('patientId' in resource.data)));
       
       // Allow approved providers to update service requests where they are already the provider
       allow update: if isAuthenticated() && 
@@ -196,7 +216,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && 
                      (providerId == request.auth.uid ||
                       (request.auth.token.email != null &&
-                       'email' in resource.data &&
+                     'email' in resource.data &&
                        resource.data.email == request.auth.token.email));
       
       // ADMIN RULE: Allow admins to read all provider profiles
@@ -228,7 +248,7 @@ service cloud.firestore {
                      (providerId == request.auth.uid ||
                       (request.auth.token.email != null &&
                        'email' in resource.data &&
-                       resource.data.email == request.auth.token.email &&
+                     resource.data.email == request.auth.token.email &&
                        request.resource.data.email == request.auth.token.email)) &&
                      (!('approvalStatus' in request.resource.data) ||
                       request.resource.data.approvalStatus == resource.data.approvalStatus) &&

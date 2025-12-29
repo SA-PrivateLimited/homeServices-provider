@@ -16,13 +16,17 @@ class SoundService {
   constructor() {
     // Enable playback in silence mode (iOS) and use speaker for Android
     try {
-      Sound.setCategory('Playback', true);
+        Sound.setCategory('Playback', true);
+      console.log('✅ Sound category set to Playback');
     } catch (error) {
-      console.warn('Failed to set sound category:', error);
+      console.warn('⚠️ Failed to set sound category:', error);
     }
 
     // Load hooter sound on initialization
+    // Use setTimeout to ensure Sound is fully initialized
+    setTimeout(() => {
     this.loadHooterSound();
+    }, 100);
   }
 
   /**
@@ -53,38 +57,74 @@ class SoundService {
 
     try {
       console.log('🔊 Loading hooter sound from assets...');
-      // Load sound from assets
-      // For Android: Place sound file in android/app/src/main/res/raw/
-      // For iOS: Add sound file to Xcode project
-      // Note: Sound file exists at android/app/src/main/res/raw/hooter.wav
-
-      // Create sound instance - the object is available immediately
-      // ✅ CORRECT: Use undefined for Android res/raw files
+      console.log('📁 Platform:', Platform.OS);
+      
+      // Release existing sound if any
+      if (this.hooterSound) {
+        try {
+          this.hooterSound.stop();
+          this.hooterSound.release();
+        } catch (e) {
+          // Ignore errors when releasing
+        }
+        this.hooterSound = null;
+      }
+      
+      this.hooterSoundLoaded = false;
+      
+      // For Android: Use undefined for res/raw files
+      // For iOS: Use Sound.MAIN_BUNDLE
+      const basePath = Platform.OS === 'android' ? undefined : Sound.MAIN_BUNDLE;
+      
+      console.log('📦 Creating Sound instance with:', {
+        file: 'hooter.wav',
+        basePath: basePath === undefined ? 'undefined (Android res/raw)' : 'Sound.MAIN_BUNDLE',
+        platform: Platform.OS,
+      });
+      
       const soundInstance = new Sound(
         'hooter.wav',
-        undefined, // ✅ IMPORTANT for Android res/raw
+        basePath,
         (error) => {
-          if (error) {
-            console.log('❌ Failed to load hooter:', error);
-            this.hooterSound = null;
-            this.hooterSoundLoaded = false;
-            return;
-          }
+        if (error) {
+            console.error('❌ Failed to load hooter sound:', {
+              error,
+              message: (error as any)?.message || String(error),
+              platform: Platform.OS,
+            });
+          this.hooterSound = null;
+          this.hooterSoundLoaded = false;
+          return;
+        }
 
-          // Success - sound is ready
+          // Success callback - sound is loaded
+          console.log('✅ Hooter sound loaded successfully (callback fired)');
           this.hooterSound = soundInstance;
           this.hooterSoundLoaded = true;
-
-          console.log('✅ Hooter loaded, duration:', soundInstance.getDuration());
+          
+          // Verify duration
+          try {
+            const duration = soundInstance.getDuration();
+            console.log('✅ Sound duration:', duration, 'seconds');
+            if (duration <= 0) {
+              console.warn('⚠️ Sound duration is 0 or negative, but callback succeeded');
+            }
+          } catch (e) {
+            console.warn('⚠️ Could not get duration, but sound is loaded');
+        }
         }
       );
 
       // Assign immediately - sound object is created synchronously
       // The callback will be called asynchronously when ready
       this.hooterSound = soundInstance;
-      console.log('📦 Sound instance created, waiting for callback...');
-    } catch (error) {
-      console.warn('❌ Error creating sound instance:', error);
+      console.log('📦 Sound instance created, waiting for load callback...');
+    } catch (error: any) {
+      console.error('❌ Error creating sound instance:', {
+        error,
+        message: error?.message || String(error),
+        platform: Platform.OS,
+      });
       this.hooterSound = null;
       this.hooterSoundLoaded = false;
     }
@@ -94,32 +134,52 @@ class SoundService {
    * Play hooter sound (single play)
    */
   playHooterSound(): void {
+    console.log('🔊 [PLAY] Attempting to play hooter sound...');
+
+    // Ensure sound is loaded first
     if (!this.hooterSound) {
-      console.log('⏳ Sound object not available');
+      console.log('⏳ [PLAY] Sound object not available, loading...');
+      this.loadHooterSound();
+      // Wait a bit for sound to load, then try again
+      setTimeout(() => {
+          this.playHooterSound();
+      }, 1000);
       return;
     }
 
-    // Check if sound is loaded
-    if (!this.hooterSoundLoaded) {
-      try {
+    // Try to play even if not marked as loaded - sometimes the callback doesn't fire
+    // but the sound is still ready
+    let isReady = this.hooterSoundLoaded;
+    
+    if (!isReady) {
+    try {
         const duration = this.hooterSound.getDuration();
         if (duration > 0) {
+          console.log('✅ [PLAY] Sound ready (duration check), duration:', duration);
+          isReady = true;
           this.hooterSoundLoaded = true;
-          console.log('✅ Sound ready, duration:', duration);
         } else {
-          console.log('⏳ Sound not loaded yet, duration:', duration);
+          console.log('⏳ [PLAY] Sound duration is 0, waiting...');
+          // Try again after a delay
+          setTimeout(() => {
+            this.playHooterSound();
+          }, 500);
           return;
         }
       } catch (e) {
-        console.log('⏳ Sound not ready yet');
-        return;
+        console.log('⏳ [PLAY] Cannot check duration yet, trying to play anyway...');
+        // Don't return - try to play anyway
       }
     }
   
-    console.log('🔊 Playing hooter sound');
+    console.log('🔊 [PLAY] Playing hooter sound now (ready:', isReady, ')...');
   
     // Vibrate for haptic feedback
-    Vibration.vibrate([0, 500, 200, 500]);
+    try {
+      Vibration.vibrate([0, 500, 200, 500]);
+    } catch (vibError) {
+      console.warn('⚠️ Vibration failed:', vibError);
+    }
   
     try {
       // Stop any current playback
@@ -128,17 +188,41 @@ class SoundService {
       this.hooterSound.reset();
       // Set volume to maximum
       this.hooterSound.setVolume(1.0);
-      
-      // Play the sound
+
+      console.log('🔊 [PLAY] Calling sound.play()...');
+
+      // Play the sound - try even if not marked as loaded
       this.hooterSound.play((success) => {
         if (success) {
-          console.log('✅ Sound played successfully');
+          console.log('✅ [PLAY] Sound played successfully');
+          // Mark as loaded after successful play
+          this.hooterSoundLoaded = true;
         } else {
-          console.log('❌ Playback failed');
+          console.log('❌ [PLAY] Playback failed - success callback returned false');
+          // If failed, try reloading
+          if (!this.hooterSoundLoaded) {
+            console.log('🔄 [PLAY] Reloading sound and retrying...');
+            this.hooterSoundLoaded = false;
+            this.hooterSound = null;
+            setTimeout(() => {
+              this.loadHooterSound();
+              setTimeout(() => this.playHooterSound(), 1000);
+            }, 500);
+          }
         }
       });
     } catch (error) {
-      console.error('❌ Error playing sound:', error);
+      console.error('❌ [PLAY] Error playing sound:', error);
+      // If error, try reloading
+      if (!this.hooterSoundLoaded) {
+        console.log('🔄 [PLAY] Error occurred, reloading sound...');
+        this.hooterSoundLoaded = false;
+      this.hooterSound = null;
+        setTimeout(() => {
+          this.loadHooterSound();
+          setTimeout(() => this.playHooterSound(), 1000);
+        }, 500);
+      }
     }
   }
 
@@ -167,7 +251,7 @@ class SoundService {
               this.hooterSoundLoaded = true;
               clearInterval(checkInterval);
               this.startContinuousPlay();
-            }
+    }
           } catch (e) {
             // Still loading
           }
@@ -281,6 +365,24 @@ class SoundService {
    */
   isSoundReady(): boolean {
     return this.hooterSoundLoaded && this.hooterSound !== null;
+  }
+
+  /**
+   * Force reload the sound (useful for debugging)
+   */
+  reloadSound(): void {
+    console.log('🔄 Force reloading hooter sound...');
+    this.hooterSoundLoaded = false;
+    if (this.hooterSound) {
+      try {
+        this.hooterSound.stop();
+        this.hooterSound.release();
+      } catch (e) {
+        // Ignore
+      }
+      this.hooterSound = null;
+    }
+    this.loadHooterSound();
   }
 }
 

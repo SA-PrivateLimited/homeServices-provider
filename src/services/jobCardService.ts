@@ -1,6 +1,7 @@
 import firestore from '@react-native-firebase/firestore';
 import database from '@react-native-firebase/database';
 import auth from '@react-native-firebase/auth';
+import fcmNotificationService from './fcmNotificationService';
 
 export interface JobCard {
   id?: string;
@@ -267,6 +268,52 @@ export const updateJobCardStatus = async (
       throw new Error('User not authenticated');
     }
 
+    // Get job card data to get customer ID and consultation ID
+    const jobCardDoc = await firestore()
+      .collection('jobCards')
+      .doc(jobCardId)
+      .get();
+    
+    if (!jobCardDoc.exists) {
+      throw new Error('Job card not found');
+    }
+    
+    const jobCardData = jobCardDoc.data();
+    let customerId = jobCardData?.customerId;
+    const consultationId = jobCardData?.consultationId || jobCardData?.bookingId;
+    const providerName = jobCardData?.providerName || 'Provider';
+    const serviceType = jobCardData?.serviceType || 'service';
+
+    // If customerId is missing but consultationId exists, fetch it from consultation document
+    if (!customerId && consultationId) {
+      try {
+        const consultationDoc = await firestore()
+          .collection('consultations')
+          .doc(consultationId)
+          .get();
+        
+        if (consultationDoc.exists) {
+          const consultationData = consultationDoc.data();
+          customerId = consultationData?.customerId || consultationData?.patientId;
+          
+          // Update job card with customerId if found
+          if (customerId) {
+            await firestore()
+              .collection('jobCards')
+              .doc(jobCardId)
+              .update({
+                customerId,
+                updatedAt: firestore.FieldValue.serverTimestamp(),
+              });
+            console.log('✅ Fetched and saved customerId from consultation:', customerId);
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not fetch customerId from consultation:', error);
+        // Continue - we'll try to send notification anyway if customerId becomes available
+      }
+    }
+
     // Update in Firestore (for persistence and queries)
     await firestore()
       .collection('jobCards')
@@ -276,6 +323,22 @@ export const updateJobCardStatus = async (
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
 
+    // Update consultation status if consultation ID exists
+    if (consultationId) {
+      try {
+        await firestore()
+          .collection('consultations')
+          .doc(consultationId)
+          .update({
+            status,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+      } catch (consultationError) {
+        console.warn('Error updating consultation status:', consultationError);
+        // Don't throw - job card update should still succeed
+      }
+    }
+
     // Update in Realtime Database (for real-time synchronization)
     // Update the root node to ensure providerId is available for permission checks
     await database()
@@ -284,6 +347,105 @@ export const updateJobCardStatus = async (
         status: status,
         updatedAt: Date.now(),
       });
+
+    // Send notification to customer based on status
+    console.log('📋 updateJobCardStatus - Status update:', {
+      status,
+      customerId,
+      consultationId,
+      jobCardId,
+      providerName,
+      serviceType,
+    });
+
+    if (customerId && consultationId) {
+      try {
+        if (status === 'in-progress') {
+          console.log('🔄 Status is in-progress, sending FCM notification');
+          await fcmNotificationService.notifyCustomerServiceStarted(
+            customerId,
+            providerName,
+            serviceType,
+            consultationId,
+          );
+        } else if (status === 'completed') {
+          console.log('✅ Status is completed, sending FCM notification');
+          await fcmNotificationService.notifyCustomerServiceCompleted(
+            customerId,
+            providerName,
+            serviceType,
+            consultationId,
+          );
+          
+          // Emit WebSocket event to customer room for real-time review prompt
+          console.log('🔌 Starting WebSocket emission for service completion');
+          try {
+            const SOCKET_URL = __DEV__
+              ? 'http://10.0.2.2:3001'
+              : process.env.SOCKET_URL || 'https://your-production-server.com';
+            
+            const payload = {
+              customerId,
+              jobCardId,
+              consultationId,
+              providerName,
+              serviceType,
+            };
+            
+            console.log('📤 [PROVIDER] Emitting WebSocket service-completed event:', {
+              ...payload,
+              socketUrl: SOCKET_URL,
+              timestamp: new Date().toISOString(),
+            });
+            
+            const response = await fetch(`${SOCKET_URL}/emit-service-completed`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(payload),
+            });
+            
+            console.log('📥 [PROVIDER] WebSocket response status:', response.status);
+            
+            const result = await response.json();
+            console.log('📥 [PROVIDER] WebSocket response data:', result);
+            
+            if (response.ok && result.success) {
+              console.log('✅ [PROVIDER] WebSocket service-completed event emitted successfully');
+              console.log('📊 [PROVIDER] Customer room size:', result.roomSize);
+              if (result.roomSize === 0) {
+                console.warn('⚠️ [PROVIDER] WARNING: Customer room size is 0 - customer may not be connected!');
+              }
+            } else {
+              console.error('❌ [PROVIDER] Failed to emit WebSocket service-completed event:', {
+                status: response.status,
+                error: result.error || 'Unknown error',
+                result,
+              });
+            }
+          } catch (websocketError: any) {
+            console.error('❌ [PROVIDER] Error emitting WebSocket service-completed event:', {
+              error: websocketError.message,
+              stack: websocketError.stack,
+              name: websocketError.name,
+            });
+            // Don't throw - WebSocket failure shouldn't block status update
+          }
+        }
+      } catch (notificationError: any) {
+        console.error('❌ [PROVIDER] Error sending status notification:', {
+          error: notificationError.message,
+          status,
+        });
+        // Don't throw - notification failure shouldn't block status update
+      }
+    } else {
+      console.warn('⚠️ [PROVIDER] Cannot send notification - missing customerId or consultationId:', {
+        customerId: !!customerId,
+        consultationId: !!consultationId,
+      });
+    }
   } catch (error) {
     console.error('Error updating job card status:', error);
     throw new Error('Failed to update job card status');

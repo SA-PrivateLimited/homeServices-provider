@@ -1,6 +1,7 @@
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import messaging from '@react-native-firebase/messaging';
+import functions from '@react-native-firebase/functions';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 import type {User, UserLocation} from '../types/consultation';
 import NotificationService from './notificationService';
@@ -262,7 +263,10 @@ export const verifyPhoneCode = async (
         ]);
         console.log('✅ [VERIFY] FCM token retrieved');
       } catch (fcmError: any) {
-        console.warn('⚠️ [VERIFY] FCM token retrieval failed (non-blocking):', fcmError.message);
+        // FCM token timeout is non-critical - silently handle in production
+        if (__DEV__) {
+          console.debug('ℹ️ [VERIFY] FCM token retrieval timeout (non-blocking)');
+        }
         // Use existing token if available, or empty string
         fcmToken = userDoc.data()?.fcmToken || '';
       }
@@ -299,7 +303,10 @@ export const verifyPhoneCode = async (
         ]);
         console.log('✅ [VERIFY] FCM token retrieved');
       } catch (fcmError: any) {
-        console.warn('⚠️ [VERIFY] FCM token retrieval failed (non-blocking):', fcmError.message);
+        // FCM token timeout is non-critical - silently handle in production
+        if (__DEV__) {
+          console.debug('ℹ️ [VERIFY] FCM token retrieval timeout (non-blocking)');
+        }
         // Continue without FCM token - it can be set later
       }
 
@@ -704,6 +711,116 @@ export const signInWithGoogle = async (): Promise<User> => {
 };
 
 /**
+ * Send Email OTP for login
+ * Uses Cloud Function to send OTP via email
+ */
+export const sendEmailOTP = async (email: string): Promise<{expiresAt: number}> => {
+  try {
+    const sendEmailOTPFunction = functions().httpsCallable('sendEmailOTP');
+    const result = await sendEmailOTPFunction({email});
+    
+    return {
+      expiresAt: result.data.expiresAt,
+    };
+  } catch (error: any) {
+    console.error('Error sending email OTP:', error);
+    if (error.code === 'functions/invalid-argument') {
+      throw new Error(error.message || 'Invalid email address');
+    } else if (error.code === 'functions/internal') {
+      throw new Error('Failed to send email OTP. Please try again.');
+    }
+    throw new Error(error.message || 'Failed to send email OTP');
+  }
+};
+
+/**
+ * Verify Email OTP and sign in
+ * Uses Cloud Function to verify OTP and get custom token
+ */
+export const verifyEmailOTP = async (
+  email: string,
+  otpCode: string,
+  name?: string,
+): Promise<User> => {
+  try {
+    const verifyEmailOTPFunction = functions().httpsCallable('verifyEmailOTP');
+    const result = await verifyEmailOTPFunction({
+      email,
+      otpCode,
+      name: name || 'Provider',
+    });
+
+    const {customToken, uid} = result.data;
+
+    // Sign in with custom token
+    const userCredential = await auth().signInWithCustomToken(customToken);
+
+    // Get or create user document in Firestore
+    const userDoc = await firestore()
+      .collection(COLLECTIONS.USERS)
+      .doc(uid)
+      .get();
+
+    let userData: User;
+
+    if (userDoc.exists) {
+      // Existing user - update FCM token
+      const fcmToken = await messaging().getToken();
+      await firestore()
+        .collection(COLLECTIONS.USERS)
+        .doc(uid)
+        .set({fcmToken}, {merge: true});
+
+      userData = {
+        id: userDoc.id,
+        ...userDoc.data(),
+        createdAt: userDoc.data()?.createdAt?.toDate(),
+        fcmToken,
+        role: userDoc.data()?.role || undefined,
+      } as User;
+
+      // Initialize notification service to save token
+      await NotificationService.initializeAndSaveToken();
+    } else {
+      // New user - create document
+      const fcmToken = await messaging().getToken();
+
+      userData = {
+        id: uid,
+        name: name || userCredential.user.displayName || 'Provider',
+        email: email,
+        phone: '',
+        createdAt: new Date(),
+        fcmToken,
+        phoneVerified: false, // Email login doesn't verify phone
+      };
+
+      await firestore()
+        .collection(COLLECTIONS.USERS)
+        .doc(uid)
+        .set(userData);
+
+      // Initialize notification service to save token
+      await NotificationService.initializeAndSaveToken();
+    }
+
+    return userData;
+  } catch (error: any) {
+    console.error('Error verifying email OTP:', error);
+    if (error.code === 'functions/invalid-argument') {
+      throw new Error('Invalid OTP code. Please try again.');
+    } else if (error.code === 'functions/deadline-exceeded') {
+      throw new Error('OTP code has expired. Please request a new one.');
+    } else if (error.code === 'functions/resource-exhausted') {
+      throw new Error('Too many failed attempts. Please request a new code.');
+    } else if (error.code === 'functions/not-found') {
+      throw new Error('OTP not found. Please request a new code.');
+    }
+    throw new Error(error.message || 'Failed to verify email OTP');
+  }
+};
+
+/**
  * Check if user is authenticated
  */
 export const isAuthenticated = (): boolean => {
@@ -732,6 +849,8 @@ export default {
   signInWithGoogle,
   sendPhoneVerificationCode,
   verifyPhoneCode,
+  sendEmailOTP,
+  verifyEmailOTP,
   logout,
   getCurrentUser,
   updateUserProfile,

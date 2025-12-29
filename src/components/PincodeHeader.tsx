@@ -76,10 +76,10 @@ const PincodeHeader: React.FC<PincodeHeaderProps> = ({onPress}) => {
 
   const handlePress = () => {
     // Always open input modal on press
-    if (onPress) {
-      onPress();
-    } else {
-      setModalVisible(true);
+      if (onPress) {
+        onPress();
+      } else {
+        setModalVisible(true);
     }
   };
 

@@ -317,16 +317,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                     <Text style={[styles.changeNumberText, {color: theme.primary}]}>
                       Change Number
                     </Text>
-                  </TouchableOpacity>
+                </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={styles.resendButton}
-                    onPress={handleSendPhoneCode}
-                    disabled={loading}>
-                    <Text style={[styles.resendText, {color: theme.primary}]}>
-                      Resend Code
-                    </Text>
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.resendButton}
+                  onPress={handleSendPhoneCode}
+                  disabled={loading}>
+                  <Text style={[styles.resendText, {color: theme.primary}]}>
+                    Resend Code
+                  </Text>
+                </TouchableOpacity>
                 </View>
               </>
             )}

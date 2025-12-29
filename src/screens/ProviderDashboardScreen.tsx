@@ -73,17 +73,26 @@ export default function ProviderDashboardScreen({navigation}: any) {
       );
 
     // Subscribe to incoming bookings
+    // IMPORTANT: Register callback FIRST, before WebSocket connects
+    // This ensures callback is ready when booking events arrive
+    console.log('📝 [DASHBOARD] Registering booking callback...');
     const unsubscribeBooking = websocketService.onNewBooking((bookingData) => {
-      console.log('📱 Dashboard received booking callback:', bookingData);
-      console.log('📱 Setting incomingBooking state with:', {
-        id: bookingData?.consultationId || bookingData?.id || bookingData?.bookingId,
+      console.log('📱 [DASHBOARD] ===== BOOKING CALLBACK FIRED =====');
+      console.log('📱 [DASHBOARD] Booking callback received:', {
+        consultationId: bookingData?.consultationId || bookingData?.id || bookingData?.bookingId,
         customerName: bookingData?.customerName || bookingData?.patientName,
+        serviceType: bookingData?.serviceType,
+        fullData: bookingData,
       });
+      
+      // Set incoming booking state - this will trigger modal to show
       setIncomingBooking(bookingData);
-      console.log('✅ Incoming booking state updated, modal should show now');
+      
+      console.log('✅ [DASHBOARD] incomingBooking state set, modal should render');
+      console.log('📱 [DASHBOARD] ===== END BOOKING CALLBACK =====');
     });
     
-    console.log('✅ Booking callback registered in dashboard');
+    console.log('✅ [DASHBOARD] Booking callback registered. Callbacks count:', websocketService.getBookingCallbacksCount?.() || 'unknown');
 
     return () => {
       unsubscribe();
@@ -97,16 +106,29 @@ export default function ProviderDashboardScreen({navigation}: any) {
   // Start/stop location tracking based on online status
   useEffect(() => {
     if (isOnline && currentUser?.uid) {
-      console.log('🟢 Provider going online, connecting WebSocket with UID:', currentUser.uid);
+      console.log('🟢 [DASHBOARD] Provider going online, connecting WebSocket with UID:', currentUser.uid);
+      console.log('📋 [DASHBOARD] Callbacks count before connect:', websocketService.getBookingCallbacksCount?.() || 'unknown');
+      
       // Start location tracking when going online
       const stopTracking = startLocationTracking();
       setLocationTracking(() => stopTracking);
       
       // Connect WebSocket for real-time job notifications
       // Use UID as provider document ID matches user UID
+      // IMPORTANT: Callback should already be registered from the previous useEffect
+      console.log('🔌 [DASHBOARD] Connecting WebSocket...');
       websocketService.connect(currentUser.uid);
+      
+      // Verify callback is still registered after a short delay
+      setTimeout(() => {
+        const callbackCount = websocketService.getBookingCallbacksCount?.() || 0;
+        console.log('📋 [DASHBOARD] Callbacks count after connect:', callbackCount);
+        if (callbackCount === 0) {
+          console.error('❌ [DASHBOARD] WARNING: No callbacks registered! Modal will not show!');
+        }
+      }, 1000);
     } else {
-      console.log('🔴 Provider going offline, disconnecting WebSocket');
+      console.log('🔴 [DASHBOARD] Provider going offline, disconnecting WebSocket');
       // Stop location tracking when going offline
       if (locationTracking) {
         locationTracking();
@@ -121,7 +143,8 @@ export default function ProviderDashboardScreen({navigation}: any) {
       if (locationTracking) {
         locationTracking();
       }
-      websocketService.disconnect();
+      // Don't disconnect WebSocket on cleanup - let it stay connected while online
+      // websocketService.disconnect();
     };
   }, [isOnline, currentUser?.uid]);
 
@@ -317,7 +340,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
   if (loading && !refreshing) {
     return (
-      <View style={[styles.container, {backgroundColor: theme.background}]}>
+      <View style={[styles.container, styles.loaderContainer, {backgroundColor: theme.background}]}>
         <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
@@ -338,17 +361,26 @@ export default function ProviderDashboardScreen({navigation}: any) {
       )}
 
       {/* Success Modal */}
-      <SuccessModal
-        visible={showSuccessModal}
-        title="Success"
-        message="Service request accepted! Job card created successfully."
-        icon="checkmark-circle"
-        iconColor="#34C759"
-        buttonText="OK"
-        onClose={() => {
-          setShowSuccessModal(false);
-        }}
-      />
+      {showSuccessModal && (
+        <SuccessModal
+          key={`success-modal-${Date.now()}`}
+          visible={showSuccessModal}
+          title="Success"
+          message="Service request accepted! Job card created successfully."
+          icon="checkmark-circle"
+          iconColor="#34C759"
+          buttonText="OK"
+          onClose={() => {
+            console.log('✅ Closing success modal');
+            // Close immediately
+            setShowSuccessModal(false);
+            // Refresh dashboard data after a short delay
+            setTimeout(() => {
+              loadDashboardData();
+            }, 100);
+          }}
+        />
+      )}
       
       <ScrollView
         style={styles.scrollView}
@@ -491,6 +523,10 @@ export default function ProviderDashboardScreen({navigation}: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loaderContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollView: {
     flex: 1,

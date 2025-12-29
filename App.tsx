@@ -28,9 +28,6 @@ import NotificationService from './src/services/notificationService';
 import GeolocationService from './src/services/geolocationService';
 import WebSocketService from './src/services/websocketService';
 
-// OneSignal App ID
-const ONESIGNAL_APP_ID = 'b0020b77-3e0c-43c5-b92e-912b1cec1623';
-
 const App = () => {
   const {isDarkMode, hydrate, currentUser} = useStore();
 
@@ -54,83 +51,28 @@ const App = () => {
       global.addEventListener('unhandledrejection', rejectionHandler);
     }
 
-    // Initialize OneSignal with error handling
-    const initializeOneSignal = async () => {
+    // Request notification permission for FCM (Android 13+)
+    const requestNotificationPermission = async () => {
       try {
-        // Import OneSignal dynamically
-        const OneSignalModule = require('react-native-onesignal');
-        // For v5.x, OneSignal is nested inside the module
-        const OneSignal = OneSignalModule.OneSignal || OneSignalModule.default || OneSignalModule;
-        
-        if (!OneSignal) {
-          return;
-        }
+        if (Platform.OS === 'android' && Platform.Version >= 33) {
+          // Android 13+ requires POST_NOTIFICATIONS permission
+          const permissionStatus = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+          );
 
-        // For react-native-onesignal v5.x, use setAppId on the OneSignal object
-        if (OneSignal.setAppId && typeof OneSignal.setAppId === 'function') {
-          OneSignal.setAppId(ONESIGNAL_APP_ID);
-        } else if (OneSignal.initialize && typeof OneSignal.initialize === 'function') {
-          OneSignal.initialize(ONESIGNAL_APP_ID);
-        } else {
-          return;
-        }
-        
-        // Request notification permission (OneSignal v5.x)
-        // Check current permission status first
-        if (OneSignal.Notifications && OneSignal.Notifications.getPermissionAsync) {
-          const hasPermission = await OneSignal.Notifications.getPermissionAsync();
-
-          if (!hasPermission) {
-            // Request permission using v5.x API
-            if (OneSignal.Notifications.requestPermission) {
-              const granted = await OneSignal.Notifications.requestPermission(true);
-
-              if (granted) {
-              } else {
-              }
-            }
+          if (permissionStatus === PermissionsAndroid.RESULTS.GRANTED) {
+            console.log('✅ Notification permission granted');
           } else {
+            console.warn('⚠️ Notification permission denied');
           }
-        } else if (OneSignal.promptForPushNotificationsWithUserResponse && typeof OneSignal.promptForPushNotificationsWithUserResponse === 'function') {
-          // Fallback for older versions
-          OneSignal.promptForPushNotificationsWithUserResponse(response => {
-          });
-        }
-
-        // For Android, also check system notification settings
-        if (Platform.OS === 'android') {
-          const {PermissionsAndroid} = require('react-native');
-          if (Platform.Version >= 33) {
-            // Android 13+ requires POST_NOTIFICATIONS permission
-            const permissionStatus = await PermissionsAndroid.request(
-              PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-            );
-
-            if (permissionStatus === PermissionsAndroid.RESULTS.GRANTED) {
-            } else {
-            }
-          }
-        }
-
-        // Set up notification handlers
-        if (OneSignal.setNotificationWillShowInForegroundHandler && typeof OneSignal.setNotificationWillShowInForegroundHandler === 'function') {
-          OneSignal.setNotificationWillShowInForegroundHandler(notifReceivedEvent => {
-            const notification = notifReceivedEvent.getNotification();
-            notifReceivedEvent.complete(notification);
-          });
-        }
-
-        if (OneSignal.setNotificationOpenedHandler && typeof OneSignal.setNotificationOpenedHandler === 'function') {
-          OneSignal.setNotificationOpenedHandler(notification => {
-          });
         }
       } catch (error) {
-        console.error('Error initializing OneSignal:', error);
+        console.error('Error requesting notification permission:', error);
       }
     };
 
-    // Initialize OneSignal
-    initializeOneSignal();
+    // Request notification permission
+    requestNotificationPermission();
 
     // Request location permission (similar to notification permission)
     const requestLocationPermission = async () => {
@@ -176,50 +118,11 @@ const App = () => {
     };
   }, [hydrate]);
 
-  // Set OneSignal external user ID when user logs in
+  // FCM tokens are automatically saved to Firestore via NotificationService.initializeAndSaveToken()
+  // No need to manually set user IDs - FCM uses Firebase Auth UID automatically
+
+  // Initialize WebSocket connection for real-time booking notifications
   useEffect(() => {
-    const setOneSignalUserId = () => {
-      try {
-
-        const OneSignalModule = require('react-native-onesignal');
-        const OneSignal = OneSignalModule.OneSignal || OneSignalModule.default || OneSignalModule;
-
-        if (!OneSignal) {
-          return;
-        }
-
-        if (currentUser?.id) {
-
-          // For OneSignal SDK v5.x, use login() method instead of setExternalUserId
-          if (OneSignal.login && typeof OneSignal.login === 'function') {
-            OneSignal.login(currentUser.id);
-          } else if (OneSignal.setExternalUserId && typeof OneSignal.setExternalUserId === 'function') {
-            // Fallback for older versions
-            OneSignal.setExternalUserId(currentUser.id, (results: any) => {
-              if (results?.push?.success) {
-              } else {
-              }
-            });
-          } else {
-          }
-        } else {
-
-          // For OneSignal SDK v5.x, use logout() method
-          if (OneSignal.logout && typeof OneSignal.logout === 'function') {
-            OneSignal.logout();
-          } else if (OneSignal.removeExternalUserId && typeof OneSignal.removeExternalUserId === 'function') {
-            // Fallback for older versions
-            OneSignal.removeExternalUserId();
-          }
-        }
-      } catch (error) {
-        console.error('❌ Error managing OneSignal external user ID:', error);
-      }
-    };
-
-    setOneSignalUserId();
-
-    // Initialize WebSocket connection for real-time booking notifications
     // Check for both 'provider' and 'doctor' roles for backward compatibility
     // NOTE: WebSocket connection is now handled in ProviderDashboardScreen when provider goes online
     // This is to ensure connection only happens when provider is actually online

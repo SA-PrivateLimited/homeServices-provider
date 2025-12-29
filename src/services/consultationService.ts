@@ -9,8 +9,8 @@ import type {
   TimeSlot,
   User,
 } from '../types/consultation';
-// Use OneSignal instead of Firebase Cloud Functions (free alternative)
-import OneSignalService from './oneSignalService';
+// Use FCM for push notifications
+import fcmNotificationService from './fcmNotificationService';
 import NotificationService from './notificationService';
 // Google Meet link generation removed - doctors will add links manually
 // import {generateGoogleMeetLink, sendConsultationEmails} from './emailService';
@@ -301,9 +301,26 @@ export const bookConsultation = async (
     try {
       // Validate required fields before sending notifications
       if (returnConsultation.patientId && returnConsultation.doctorId) {
-        // Send push notifications via OneSignal (free alternative to Cloud Functions)
-        await OneSignalService.notifyPatientBooking(returnConsultation);
-        await OneSignalService.notifyDoctorBooking(returnConsultation);
+        // Send push notifications via FCM
+        // Note: FCM notifications require FCM tokens stored in Firestore
+        // These are saved automatically when users log in via @react-native-firebase/messaging
+        try {
+          await fcmNotificationService.sendToUser(returnConsultation.patientId, {
+            title: 'Consultation Booking Initiated',
+            body: `Your consultation with Dr. ${returnConsultation.doctorName} is scheduled. Please complete the payment to confirm your booking.`,
+            type: 'consultation',
+            consultationId: returnConsultation.id,
+          });
+          
+          await fcmNotificationService.sendToProvider(returnConsultation.doctorId, {
+            title: 'New Consultation Booking',
+            body: `${returnConsultation.patientName} has booked a consultation with you`,
+            type: 'consultation',
+            consultationId: returnConsultation.id,
+          });
+        } catch (error) {
+          console.warn('⚠️ Failed to send FCM notifications (non-critical):', error);
+        }
         
         // Schedule local reminder
         NotificationService.scheduleConsultationReminder(returnConsultation);
