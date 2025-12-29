@@ -6,6 +6,8 @@
 import io, { Socket } from 'socket.io-client';
 import soundService from './soundService';
 import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
+import oneSignalService from './oneSignalService';
 
 // WebSocket URL - Set this to your actual server URL
 // For development: Use your local IP address (e.g., 'http://192.168.1.100:3000')
@@ -250,6 +252,47 @@ class WebSocketService {
         throw new Error('Consultation ID not found in booking data');
       }
 
+      console.log('📋 [ACCEPT] Starting acceptBooking:', {
+        consultationId,
+        providerId,
+        hasProviderProfile: !!providerProfile,
+      });
+
+      // Get consultation data first to check current status
+      const consultationDoc = await firestore()
+        .collection('consultations')
+        .doc(consultationId)
+        .get();
+      
+      if (!consultationDoc.exists) {
+        throw new Error('Consultation not found');
+      }
+
+      const consultationData = consultationDoc.data();
+      const currentStatus = consultationData?.status || 'pending';
+      const existingProviderId = consultationData?.providerId || consultationData?.doctorId;
+      
+      console.log('📋 [ACCEPT] Current consultation state:', {
+        status: currentStatus,
+        existingProviderId,
+        consultationId,
+      });
+
+      // Check if already assigned to another provider
+      if (existingProviderId && existingProviderId !== providerId) {
+        throw new Error('This service request has already been assigned to another provider');
+      }
+
+      // Check if already accepted
+      if (currentStatus === 'accepted' && existingProviderId === providerId) {
+        console.log('⚠️ [ACCEPT] Consultation already accepted by this provider');
+        return; // Already accepted, no need to update
+      }
+
+      const customerId = consultationData?.customerId || consultationData?.patientId;
+      const serviceType = consultationData?.serviceType || providerProfile?.specialization || 'service';
+      const providerName = providerProfile?.name || providerProfile?.providerName || 'Provider';
+
       // Prepare provider details to store
       const providerDetails: any = {
         status: 'accepted',
@@ -269,15 +312,65 @@ class WebSocketService {
         providerDetails.providerAddress = providerProfile.address || null;
       }
 
-      // Update consultation/service request status to accepted with provider details
-      await firestore()
-        .collection('consultations')
-        .doc(consultationId)
-        .update(providerDetails);
+      console.log('📋 [ACCEPT] Updating consultation with provider details:', {
+        consultationId,
+        providerDetails: Object.keys(providerDetails),
+      });
       
-      console.log('Booking accepted with provider details:', consultationId);
+      console.log('📋 [ACCEPT] Attempting Firestore update:', {
+        consultationId,
+        currentStatus,
+        existingProviderId,
+        newProviderId: providerId,
+        providerDetails: Object.keys(providerDetails),
+      });
+
+      // Update consultation/service request status to accepted with provider details
+      try {
+        await firestore()
+          .collection('consultations')
+          .doc(consultationId)
+          .update(providerDetails);
+        
+        console.log('✅ [ACCEPT] Booking accepted successfully:', consultationId);
+      } catch (updateError: any) {
+        console.error('❌ [ACCEPT] Firestore update error:', {
+          code: updateError.code,
+          message: updateError.message,
+          consultationId,
+          providerId,
+          currentStatus,
+          existingProviderId,
+          currentUserId: auth().currentUser?.uid,
+          currentUserEmail: auth().currentUser?.email,
+        });
+        
+        // Provide more specific error messages
+        if (updateError.code === 'permission-denied') {
+          throw new Error(`Permission denied: Provider may not be approved or consultation may already be assigned. Code: ${updateError.code}`);
+        }
+        throw updateError;
+      }
+      
+      // Send notification to customer
+      if (customerId) {
+        oneSignalService.notifyCustomerServiceAccepted(
+          customerId,
+          providerName,
+          serviceType,
+          consultationId,
+        ).catch(error => {
+          console.error('❌ [ACCEPT] Error sending acceptance notification:', error);
+          // Don't throw - notification failure shouldn't block booking acceptance
+        });
+      }
     } catch (error: any) {
-      console.error('Error accepting booking:', error);
+      console.error('❌ [ACCEPT] Error accepting booking:', {
+        error: error.message,
+        code: error.code,
+        consultationId: bookingData.consultationId || bookingData.id || bookingData.bookingId,
+        providerId,
+      });
       throw new Error(`Failed to accept booking: ${error.message}`);
     }
   }

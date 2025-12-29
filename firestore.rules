@@ -127,6 +127,12 @@ service cloud.firestore {
       allow read: if isAuthenticated() && 
                     (resource.data.patientId == request.auth.uid || resource.data.customerId == request.auth.uid);
       
+      // Allow approved providers to read pending service requests (to accept them)
+      // This allows providers to see pending consultations that they can accept
+      allow read: if isAuthenticated() && 
+                    (resource.data.status == 'pending' || !('status' in resource.data)) &&
+                    isApprovedProvider(request.auth.uid);
+      
       // Allow approved providers to read service requests where they are the provider
       // Only approved providers can see their service requests/bookings
       allow read: if isAuthenticated() && 
@@ -146,7 +152,22 @@ service cloud.firestore {
       allow update: if isAuthenticated() && 
                        (resource.data.patientId == request.auth.uid || resource.data.customerId == request.auth.uid);
       
-      // Allow approved providers to update service requests where they are the provider
+      // Allow approved providers to accept pending service requests by assigning themselves
+      // This allows providers to update a pending consultation to 'accepted' and set themselves as providerId/doctorId
+      // Provider document ID must match the authenticated user's UID
+      allow update: if isAuthenticated() && 
+                       // Consultation must be pending (not yet assigned to a provider)
+                       (resource.data.status == 'pending' || !('status' in resource.data) || 
+                        (!('doctorId' in resource.data) && !('providerId' in resource.data))) &&
+                       // Provider must be assigning themselves (UID must match)
+                       (request.resource.data.doctorId == request.auth.uid || 
+                        request.resource.data.providerId == request.auth.uid) &&
+                       // Provider must be approved (check provider document with UID as document ID)
+                       isApprovedProvider(request.auth.uid) &&
+                       // Must be updating status to 'accepted'
+                       request.resource.data.status == 'accepted';
+      
+      // Allow approved providers to update service requests where they are already the provider
       allow update: if isAuthenticated() && 
                        ('doctorId' in resource.data || 'providerId' in resource.data) &&
                        isApprovedProviderForServiceRequest(resource.data.doctorId != null ? resource.data.doctorId : resource.data.providerId);
@@ -171,10 +192,12 @@ service cloud.firestore {
       
       // PROVIDER RULE: Allow authenticated providers to read their own profile
       // This allows providers to see their own profile even if pending/rejected
+      // Supports both UID-based (phone auth) and email-based (Google auth) provider authentication
       allow read: if isAuthenticated() && 
-                     request.auth.token.email != null &&
-                     'email' in resource.data &&
-                     resource.data.email == request.auth.token.email;
+                     (providerId == request.auth.uid ||
+                      (request.auth.token.email != null &&
+                       'email' in resource.data &&
+                       resource.data.email == request.auth.token.email));
       
       // ADMIN RULE: Allow admins to read all provider profiles
       // Note: This uses get() which can be expensive for collection queries
@@ -197,12 +220,16 @@ service cloud.firestore {
       
       // Allow providers to update their own profile (but cannot change approvalStatus or serviceFee)
       // Providers can request fee changes by setting pendingFeeChange, but cannot directly update serviceFee
-      // Can update fcmToken for notifications
+      // Can update fcmToken, location fields (currentLocation, lastSeen, isOnline, isAvailable) for notifications and geolocation
+      // Supports both UID-based (phone auth) and email-based (Google auth) provider authentication
       // Note: When using .set() with merge:true on non-existent doc, Firestore uses create rule above
       allow update: if isAuthenticated() && 
-                     request.auth.token.email != null &&
-                     resource.data.email == request.auth.token.email &&
-                     request.resource.data.email == request.auth.token.email &&
+                     // Provider must be updating their own profile (UID match or email match)
+                     (providerId == request.auth.uid ||
+                      (request.auth.token.email != null &&
+                       'email' in resource.data &&
+                       resource.data.email == request.auth.token.email &&
+                       request.resource.data.email == request.auth.token.email)) &&
                      (!('approvalStatus' in request.resource.data) ||
                       request.resource.data.approvalStatus == resource.data.approvalStatus) &&
                      // Prevent providers from directly updating consultationFee/serviceFee

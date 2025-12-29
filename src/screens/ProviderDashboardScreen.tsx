@@ -217,9 +217,14 @@ export default function ProviderDashboardScreen({navigation}: any) {
   };
 
   const onRefresh = async () => {
-    setRefreshing(true);
-    await loadDashboardData();
-    setRefreshing(false);
+    try {
+      setRefreshing(true);
+      await loadDashboardData();
+    } catch (error) {
+      console.error('Error refreshing dashboard:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleAcceptBooking = async () => {

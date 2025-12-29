@@ -68,14 +68,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       return;
     }
 
+    if (!confirmResult) {
+      Alert.alert('Error', 'Please request a verification code first');
+      return;
+    }
+
     setLoading(true);
     try {
+      console.log('🔐 [LOGIN] Verifying code for provider login...');
       const user = await authService.verifyPhoneCode(
         confirmResult,
         verificationCode,
         'Provider', // Default name for phone login
       );
 
+      console.log('✅ [LOGIN] Code verified, setting up provider user...');
       // Set role as 'provider' for HomeServicesProvider app
       const userWithRole = {
         ...user,
@@ -85,30 +92,45 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       // Update user role in Firestore if needed
       if (user.role !== 'provider') {
         try {
+          console.log('📝 [LOGIN] Updating user role to provider...');
           await authService.updateUserRole(user.id, 'provider');
           userWithRole.role = 'provider';
         } catch (error) {
           // Role update failed, but continue with login
-          console.warn('Failed to update user role:', error);
+          console.warn('⚠️ [LOGIN] Failed to update user role:', error);
         }
       }
 
+      console.log('✅ [LOGIN] Setting current user and navigating...');
       setCurrentUser(userWithRole);
       
       // Check if phone is verified
       if (userWithRole.phoneVerified !== true) {
+        console.log('⚠️ [LOGIN] Phone not verified, redirecting to PhoneVerification...');
         navigation.reset({
           index: 0,
           routes: [{name: 'PhoneVerification'}],
         });
       } else {
+        console.log('✅ [LOGIN] Phone verified, navigating to ProviderMain...');
         navigation.reset({
           index: 0,
           routes: [{name: 'ProviderMain'}],
         });
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to verify code');
+      console.error('❌ [LOGIN] Verification failed:', error);
+      
+      // Provide more helpful error messages
+      let errorMessage = error.message || 'Failed to verify code';
+      
+      if (error.message?.includes('Connection reset') || error.message?.includes('Connection error')) {
+        errorMessage = 'Network connection error. Please check your internet and try again.';
+      } else if (error.message?.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your internet connection and try again.';
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -228,6 +250,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
               </>
             ) : (
               <>
+                <View style={styles.phoneNumberDisplay}>
+                  <Text style={[styles.phoneNumberText, {color: theme.textSecondary}]}>
+                    Code sent to: {selectedCountry.dialCode} {phoneNumber}
+                  </Text>
+                </View>
+
                 <View
                   style={[
                     styles.inputContainer,
@@ -243,23 +271,32 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                   />
                   <TextInput
                     style={[styles.input, {color: theme.text}]}
-                    placeholder="Verification Code"
+                    placeholder="Enter 6-digit code"
                     placeholderTextColor={theme.textSecondary}
                     value={verificationCode}
-                    onChangeText={setVerificationCode}
+                    onChangeText={(text) => {
+                      // Only allow numeric input, max 6 digits
+                      const numericText = text.replace(/\D/g, '').slice(0, 6);
+                      setVerificationCode(numericText);
+                    }}
                     keyboardType="number-pad"
+                    maxLength={6}
                     editable={!loading}
+                    autoFocus
                   />
                 </View>
 
                 <TouchableOpacity
                   style={[
                     styles.button,
-                    {backgroundColor: theme.primary},
+                    {
+                      backgroundColor: theme.primary,
+                      opacity: verificationCode.length === 6 && !loading ? 1 : 0.6,
+                    },
                     loading && styles.buttonDisabled,
                   ]}
                   onPress={handleVerifyPhoneCode}
-                  disabled={loading}>
+                  disabled={loading || verificationCode.length !== 6}>
                   {loading ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
@@ -267,14 +304,30 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                   )}
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.resendButton}
-                  onPress={handleSendPhoneCode}
-                  disabled={loading}>
-                  <Text style={[styles.resendText, {color: theme.primary}]}>
-                    Resend Code
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.actionButtonsRow}>
+                  <TouchableOpacity
+                    style={styles.changeNumberButton}
+                    onPress={() => {
+                      setConfirmResult(null);
+                      setVerificationCode('');
+                      setPhoneNumber('');
+                    }}
+                    disabled={loading}>
+                    <Icon name="arrow-back" size={16} color={theme.primary} />
+                    <Text style={[styles.changeNumberText, {color: theme.primary}]}>
+                      Change Number
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.resendButton}
+                    onPress={handleSendPhoneCode}
+                    disabled={loading}>
+                    <Text style={[styles.resendText, {color: theme.primary}]}>
+                      Resend Code
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </>
             )}
           </View>
@@ -366,8 +419,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  resendButton: {
+  phoneNumberDisplay: {
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  phoneNumberText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 16,
+  },
+  changeNumberButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  changeNumberText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  resendButton: {
     alignItems: 'center',
   },
   resendText: {

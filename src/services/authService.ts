@@ -15,8 +15,9 @@ const COLLECTIONS = {
 };
 
 // Configure Google Sign-In
+// Use the Web client ID from google-services.json (client_type: 3)
 GoogleSignin.configure({
-  webClientId: '136199853280-v1ea3pa1fr44qv5hihp6ougjcrib3dj5.apps.googleusercontent.com',
+  webClientId: '425944993130-342d2o2ao3is7ljq3bi52m6q55279bh9.apps.googleusercontent.com',
   offlineAccess: true,
   forceCodeForRefreshToken: true,
 });
@@ -158,11 +159,13 @@ export const sendPhoneVerificationCode = async (
       throw new Error('Invalid phone number format. Please use format: +91XXXXXXXXXX');
     }
 
-    console.log('Sending verification code to:', formattedPhone);
+    console.log('📱 [SEND CODE] Sending verification code to:', formattedPhone);
     
     // Use signInWithPhoneNumber with automatic reCAPTCHA verification
     // This helps reduce rate limiting by verifying the request is legitimate
     const confirmation = await auth().signInWithPhoneNumber(formattedPhone, true);
+    
+    console.log('✅ [SEND CODE] Code sent successfully, confirmation received');
 
     return confirmation;
   } catch (error: any) {
@@ -197,10 +200,45 @@ export const verifyPhoneCode = async (
   code: string,
   name: string,
   email?: string,
+  retryCount: number = 0,
 ): Promise<User> => {
+  const MAX_RETRIES = 2;
+  
   try {
+    console.log('📱 [VERIFY] Attempting to verify code:', {
+      codeLength: code.length,
+      codePrefix: code.substring(0, 2) + '****',
+      retryAttempt: retryCount,
+    });
 
-    const userCredential = await confirmation.confirm(code);
+    if (!confirmation) {
+      throw new Error('Verification session expired. Please request a new code.');
+    }
+
+    // Retry logic for connection errors
+    let userCredential;
+    try {
+      userCredential = await confirmation.confirm(code);
+    } catch (confirmError: any) {
+      // Check if it's a connection/network error and retry
+      if (
+        (confirmError.code === 'auth/unknown' || 
+         confirmError.message?.includes('Connection reset') ||
+         confirmError.message?.includes('network') ||
+         confirmError.message?.includes('timeout')) &&
+        retryCount < MAX_RETRIES
+      ) {
+        console.log(`🔄 [VERIFY] Connection error, retrying (${retryCount + 1}/${MAX_RETRIES})...`);
+        // Wait 1 second before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return verifyPhoneCode(confirmation, code, name, email, retryCount + 1);
+      }
+      throw confirmError;
+    }
+    console.log('✅ [VERIFY] Code verified successfully:', {
+      uid: userCredential.user.uid,
+      phoneNumber: userCredential.user.phoneNumber,
+    });
 
     // Check if user document exists
     const userDoc = await firestore()
@@ -211,8 +249,24 @@ export const verifyPhoneCode = async (
     let userData: User;
 
     if (userDoc.exists) {
+      console.log('📋 [VERIFY] Existing user found, updating...');
       // Existing user - update FCM token and mark phone as verified
-      const fcmToken = await messaging().getToken();
+      // Get FCM token with timeout handling - don't block login if it fails
+      let fcmToken = '';
+      try {
+        fcmToken = await Promise.race([
+          messaging().getToken(),
+          new Promise<string>((_, reject) => 
+            setTimeout(() => reject(new Error('FCM token timeout')), 5000)
+          ),
+        ]);
+        console.log('✅ [VERIFY] FCM token retrieved');
+      } catch (fcmError: any) {
+        console.warn('⚠️ [VERIFY] FCM token retrieval failed (non-blocking):', fcmError.message);
+        // Use existing token if available, or empty string
+        fcmToken = userDoc.data()?.fcmToken || '';
+      }
+
       await firestore()
         .collection(COLLECTIONS.USERS)
         .doc(userCredential.user.uid)
@@ -227,11 +281,27 @@ export const verifyPhoneCode = async (
         role: userDoc.data()?.role || undefined,
       } as User;
 
-      // Initialize notification service to save token
-      await NotificationService.initializeAndSaveToken();
+      // Initialize notification service to save token (non-blocking)
+      NotificationService.initializeAndSaveToken().catch(error => {
+        console.warn('⚠️ [VERIFY] Notification service initialization failed (non-blocking):', error);
+      });
     } else {
+      console.log('📋 [VERIFY] New user, creating document...');
       // New user - create document with phone verified
-      const fcmToken = await messaging().getToken();
+      // Get FCM token with timeout handling - don't block login if it fails
+      let fcmToken = '';
+      try {
+        fcmToken = await Promise.race([
+          messaging().getToken(),
+          new Promise<string>((_, reject) => 
+            setTimeout(() => reject(new Error('FCM token timeout')), 5000)
+          ),
+        ]);
+        console.log('✅ [VERIFY] FCM token retrieved');
+      } catch (fcmError: any) {
+        console.warn('⚠️ [VERIFY] FCM token retrieval failed (non-blocking):', fcmError.message);
+        // Continue without FCM token - it can be set later
+      }
 
       userData = {
         id: userCredential.user.uid,
@@ -251,18 +321,39 @@ export const verifyPhoneCode = async (
           phoneVerified: true,
         });
 
-      // Initialize notification service to save token
-      await NotificationService.initializeAndSaveToken();
+      // Initialize notification service to save token (non-blocking)
+      NotificationService.initializeAndSaveToken().catch(error => {
+        console.warn('⚠️ [VERIFY] Notification service initialization failed (non-blocking):', error);
+      });
     }
+
+    console.log('✅ [VERIFY] User data prepared:', {
+      id: userData.id,
+      phoneVerified: userData.phoneVerified,
+      role: userData.role,
+    });
 
     return userData;
   } catch (error: any) {
+    console.error('❌ [VERIFY] Verification error:', {
+      code: error.code,
+      message: error.message,
+      error: error,
+      retryCount,
+    });
+
     if (error.code === 'auth/invalid-verification-code') {
-      throw new Error('Invalid verification code. Please try again.');
+      throw new Error('Invalid verification code. Please check the code and try again.');
     } else if (error.code === 'auth/code-expired') {
       throw new Error('Verification code expired. Please request a new one.');
+    } else if (error.code === 'auth/session-expired') {
+      throw new Error('Verification session expired. Please request a new code.');
+    } else if (error.code === 'auth/unknown' || error.message?.includes('Connection reset')) {
+      throw new Error('Connection error occurred. Please check your internet connection and try again.');
+    } else if (error.message) {
+      throw new Error(error.message);
     }
-    throw new Error('Failed to verify code. Please try again.');
+    throw new Error(`Failed to verify code: ${error.code || 'Unknown error'}. Please try again.`);
   }
 };
 
@@ -507,6 +598,7 @@ export const signInWithGoogle = async (): Promise<User> => {
       }
       idToken = tokens.idToken;
     } catch (signInError: any) {
+      console.error('Google Sign-In error:', signInError);
       if (signInError.code === 'SIGN_IN_CANCELLED' || signInError.message?.includes('cancelled')) {
         throw new Error('Sign-in cancelled');
       } else if (signInError.code === 'IN_PROGRESS') {
@@ -527,12 +619,15 @@ export const signInWithGoogle = async (): Promise<User> => {
     try {
       userCredential = await auth().signInWithCredential(googleCredential);
     } catch (authError: any) {
+      console.error('Firebase Auth error:', authError);
       if (authError.code === 'auth/invalid-credential') {
         throw new Error('Invalid Google credential. Please try again.');
       } else if (authError.code === 'auth/account-exists-with-different-credential') {
         throw new Error('An account already exists with this email using a different sign-in method.');
+      } else if (authError.code === 'auth/missing-client-identifier') {
+        throw new Error('Google Sign-In configuration error. Please ensure:\n1. SHA-1 fingerprint is added to Firebase Console\n2. Play Integrity API is enabled\n3. App is rebuilt after configuration changes');
       }
-      throw new Error('Failed to authenticate with Firebase. Please try again.');
+      throw new Error(`Failed to authenticate with Firebase: ${authError.message || authError.code || 'Unknown error'}`);
     }
 
     // Check if user document exists
