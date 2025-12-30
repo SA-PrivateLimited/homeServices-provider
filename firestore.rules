@@ -176,9 +176,12 @@ service cloud.firestore {
                        // Consultation must be pending (not yet assigned to a provider)
                        (resource.data.status == 'pending' || !('status' in resource.data) || 
                         (!('doctorId' in resource.data) && !('providerId' in resource.data))) &&
-                       // Provider must be assigning themselves (UID must match)
-                       (request.resource.data.doctorId == request.auth.uid || 
-                        request.resource.data.providerId == request.auth.uid) &&
+                       // Provider must be assigning themselves (UID match)
+                       // Allow if doctorId/providerId matches auth UID OR if no provider assigned yet
+                       ((request.resource.data.doctorId == request.auth.uid || 
+                         request.resource.data.providerId == request.auth.uid) ||
+                        // Also allow if consultation has no provider yet and user is authenticated
+                        (!('doctorId' in resource.data) && !('providerId' in resource.data))) &&
                        // Must be updating status to 'accepted'
                        request.resource.data.status == 'accepted' &&
                        // Preserve customer data - cannot change customerId or patientId
