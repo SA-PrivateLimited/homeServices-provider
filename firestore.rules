@@ -103,6 +103,31 @@ service cloud.firestore {
       // Prevent users from deleting their own document
       // Only admins can delete (if needed in future)
       allow delete: if isAdmin();
+      
+      // Saved Addresses Subcollection (for providers who may need to save addresses)
+      match /savedAddresses/{addressId} {
+        // Allow users to read their own saved addresses
+        allow read: if isAuthenticated() && 
+                      request.auth.uid == userId;
+        
+        // Allow admins to read all saved addresses
+        allow read: if isAdmin();
+        
+        // Allow users to create their own saved addresses
+        allow create: if isAuthenticated() && 
+                        userId == request.auth.uid;
+        
+        // Allow users to update their own saved addresses
+        allow update: if isAuthenticated() && 
+                        userId == request.auth.uid;
+        
+        // Allow users to delete their own saved addresses
+        allow delete: if isAuthenticated() && 
+                        userId == request.auth.uid;
+        
+        // Allow admins to read/update/delete all saved addresses
+        allow read, update, delete: if isAdmin();
+      }
     }
     
     // ========================================
@@ -173,15 +198,12 @@ service cloud.firestore {
       // Supports both UID-based (phone auth) and email-based (Google auth) provider authentication
       // Note: This rule is permissive to allow providers to accept bookings even if provider document doesn't exist yet
       allow update: if isAuthenticated() && 
-                       // Consultation must be pending (not yet assigned to a provider)
-                       (resource.data.status == 'pending' || !('status' in resource.data) || 
+                       // Consultation must be pending OR have no provider assigned yet
+                       ((resource.data.status == 'pending' || !('status' in resource.data)) ||
                         (!('doctorId' in resource.data) && !('providerId' in resource.data))) &&
                        // Provider must be assigning themselves (UID match)
-                       // Allow if doctorId/providerId matches auth UID OR if no provider assigned yet
-                       ((request.resource.data.doctorId == request.auth.uid || 
-                         request.resource.data.providerId == request.auth.uid) ||
-                        // Also allow if consultation has no provider yet and user is authenticated
-                        (!('doctorId' in resource.data) && !('providerId' in resource.data))) &&
+                       (request.resource.data.doctorId == request.auth.uid || 
+                        request.resource.data.providerId == request.auth.uid) &&
                        // Must be updating status to 'accepted'
                        request.resource.data.status == 'accepted' &&
                        // Preserve customer data - cannot change customerId or patientId
