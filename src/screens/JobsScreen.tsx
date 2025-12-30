@@ -22,15 +22,18 @@ import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import {fetchJobCardsByProvider, JobCard, subscribeToProviderJobCardStatuses} from '../services/jobCardService';
 
-export default function JobsScreen({navigation}: any) {
+export default function JobsScreen({navigation, route}: any) {
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const currentUser = auth().currentUser;
 
+  // Get initial filter from route params, default to 'all'
+  const initialFilter = route?.params?.filter || 'all';
+
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'in-progress' | 'completed'>('all');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'in-progress' | 'completed'>(initialFilter);
 
   useEffect(() => {
     if (currentUser) {
@@ -51,6 +54,13 @@ export default function JobsScreen({navigation}: any) {
       return () => unsubscribe();
     }
   }, [currentUser]);
+
+  // Update filter when route params change
+  useEffect(() => {
+    if (route?.params?.filter) {
+      setFilter(route.params.filter);
+    }
+  }, [route?.params?.filter]);
 
   const loadJobCards = async () => {
     if (!currentUser) return;
