@@ -486,16 +486,6 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
         <TouchableOpacity
           style={[styles.actionButton, {backgroundColor: theme.card}]}
-          onPress={() => navigation.navigate('Jobs', {filter: 'in-progress'})}>
-          <Icon name="play-arrow" size={24} color={theme.primary} />
-          <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            Jobs In Progress
-          </Text>
-          <Icon name="chevron-right" size={24} color={theme.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionButton, {backgroundColor: theme.card}]}
           onPress={() => navigation.navigate('History')}>
           <Icon name="account-balance-wallet" size={24} color={theme.primary} />
           <Text style={[styles.actionButtonText, {color: theme.text}]}>
