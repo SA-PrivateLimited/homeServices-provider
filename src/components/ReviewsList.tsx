@@ -2,6 +2,7 @@
  * Reviews List Component
  * Displays reviews for a provider
  * Reviews are read-only for providers
+ * Customer names are shown anonymously to protect privacy
  */
 
 import React, {useState, useEffect} from 'react';
@@ -123,7 +124,7 @@ export default function ReviewsList({
       )}
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {reviews.map(review => (
+        {reviews.map((review, index) => (
           <View
             key={review.id}
             style={[styles.reviewCard, {backgroundColor: theme.card}]}>
@@ -131,13 +132,11 @@ export default function ReviewsList({
             <View style={styles.reviewHeader}>
               <View style={styles.reviewHeaderLeft}>
                 <View style={styles.customerAvatar}>
-                  <Text style={styles.customerInitial}>
-                    {review.customerName.charAt(0).toUpperCase()}
-                  </Text>
+                  <Icon name="person" size={20} color="#fff" />
                 </View>
                 <View>
                   <Text style={[styles.customerName, {color: theme.text}]}>
-                    {review.customerName}
+                    Anonymous Customer
                   </Text>
                   <Text style={[styles.serviceType, {color: theme.textSecondary}]}>
                     {review.serviceType}
@@ -175,11 +174,11 @@ export default function ReviewsList({
               </ScrollView>
             )}
 
-            {/* Provider Cannot Edit Notice */}
+            {/* Anonymous Notice */}
             <View style={styles.readOnlyNotice}>
-              <Icon name="lock" size={12} color={theme.textSecondary} />
+              <Icon name="visibility-off" size={12} color={theme.textSecondary} />
               <Text style={[styles.readOnlyText, {color: theme.textSecondary}]}>
-                Review cannot be edited
+                Customer identity is kept anonymous
               </Text>
             </View>
           </View>
