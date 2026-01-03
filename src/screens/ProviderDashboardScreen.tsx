@@ -53,12 +53,16 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
+    if (!currentUser?.uid) {
+      return;
+    }
+
     loadDashboardData();
     
     // Subscribe to provider status changes
     const unsubscribe = firestore()
       .collection('providers')
-      .doc(currentUser?.uid)
+      .doc(currentUser.uid)
       .onSnapshot(
         doc => {
           if (doc.exists) {
@@ -73,9 +77,9 @@ export default function ProviderDashboardScreen({navigation}: any) {
       );
 
     // Subscribe to incoming bookings
-    // IMPORTANT: Register callback FIRST, before WebSocket connects
+    // CRITICAL: Register callback FIRST, before WebSocket connects
     // This ensures callback is ready when booking events arrive
-    console.log('📝 [DASHBOARD] Registering booking callback...');
+    console.log('📝 [DASHBOARD] Registering booking callback BEFORE WebSocket connection...');
     const unsubscribeBooking = websocketService.onNewBooking((bookingData) => {
       console.log('📱 [DASHBOARD] ===== BOOKING CALLBACK FIRED =====');
       console.log('📱 [DASHBOARD] Booking callback received:', {
@@ -92,7 +96,16 @@ export default function ProviderDashboardScreen({navigation}: any) {
       console.log('📱 [DASHBOARD] ===== END BOOKING CALLBACK =====');
     });
     
-    console.log('✅ [DASHBOARD] Booking callback registered. Callbacks count:', websocketService.getBookingCallbacksCount?.() || 'unknown');
+    const callbackCount = websocketService.getBookingCallbacksCount?.() || 0;
+    console.log('✅ [DASHBOARD] Booking callback registered. Callbacks count:', callbackCount);
+    
+    // If provider is already online, connect WebSocket now (callback is registered)
+    // This handles the case where provider was already online when component mounted
+    if (isOnline) {
+      console.log('🟢 [DASHBOARD] Provider already online, connecting WebSocket after callback registration');
+      console.log('📋 [DASHBOARD] Callbacks count before connect:', callbackCount);
+      websocketService.connect(currentUser.uid);
+    }
 
     return () => {
       unsubscribe();
@@ -103,27 +116,48 @@ export default function ProviderDashboardScreen({navigation}: any) {
     };
   }, [currentUser]);
 
-  // Start/stop location tracking based on online status
+  // Start/stop location tracking and WebSocket based on online status
   useEffect(() => {
-    if (isOnline && currentUser?.uid) {
+    if (!currentUser?.uid) {
+      return;
+    }
+
+    if (isOnline) {
       console.log('🟢 [DASHBOARD] Provider going online, connecting WebSocket with UID:', currentUser.uid);
-      console.log('📋 [DASHBOARD] Callbacks count before connect:', websocketService.getBookingCallbacksCount?.() || 'unknown');
+      
+      // Verify callback is registered before connecting
+      const callbackCount = websocketService.getBookingCallbacksCount?.() || 0;
+      console.log('📋 [DASHBOARD] Callbacks count before connect:', callbackCount);
+      
+      if (callbackCount === 0) {
+        console.warn('⚠️ [DASHBOARD] WARNING: No callbacks registered! Waiting for callback registration...');
+        // Wait a bit for callback to be registered (shouldn't happen, but safety check)
+        setTimeout(() => {
+          const newCallbackCount = websocketService.getBookingCallbacksCount?.() || 0;
+          if (newCallbackCount > 0) {
+            console.log('✅ [DASHBOARD] Callback registered, connecting WebSocket now');
+            websocketService.connect(currentUser.uid);
+          } else {
+            console.error('❌ [DASHBOARD] Still no callbacks after wait! WebSocket may not receive bookings!');
+            // Connect anyway - callback might register later
+            websocketService.connect(currentUser.uid);
+          }
+        }, 500);
+      } else {
+        // Callback is registered, safe to connect
+        console.log('✅ [DASHBOARD] Callback registered, connecting WebSocket...');
+        websocketService.connect(currentUser.uid);
+      }
       
       // Start location tracking when going online
       const stopTracking = startLocationTracking();
       setLocationTracking(() => stopTracking);
       
-      // Connect WebSocket for real-time job notifications
-      // Use UID as provider document ID matches user UID
-      // IMPORTANT: Callback should already be registered from the previous useEffect
-      console.log('🔌 [DASHBOARD] Connecting WebSocket...');
-      websocketService.connect(currentUser.uid);
-      
-      // Verify callback is still registered after a short delay
+      // Verify callback is still registered after connection
       setTimeout(() => {
-        const callbackCount = websocketService.getBookingCallbacksCount?.() || 0;
-        console.log('📋 [DASHBOARD] Callbacks count after connect:', callbackCount);
-        if (callbackCount === 0) {
+        const finalCallbackCount = websocketService.getBookingCallbacksCount?.() || 0;
+        console.log('📋 [DASHBOARD] Callbacks count after connect:', finalCallbackCount);
+        if (finalCallbackCount === 0) {
           console.error('❌ [DASHBOARD] WARNING: No callbacks registered! Modal will not show!');
         }
       }, 1000);

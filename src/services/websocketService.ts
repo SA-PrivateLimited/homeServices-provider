@@ -127,6 +127,12 @@ class WebSocketService {
 
       // Connection events
       this.socket.on('connect', () => {
+        // Ensure socket is not null before proceeding
+        if (!this.socket) {
+          console.error('❌ [WEBSOCKET] Socket is null in connect handler - this should not happen');
+          return;
+        }
+
         const transport = (this.socket as any)?.io?.engine?.transport?.name || 'unknown';
         console.log('✅ WebSocket connected successfully:', {
           socketId: this.socket?.id,
@@ -136,9 +142,13 @@ class WebSocketService {
         });
         this.isConnected = true;
 
-        // Setup booking listener immediately after connection
+        // Setup booking listener immediately after connection (socket is guaranteed to exist here)
         console.log('📋 [WEBSOCKET] Setting up booking listener after connect...');
-        this.setupBookingListener();
+        if (this.socket) {
+          this.setupBookingListener();
+        } else {
+          console.error('❌ [WEBSOCKET] Socket became null during connect handler');
+        }
 
         // Join provider-specific room - use the stored providerId
         const providerIdForRoom = providerIdToConnect || this.currentProviderId;
@@ -212,17 +222,22 @@ class WebSocketService {
       this.socket.on('reconnect', (attemptNumber) => {
         console.log(`✅ [WEBSOCKET] WebSocket reconnected after ${attemptNumber} attempts`);
         console.log('📋 [WEBSOCKET] Callbacks count after reconnect:', this.bookingCallbacks.length);
-        // Re-setup booking listener after reconnection
-        this.setupBookingListener();
-        // Rejoin room after reconnection
-        if (this.currentProviderId) {
-          console.log(`📤 [WEBSOCKET] Rejoining room after reconnect: provider-${this.currentProviderId}`);
-          this.socket?.emit('join-provider-room', this.currentProviderId);
+        // Re-setup booking listener after reconnection (ensure socket exists)
+        if (this.socket) {
+          this.setupBookingListener();
+          // Rejoin room after reconnection
+          if (this.currentProviderId) {
+            console.log(`📤 [WEBSOCKET] Rejoining room after reconnect: provider-${this.currentProviderId}`);
+            this.socket.emit('join-provider-room', this.currentProviderId);
+          }
+        } else {
+          console.error('❌ [WEBSOCKET] Socket is null during reconnect handler');
         }
       });
 
-      // Setup booking event listener
-      this.setupBookingListener();
+      // Don't setup listener here - wait for 'connect' event
+      // The listener will be set up in the 'connect' event handler (line 141)
+      // and 'reconnect' event handler (line 216)
 
       // Add error handler for socket errors
       this.socket.on('error', (error: any) => {
@@ -261,20 +276,27 @@ class WebSocketService {
       
       if (this.bookingCallbacks.length === 0) {
         console.warn('⚠️ [WEBSOCKET] No callbacks registered when booking received');
+        console.warn('⚠️ [WEBSOCKET] This should not happen - callback should be registered before WebSocket connects');
         console.warn('⚠️ [WEBSOCKET] Waiting for callback registration...');
         // Still try to handle it - maybe callback will be registered soon
         // This is a fallback for edge cases where callback registers slightly late
-        setTimeout(() => {
+        // Try multiple times with increasing delays
+        let attempts = 0;
+        const maxAttempts = 5;
+        const checkCallback = () => {
+          attempts++;
           if (this.bookingCallbacks.length > 0) {
-            console.log('✅ [WEBSOCKET] Callback registered, processing booking now');
+            console.log(`✅ [WEBSOCKET] Callback registered after ${attempts} attempt(s), processing booking now`);
             this.handleNewBooking(bookingData);
+          } else if (attempts < maxAttempts) {
+            console.log(`⏳ [WEBSOCKET] Still waiting for callback (attempt ${attempts}/${maxAttempts})...`);
+            setTimeout(checkCallback, 500);
           } else {
-            // Only log as debug - this shouldn't happen with the main fix in place
-            if (__DEV__) {
-              console.debug('ℹ️ [WEBSOCKET] Booking received but no callback registered yet (this is rare)');
-            }
+            console.error('❌ [WEBSOCKET] No callback registered after all attempts. Booking notification will be lost.');
+            console.error('❌ [WEBSOCKET] Make sure ProviderDashboardScreen registers callback via onNewBooking()');
           }
-        }, 1000);
+        };
+        setTimeout(checkCallback, 500);
         return;
       }
       
