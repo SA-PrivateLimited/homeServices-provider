@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyEmailOTP = exports.sendEmailOTP = exports.onServiceRequestUpdate = exports.sendPushNotification = exports.onPrescriptionCreated = exports.notifyDoctorJoined = exports.updateDoctorStats = exports.sendConsultationReminder = exports.onConsultationBooked = exports.generateAgoraToken = void 0;
+exports.onProviderRegistration = exports.onServiceCancellation = exports.onProviderApprovalStatusChange = exports.verifyEmailOTP = exports.sendEmailOTP = exports.onServiceRequestUpdate = exports.sendPushNotification = exports.onPrescriptionCreated = exports.notifyDoctorJoined = exports.updateDoctorStats = exports.sendConsultationReminder = exports.onConsultationBooked = exports.generateAgoraToken = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const agora_access_token_1 = require("agora-access-token");
@@ -672,5 +672,216 @@ exports.verifyEmailOTP = functions.https.onCall(async (data, context) => {
         console.error("Error verifying email OTP:", error);
         throw new functions.https.HttpsError("internal", "Failed to verify email OTP. Please try again.");
     }
+});
+/**
+ * 🔔 Notify provider when approval status changes
+ *
+ * Triggered when admin approves or rejects provider profile
+ * Sends notification to provider with approval status
+ */
+exports.onProviderApprovalStatusChange = functions.firestore
+    .document("providers/{providerId}")
+    .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const providerId = context.params.providerId;
+    // Check if approval status changed
+    if (before.approvalStatus !== after.approvalStatus) {
+        const fcmToken = after.fcmToken;
+        if (!fcmToken) {
+            console.log("No FCM token found for provider:", providerId);
+            return null;
+        }
+        let notification;
+        if (after.approvalStatus === "approved") {
+            notification = {
+                title: "🎉 Profile Approved!",
+                body: "Your profile has been approved! You can now accept service requests.",
+            };
+        }
+        else if (after.approvalStatus === "rejected") {
+            const reason = after.rejectionReason || "Please contact support for details.";
+            notification = {
+                title: "Profile Update Required",
+                body: `Your profile was not approved. Reason: ${reason}`,
+            };
+        }
+        else {
+            return null; // pending or other status
+        }
+        const message = {
+            notification,
+            data: {
+                type: "provider_approval",
+                approvalStatus: after.approvalStatus,
+                providerId,
+            },
+            token: fcmToken,
+            android: {
+                priority: "high",
+                notification: {
+                    channelId: "consultation-updates",
+                    priority: "high",
+                },
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: "default",
+                        badge: 1,
+                    },
+                },
+            },
+        };
+        try {
+            await admin.messaging().send(message);
+            console.log(`Approval notification sent to provider ${providerId}`);
+        }
+        catch (error) {
+            console.error("Error sending approval notification:", error);
+        }
+    }
+    return null;
+});
+/**
+ * 🔔 Notify provider when service is cancelled by customer
+ *
+ * Triggered when customer cancels service after assignment
+ * Sends notification to provider with cancellation reason
+ */
+exports.onServiceCancellation = functions.firestore
+    .document("consultations/{consultationId}")
+    .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const consultationId = context.params.consultationId;
+    // Check if status changed to cancelled
+    if (before.status !== "cancelled" && after.status === "cancelled") {
+        const providerId = after.providerId || after.doctorId;
+        const customerName = after.customerName || "Customer";
+        const serviceType = after.serviceType || "Service";
+        const cancellationReason = after.cancellationReason || "No reason provided";
+        const cancelledBy = after.cancelledBy || "customer";
+        if (!providerId) {
+            console.log("No provider assigned to consultation:", consultationId);
+            return null;
+        }
+        // Get provider's FCM token
+        const providerDoc = await admin.firestore().collection("providers").doc(providerId).get();
+        const providerData = providerDoc.data();
+        if (!providerData || !providerData.fcmToken) {
+            console.log("No FCM token found for provider:", providerId);
+            return null;
+        }
+        const notification = {
+            title: "❌ Service Cancelled",
+            body: `${customerName} cancelled ${serviceType} request. Reason: ${cancellationReason}`,
+        };
+        const message = {
+            notification,
+            data: {
+                type: "service_cancelled",
+                consultationId,
+                cancellationReason,
+                cancelledBy,
+                serviceType,
+                customerName,
+            },
+            token: providerData.fcmToken,
+            android: {
+                priority: "high",
+                notification: {
+                    channelId: "consultation-updates",
+                    priority: "high",
+                    sound: "default",
+                },
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: "default",
+                        badge: 1,
+                    },
+                },
+            },
+        };
+        try {
+            await admin.messaging().send(message);
+            console.log(`Cancellation notification sent to provider ${providerId}`);
+        }
+        catch (error) {
+            console.error("Error sending cancellation notification:", error);
+        }
+    }
+    return null;
+});
+/**
+ * 🔔 Notify admins when new provider registers
+ *
+ * Triggered when new provider submits profile for approval
+ * Sends notification to all admin users
+ */
+exports.onProviderRegistration = functions.firestore
+    .document("providers/{providerId}")
+    .onCreate(async (snapshot, context) => {
+    const providerData = snapshot.data();
+    const providerId = context.params.providerId;
+    const providerName = providerData.name || "New Provider";
+    const serviceType = providerData.specialization || providerData.specialty || "Unknown";
+    const email = providerData.email || "";
+    const phone = providerData.phone || "";
+    // Get all admin users
+    const adminsSnapshot = await admin.firestore()
+        .collection("users")
+        .where("role", "==", "admin")
+        .get();
+    if (adminsSnapshot.empty) {
+        console.log("No admin users found");
+        return null;
+    }
+    const notification = {
+        title: "🔔 New Provider Registration",
+        body: `${providerName} (${serviceType}) has submitted profile for approval`,
+    };
+    const sendPromises = [];
+    adminsSnapshot.forEach((adminDoc) => {
+        const adminData = adminDoc.data();
+        const fcmToken = adminData.fcmToken;
+        if (fcmToken) {
+            const message = {
+                notification,
+                data: {
+                    type: "provider_registration",
+                    providerId,
+                    providerName,
+                    serviceType,
+                    email,
+                    phone,
+                },
+                token: fcmToken,
+                android: {
+                    priority: "high",
+                    notification: {
+                        channelId: "consultation-updates",
+                        priority: "high",
+                        sound: "default",
+                    },
+                },
+                apns: {
+                    payload: {
+                        aps: {
+                            sound: "default",
+                            badge: 1,
+                        },
+                    },
+                },
+            };
+            sendPromises.push(admin.messaging().send(message)
+                .then(() => console.log(`Registration notification sent to admin ${adminDoc.id}`))
+                .catch((error) => console.error(`Error sending to admin ${adminDoc.id}:`, error)));
+        }
+    });
+    await Promise.all(sendPromises);
+    return null;
 });
 //# sourceMappingURL=index.js.map
