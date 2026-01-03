@@ -828,6 +828,49 @@ export const isAuthenticated = (): boolean => {
 };
 
 /**
+ * Remove secondary phone number
+ */
+export const removeSecondaryPhone = async (): Promise<void> => {
+  try {
+    const authUser = auth().currentUser;
+    if (!authUser) {
+      throw new Error('User not authenticated');
+    }
+
+    // Update user document
+    await firestore()
+      .collection(COLLECTIONS.USERS)
+      .doc(authUser.uid)
+      .update({
+        secondaryPhone: firestore.FieldValue.delete(),
+        secondaryPhoneVerified: firestore.FieldValue.delete(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      });
+
+    // Also update provider document if it exists
+    const providerDoc = await firestore()
+      .collection('providers')
+      .where('email', '==', authUser.email)
+      .limit(1)
+      .get();
+
+    if (!providerDoc.empty) {
+      await firestore()
+        .collection('providers')
+        .doc(providerDoc.docs[0].id)
+        .update({
+          secondaryPhone: firestore.FieldValue.delete(),
+          secondaryPhoneVerified: firestore.FieldValue.delete(),
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+    }
+  } catch (error: any) {
+    console.error('Error removing secondary phone:', error);
+    throw new Error(error.message || 'Failed to remove secondary phone');
+  }
+};
+
+/**
  * Listen to auth state changes
  */
 export const onAuthStateChanged = (
@@ -858,6 +901,7 @@ export default {
   resetPassword,
   changeUserRole,
   updateUserRole,
+  removeSecondaryPhone,
   isAuthenticated,
   onAuthStateChanged,
 };

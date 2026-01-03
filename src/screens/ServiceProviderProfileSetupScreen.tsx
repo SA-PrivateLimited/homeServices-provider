@@ -197,6 +197,20 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   };
 
   const pickDocument = (docType: 'idProof' | 'addressProof' | 'certificate') => {
+    // Check if document is verified - prevent upload if verified (unless profile is rejected)
+    const isVerified = existingProfile?.documents?.[`${docType}Verified` as keyof typeof existingProfile.documents] as boolean;
+    const isRejected = existingProfile?.approvalStatus === 'rejected';
+    
+    // If document is verified by admin, cannot update/delete (unless profile is rejected)
+    if (isVerified && !isRejected) {
+      Alert.alert(
+        'Cannot Upload Document',
+        `This document has been verified by admin. You cannot replace verified documents. Please contact admin if you need to update this document.`,
+        [{text: 'OK'}],
+      );
+      return;
+    }
+
     launchImageLibrary(
       {
         mediaType: 'photo',
@@ -217,7 +231,26 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
             }
             Alert.alert('Success', 'Document uploaded successfully');
           } catch (error: any) {
-            Alert.alert('Error', 'Failed to upload document. Please try again.');
+            console.error('Document upload error:', error.code, error.message);
+            let errorMessage = 'Failed to upload document. Please try again.';
+            
+            if (error.code === 'storage/unauthorized') {
+              errorMessage = 'Permission denied. Please ensure you are logged in and try again.';
+            } else if (error.code === 'storage/canceled') {
+              errorMessage = 'Upload canceled. Please try again.';
+            } else if (error.code === 'storage/unknown') {
+              errorMessage = 'Unknown error occurred. Please check your internet connection and try again.';
+            } else if (error.code === 'storage/invalid-format') {
+              errorMessage = 'Invalid file format. Please upload an image (JPG, PNG) or PDF.';
+            } else if (error.code === 'storage/file-not-found') {
+              errorMessage = 'File not found. Please select the document again.';
+            } else if (error.code === 'storage/quota-exceeded') {
+              errorMessage = 'Storage quota exceeded. Please contact support.';
+            } else if (error.message) {
+              errorMessage = `Upload failed: ${error.message}`;
+            }
+            
+            Alert.alert('Error', errorMessage);
           } finally {
             setUploadingDoc(null);
           }
@@ -227,6 +260,30 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   };
 
   const removeDocument = (docType: 'idProof' | 'addressProof' | 'certificate') => {
+    // Check if document is verified - prevent deletion if verified (unless profile is rejected)
+    const isVerified = existingProfile?.documents?.[`${docType}Verified` as keyof typeof existingProfile.documents] as boolean;
+    const isRejected = existingProfile?.approvalStatus === 'rejected';
+    
+    // If document is verified by admin, cannot update/delete (unless profile is rejected)
+    if (isVerified && !isRejected) {
+      Alert.alert(
+        'Cannot Remove Document',
+        'This document has been verified by admin. You cannot remove verified documents. Please contact admin if you need to update this document.',
+        [{text: 'OK'}],
+      );
+      return;
+    }
+
+    // Check if provider is approved - prevent deletion if approved
+    if (existingProfile?.approvalStatus === 'approved') {
+      Alert.alert(
+        'Cannot Remove Document',
+        'You cannot remove documents once your profile has been approved. Please contact admin if you need to update your documents.',
+        [{text: 'OK'}],
+      );
+      return;
+    }
+
     Alert.alert(
       'Remove Document',
       'Are you sure you want to remove this document?',
@@ -626,27 +683,55 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
 
         {/* ID Proof */}
         <View style={styles.documentSection}>
-          <Text style={styles.documentLabel}>ID Proof (Aadhaar/PAN/Driving License) *</Text>
+          <View style={styles.documentLabelRow}>
+            <Text style={styles.documentLabel}>ID Proof (Aadhaar/PAN/Driving License) *</Text>
+            {existingProfile?.documents?.idProofVerified && (
+              <View style={styles.verifiedBadge}>
+                <Icon name="verified" size={16} color="#4CAF50" />
+                <Text style={styles.verifiedBadgeText}>Verified</Text>
+              </View>
+            )}
+          </View>
           {idProof ? (
             <View style={styles.documentPreview}>
               <Image source={{uri: idProof}} style={styles.documentImage} />
-              <TouchableOpacity
-                style={styles.removeDocumentButton}
-                onPress={() => removeDocument('idProof')}>
-                <Icon name="delete" size={20} color="#FF3B30" />
-              </TouchableOpacity>
+              {existingProfile?.approvalStatus !== 'approved' && !existingProfile?.documents?.idProofVerified && (
+                <>
+                  <TouchableOpacity
+                    style={styles.removeDocumentButton}
+                    onPress={() => removeDocument('idProof')}>
+                    <Icon name="delete" size={20} color="#FF3B30" />
+                  </TouchableOpacity>
+                  {existingProfile?.approvalStatus === 'rejected' && (
+                    <TouchableOpacity
+                      style={styles.replaceDocumentButton}
+                      onPress={() => pickDocument('idProof')}
+                      disabled={uploadingDoc === 'idProof'}>
+                      {uploadingDoc === 'idProof' ? (
+                        <ActivityIndicator color="#007AFF" size="small" />
+                      ) : (
+                        <Icon name="cloud-upload" size={20} color="#007AFF" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
             </View>
           ) : (
             <TouchableOpacity
               style={[styles.uploadButton, uploadingDoc === 'idProof' && styles.uploadButtonDisabled]}
               onPress={() => pickDocument('idProof')}
-              disabled={uploadingDoc === 'idProof'}>
+              disabled={uploadingDoc === 'idProof' || (existingProfile?.documents?.idProofVerified && existingProfile?.approvalStatus !== 'rejected')}>
               {uploadingDoc === 'idProof' ? (
                 <ActivityIndicator color="#007AFF" />
               ) : (
                 <>
                   <Icon name="cloud-upload" size={24} color="#007AFF" />
-                  <Text style={styles.uploadButtonText}>Upload ID Proof</Text>
+                  <Text style={styles.uploadButtonText}>
+                    {existingProfile?.documents?.idProofVerified && existingProfile?.approvalStatus !== 'rejected' 
+                      ? 'Document Verified' 
+                      : 'Upload ID Proof'}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -655,27 +740,55 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
 
         {/* Address Proof */}
         <View style={styles.documentSection}>
-          <Text style={styles.documentLabel}>Address Proof (Utility Bill/Rental Agreement) *</Text>
+          <View style={styles.documentLabelRow}>
+            <Text style={styles.documentLabel}>Address Proof (Utility Bill/Rental Agreement) *</Text>
+            {existingProfile?.documents?.addressProofVerified && (
+              <View style={styles.verifiedBadge}>
+                <Icon name="verified" size={16} color="#4CAF50" />
+                <Text style={styles.verifiedBadgeText}>Verified</Text>
+              </View>
+            )}
+          </View>
           {addressProof ? (
             <View style={styles.documentPreview}>
               <Image source={{uri: addressProof}} style={styles.documentImage} />
-              <TouchableOpacity
-                style={styles.removeDocumentButton}
-                onPress={() => removeDocument('addressProof')}>
-                <Icon name="delete" size={20} color="#FF3B30" />
-              </TouchableOpacity>
+              {existingProfile?.approvalStatus !== 'approved' && !existingProfile?.documents?.addressProofVerified && (
+                <>
+                  <TouchableOpacity
+                    style={styles.removeDocumentButton}
+                    onPress={() => removeDocument('addressProof')}>
+                    <Icon name="delete" size={20} color="#FF3B30" />
+                  </TouchableOpacity>
+                  {existingProfile?.approvalStatus === 'rejected' && (
+                    <TouchableOpacity
+                      style={styles.replaceDocumentButton}
+                      onPress={() => pickDocument('addressProof')}
+                      disabled={uploadingDoc === 'addressProof'}>
+                      {uploadingDoc === 'addressProof' ? (
+                        <ActivityIndicator color="#007AFF" size="small" />
+                      ) : (
+                        <Icon name="cloud-upload" size={20} color="#007AFF" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
             </View>
           ) : (
             <TouchableOpacity
               style={[styles.uploadButton, uploadingDoc === 'addressProof' && styles.uploadButtonDisabled]}
               onPress={() => pickDocument('addressProof')}
-              disabled={uploadingDoc === 'addressProof'}>
+              disabled={uploadingDoc === 'addressProof' || (existingProfile?.documents?.addressProofVerified && existingProfile?.approvalStatus !== 'rejected')}>
               {uploadingDoc === 'addressProof' ? (
                 <ActivityIndicator color="#007AFF" />
               ) : (
                 <>
                   <Icon name="cloud-upload" size={24} color="#007AFF" />
-                  <Text style={styles.uploadButtonText}>Upload Address Proof</Text>
+                  <Text style={styles.uploadButtonText}>
+                    {existingProfile?.documents?.addressProofVerified && existingProfile?.approvalStatus !== 'rejected' 
+                      ? 'Document Verified' 
+                      : 'Upload Address Proof'}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -684,28 +797,56 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
 
         {/* Certificate (Optional) */}
         <View style={styles.documentSection}>
-          <Text style={styles.documentLabel}>Professional Certificate (Optional)</Text>
+          <View style={styles.documentLabelRow}>
+            <Text style={styles.documentLabel}>Professional Certificate (Optional)</Text>
+            {existingProfile?.documents?.certificateVerified && (
+              <View style={styles.verifiedBadge}>
+                <Icon name="verified" size={16} color="#4CAF50" />
+                <Text style={styles.verifiedBadgeText}>Verified</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.optionalText}>Upload any relevant certificates or licenses</Text>
           {certificate ? (
             <View style={styles.documentPreview}>
               <Image source={{uri: certificate}} style={styles.documentImage} />
-              <TouchableOpacity
-                style={styles.removeDocumentButton}
-                onPress={() => removeDocument('certificate')}>
-                <Icon name="delete" size={20} color="#FF3B30" />
-              </TouchableOpacity>
+              {existingProfile?.approvalStatus !== 'approved' && !existingProfile?.documents?.certificateVerified && (
+                <>
+                  <TouchableOpacity
+                    style={styles.removeDocumentButton}
+                    onPress={() => removeDocument('certificate')}>
+                    <Icon name="delete" size={20} color="#FF3B30" />
+                  </TouchableOpacity>
+                  {existingProfile?.approvalStatus === 'rejected' && (
+                    <TouchableOpacity
+                      style={styles.replaceDocumentButton}
+                      onPress={() => pickDocument('certificate')}
+                      disabled={uploadingDoc === 'certificate'}>
+                      {uploadingDoc === 'certificate' ? (
+                        <ActivityIndicator color="#007AFF" size="small" />
+                      ) : (
+                        <Icon name="cloud-upload" size={20} color="#007AFF" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
             </View>
           ) : (
             <TouchableOpacity
               style={[styles.uploadButton, uploadingDoc === 'certificate' && styles.uploadButtonDisabled]}
               onPress={() => pickDocument('certificate')}
-              disabled={uploadingDoc === 'certificate'}>
+              disabled={uploadingDoc === 'certificate' || (existingProfile?.documents?.certificateVerified && existingProfile?.approvalStatus !== 'rejected')}>
               {uploadingDoc === 'certificate' ? (
                 <ActivityIndicator color="#007AFF" />
               ) : (
                 <>
                   <Icon name="cloud-upload" size={24} color="#007AFF" />
-                  <Text style={styles.uploadButtonText}>Upload Certificate</Text>
+                  <Text style={styles.uploadButtonText}>
+                    {existingProfile?.documents?.certificateVerified && existingProfile?.approvalStatus !== 'rejected' 
+                      ? 'Document Verified' 
+                      : 'Upload Certificate'}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -925,11 +1066,31 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     marginTop: 8,
   },
+  documentLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   documentLabel: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 8,
     color: '#333',
+    flex: 1,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  verifiedBadgeText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '600',
   },
   optionalText: {
     fontSize: 12,
@@ -976,6 +1137,22 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  replaceDocumentButton: {
+    position: 'absolute',
+    top: 8,
+    right: 48,
     backgroundColor: '#fff',
     borderRadius: 20,
     width: 36,

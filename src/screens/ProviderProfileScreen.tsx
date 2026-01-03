@@ -410,9 +410,21 @@ export default function ProviderProfileScreen({navigation}: any) {
         <View style={styles.infoRow}>
           <Icon name="phone" size={20} color={theme.primary} />
           <View style={styles.infoContent}>
-            <Text style={[styles.infoLabel, {color: theme.textSecondary}]}>Phone</Text>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4}}>
+              <Text style={[styles.infoLabel, {color: theme.textSecondary}]}>Primary Phone</Text>
+              {storeUser?.phoneVerified && (
+                <Icon name="checkmark-circle" size={16} color="#4CAF50" />
+              )}
+            </View>
             <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
-              <Text style={[styles.infoValue, {color: theme.text}]}>{profile.phone || 'Not set'}</Text>
+              <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1}}>
+                <Text style={[styles.infoValue, {color: theme.text}]}>{profile.phone || 'Not set'}</Text>
+                {storeUser?.phoneVerified && (
+                  <Text style={{fontSize: 12, color: '#4CAF50', fontStyle: 'italic'}}>
+                    Verified
+                  </Text>
+                )}
+              </View>
               <TouchableOpacity
                 onPress={() => {
                   navigation.navigate('PhoneVerification', {

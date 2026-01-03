@@ -44,6 +44,8 @@ export interface User {
   email: string;
   phone: string;
   phoneVerified?: boolean; // Phone number verification status (required)
+  secondaryPhone?: string; // Secondary phone number
+  secondaryPhoneVerified?: boolean; // Secondary phone number verification status
   role?: UserRole; // User role: patient, doctor, or admin
   profileImage?: string;
   dateOfBirth?: Date;
