@@ -153,3 +153,5 @@ firebase deploy --only functions
 - Email OTP is an additional option, not a replacement
 - Users can choose between Phone or Email login methods
 
+
+

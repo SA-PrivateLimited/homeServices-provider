@@ -21,8 +21,9 @@ import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import authService from '../services/authService';
 import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import CountryCodePicker from '../components/CountryCodePicker';
-import {DEFAULT_COUNTRY_CODE, CountryCode} from '../utils/countryCodes';
+import {DEFAULT_COUNTRY_CODE, CountryCode, COUNTRY_CODES} from '../utils/countryCodes';
 
 interface PhoneVerificationScreenProps {
   navigation: any;
@@ -33,14 +34,42 @@ export default function PhoneVerificationScreen({
   navigation,
   route,
 }: PhoneVerificationScreenProps) {
-  const mode = route?.params?.mode || 'verify'; // 'verify' or 'change'
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const mode = route?.params?.mode || 'verify'; // 'verify', 'change', or 'secondary'
+  const initialPhoneNumber = route?.params?.phoneNumber || '';
+  const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber);
   const [verificationCode, setVerificationCode] = useState('');
   const [confirmResult, setConfirmResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'phone' | 'code'>('phone');
   const [selectedCountry, setSelectedCountry] = useState<CountryCode>(DEFAULT_COUNTRY_CODE);
   const [retryAfter, setRetryAfter] = useState<number | null>(null); // Seconds until retry allowed
+
+  // Extract country code and phone number from initial phone if provided
+  useEffect(() => {
+    if (initialPhoneNumber) {
+      // Try to extract country code (assuming +91 format)
+      if (initialPhoneNumber.startsWith('+')) {
+        // Try to match dial codes from longest to shortest
+        let matched = false;
+        for (const country of COUNTRY_CODES.sort((a, b) => b.dialCode.length - a.dialCode.length)) {
+          if (initialPhoneNumber.startsWith(country.dialCode)) {
+            const phone = initialPhoneNumber.substring(country.dialCode.length).replace(/\D/g, '');
+            setSelectedCountry(country);
+            setPhoneNumber(phone);
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          // If no match, just extract digits
+          setPhoneNumber(initialPhoneNumber.replace(/\D/g, ''));
+        }
+      } else {
+        // Just digits, use default country
+        setPhoneNumber(initialPhoneNumber.replace(/\D/g, ''));
+      }
+    }
+  }, [initialPhoneNumber]);
 
   const {isDarkMode, currentUser, setCurrentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
@@ -182,6 +211,66 @@ export default function PhoneVerificationScreen({
             },
           ],
         );
+      } else if (mode === 'secondary') {
+        // For secondary phone mode, verify the code and save as secondary phone
+        await confirmResult.confirm(verificationCode);
+        
+        // Update user document with secondary phone
+        const userDoc = await firestore()
+          .collection('users')
+          .doc(authUser.uid)
+          .get();
+
+        if (userDoc.exists) {
+          await firestore()
+            .collection('users')
+            .doc(authUser.uid)
+            .update({
+              secondaryPhone: fullPhoneNumber,
+              secondaryPhoneVerified: true,
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+            });
+        }
+
+        // Also update provider document if it exists
+        const providerDoc = await firestore()
+          .collection('providers')
+          .where('email', '==', authUser.email)
+          .limit(1)
+          .get();
+
+        if (!providerDoc.empty) {
+          await firestore()
+            .collection('providers')
+            .doc(providerDoc.docs[0].id)
+            .update({
+              secondaryPhone: fullPhoneNumber,
+              secondaryPhoneVerified: true,
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+            });
+        }
+
+        // Update current user in store
+        const updatedUser = {
+          ...currentUser,
+          secondaryPhone: fullPhoneNumber,
+          secondaryPhoneVerified: true,
+        };
+        setCurrentUser(updatedUser as any);
+
+        Alert.alert(
+          'Success',
+          'Secondary phone number added and verified successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Navigate back to profile
+                navigation.goBack();
+              },
+            },
+          ],
+        );
       } else {
         // Default verify mode - original flow
         const user = await authService.verifyPhoneCode(
@@ -234,48 +323,73 @@ export default function PhoneVerificationScreen({
     <KeyboardAvoidingView
       style={[styles.container, {backgroundColor: theme.background}]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      {/* Header with back button - show in change and secondary modes */}
+      {(mode === 'change' || mode === 'secondary') && (
+        <View style={[styles.header, {backgroundColor: theme.card, borderBottomColor: theme.border}]}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}>
+            <Icon name="arrow-back" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={[styles.headerTitle, {color: theme.text}]}>
+              {mode === 'secondary' ? 'Add Secondary Phone' : 'Update Phone Number'}
+            </Text>
+          </View>
+        </View>
+      )}
+      
       <View style={styles.content}>
         <View style={styles.iconContainer}>
           <Icon name="phone-portrait" size={64} color={theme.primary} />
         </View>
 
         <Text style={[styles.title, {color: theme.text}]}>
-          {mode === 'change' ? 'Change Your Phone Number' : 'Verify Your Phone Number'}
+          {mode === 'change' 
+            ? 'Change Your Phone Number' 
+            : mode === 'secondary'
+            ? 'Add Secondary Phone Number'
+            : 'Verify Your Phone Number'}
         </Text>
         <Text style={[styles.subtitle, {color: theme.textSecondary}]}>
           {mode === 'change' 
             ? 'Enter your new phone number to update your contact information.'
+            : mode === 'secondary'
+            ? 'Add a secondary phone number for backup contact. This will be verified via SMS.'
             : 'Phone verification is required to use HomeServices. This helps us ensure account security and enable important features.'}
         </Text>
 
         {step === 'phone' ? (
           <>
-            <View style={styles.phoneInputContainer}>
-              <CountryCodePicker
-                selectedCountry={selectedCountry}
-                onSelect={setSelectedCountry}
-              />
-              <View style={[styles.inputContainer, {flex: 1}]}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.card,
-                      color: theme.text,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  value={phoneNumber}
-                  onChangeText={(text) => {
-                    // Remove non-numeric characters
-                    const numericText = text.replace(/\D/g, '');
-                    setPhoneNumber(numericText);
-                  }}
-                  placeholder="9876543210"
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="phone-pad"
-                  autoFocus
+            <View style={styles.phoneInputWrapper}>
+              <Text style={[styles.inputLabel, {color: theme.text}]}>Phone Number *</Text>
+              <View style={styles.phoneInputContainer}>
+                <CountryCodePicker
+                  selectedCountry={selectedCountry}
+                  onSelect={setSelectedCountry}
                 />
+                <View style={[styles.inputContainer, {flex: 1}]}>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.card,
+                        color: theme.text,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                    value={phoneNumber}
+                    onChangeText={(text) => {
+                      // Remove non-numeric characters
+                      const numericText = text.replace(/\D/g, '');
+                      setPhoneNumber(numericText);
+                    }}
+                    placeholder="9876543210"
+                    placeholderTextColor={theme.textSecondary}
+                    keyboardType="phone-pad"
+                    autoFocus
+                  />
+                </View>
               </View>
             </View>
 
@@ -305,30 +419,34 @@ export default function PhoneVerificationScreen({
           </>
         ) : (
           <>
-            <View style={styles.inputContainer}>
-              <Icon
-                name="keypad-outline"
-                size={20}
-                color={theme.textSecondary}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.card,
-                    color: theme.text,
-                    borderColor: theme.border,
-                  },
-                ]}
-                value={verificationCode}
-                onChangeText={setVerificationCode}
-                placeholder="Enter 6-digit code"
-                placeholderTextColor={theme.textSecondary}
-                keyboardType="number-pad"
-                maxLength={6}
-                autoFocus
-              />
+            <View style={styles.codeInputWrapper}>
+              <Text style={[styles.inputLabel, {color: theme.text}]}>Verification Code *</Text>
+              <View style={styles.inputContainer}>
+                <Icon
+                  name="keypad-outline"
+                  size={20}
+                  color={theme.textSecondary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[
+                    styles.input,
+                    styles.inputWithIcon,
+                    {
+                      backgroundColor: theme.card,
+                      color: theme.text,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                  value={verificationCode}
+                  onChangeText={setVerificationCode}
+                  placeholder="Enter 6-digit code"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoFocus
+                />
+              </View>
             </View>
 
             <TouchableOpacity
@@ -376,6 +494,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
   content: {
     flex: 1,
     padding: 24,
@@ -397,29 +538,48 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 22,
   },
+  phoneInputWrapper: {
+    marginBottom: 16,
+    width: '100%',
+    alignItems: 'stretch',
+  },
+  codeInputWrapper: {
+    marginBottom: 16,
+    width: '100%',
+    alignItems: 'stretch',
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+    marginTop: 0,
+  },
   phoneInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    width: '100%',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    width: '100%',
   },
   inputIcon: {
     position: 'absolute',
-    left: 16,
+    left: 12,
     zIndex: 1,
   },
   input: {
     flex: 1,
-    height: 56,
+    height: 48,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingLeft: 16,
-    paddingRight: 16,
+    borderRadius: 8,
+    paddingLeft: 12,
+    paddingRight: 12,
     fontSize: 16,
+  },
+  inputWithIcon: {
+    paddingLeft: 44, // Space for icon (12px padding + 20px icon + 12px gap)
   },
   button: {
     height: 56,

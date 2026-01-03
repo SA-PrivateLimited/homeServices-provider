@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 import authService from '../services/authService';
@@ -28,6 +29,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
   const [name, setName] = useState(currentUser?.name || '');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
+  const [secondaryPhone, setSecondaryPhone] = useState(currentUser?.secondaryPhone || '');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [gender, setGender] = useState('');
   const [bloodGroup, setBloodGroup] = useState('');
@@ -37,6 +39,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
       setName(currentUser.name || '');
       setEmail(currentUser.email || '');
       setPhone(currentUser.phone || '');
+      setSecondaryPhone(currentUser.secondaryPhone || '');
       setDateOfBirth(
         currentUser.dateOfBirth?.toLocaleDateString() || '',
       );
@@ -55,13 +58,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
 
     setLoading(true);
     try {
-      const updates = {
+      const authUser = auth().currentUser;
+      const loggedInWithPhone = authUser?.phoneNumber && currentUser?.phoneVerified;
+      
+      const updates: any = {
         name,
         email,
-        phone,
         gender,
         bloodGroup,
       };
+      
+      // Only update phone if not logged in with phone (primary phone cannot be changed)
+      if (!loggedInWithPhone) {
+        updates.phone = phone;
+        // If phone changed, mark as unverified
+        if (phone !== currentUser?.phone) {
+          updates.phoneVerified = false;
+        }
+      }
+      
+      // Update secondary phone if changed
+      if (secondaryPhone !== currentUser?.secondaryPhone) {
+        updates.secondaryPhone = secondaryPhone;
+        updates.secondaryPhoneVerified = false; // Mark as unverified when changed
+      }
 
       const updatedUser = await authService.updateUserProfile(
         currentUser.id,
@@ -204,35 +224,187 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
           </Text>
         </View>
 
-        {/* Phone */}
+        {/* Primary Phone */}
         <View style={styles.infoRow}>
           <View style={styles.infoLabel}>
             <Icon name="call-outline" size={20} color={theme.textSecondary} />
-            <Text style={[styles.labelText, {color: theme.textSecondary}]}>
-              Phone
-            </Text>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
+              <Text style={[styles.labelText, {color: theme.textSecondary}]}>
+                Primary Phone
+              </Text>
+              {currentUser?.phoneVerified && (
+                <Icon name="checkmark-circle" size={16} color="#4CAF50" />
+              )}
+            </View>
+          </View>
+          <View style={{flex: 1, alignItems: 'flex-end'}}>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+              <Text style={[styles.infoValue, {color: phone ? theme.text : theme.textSecondary}]}>
+                {phone || 'Not set'}
+              </Text>
+              {(() => {
+                const authUser = auth().currentUser;
+                const loggedInWithPhone = authUser?.phoneNumber && currentUser?.phoneVerified;
+                if (loggedInWithPhone) {
+                  return <Icon name="lock-closed" size={16} color={theme.textSecondary} />;
+                }
+                return null;
+              })()}
+            </View>
+            {currentUser?.phoneVerified && (
+              <Text style={[styles.verifiedBadge, {color: '#4CAF50'}]}>
+                Verified {(() => {
+                  const authUser = auth().currentUser;
+                  const loggedInWithPhone = authUser?.phoneNumber && currentUser?.phoneVerified;
+                  return loggedInWithPhone ? '(Login number - Cannot be changed)' : '';
+                })()}
+              </Text>
+            )}
+            {!currentUser?.phoneVerified && phone && (
+              <Text style={[styles.verifiedBadge, {color: theme.textSecondary}]}>
+                Not Verified
+              </Text>
+            )}
+          </View>
+          {isEditing && (() => {
+            const authUser = auth().currentUser;
+            const loggedInWithPhone = authUser?.phoneNumber && currentUser?.phoneVerified;
+            if (!loggedInWithPhone) {
+              return (
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      color: theme.text,
+                      backgroundColor: theme.card,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="Enter your phone number"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="phone-pad"
+                  editable={!loading}
+                />
+              );
+            }
+            return null;
+          })()}
+        </View>
+
+        {/* Secondary Phone */}
+        <View style={styles.infoRow}>
+          <View style={styles.infoLabel}>
+            <Icon name="call-outline" size={20} color={theme.textSecondary} />
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
+              <Text style={[styles.labelText, {color: theme.textSecondary}]}>
+                Secondary Phone
+              </Text>
+              {currentUser?.secondaryPhoneVerified && (
+                <Icon name="checkmark-circle" size={16} color="#4CAF50" />
+              )}
+            </View>
           </View>
           {isEditing ? (
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  color: theme.text,
-                  backgroundColor: theme.card,
-                  borderColor: theme.border,
-                },
-              ]}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="Enter your phone number"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="phone-pad"
-              editable={!loading}
-            />
+            <View style={{flex: 1, alignItems: 'flex-end'}}>
+              {secondaryPhone ? (
+                <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        color: theme.text,
+                        backgroundColor: theme.card,
+                        borderColor: theme.border,
+                        flex: 1,
+                      },
+                    ]}
+                    value={secondaryPhone}
+                    onChangeText={setSecondaryPhone}
+                    placeholder="Secondary phone number"
+                    placeholderTextColor={theme.textSecondary}
+                    keyboardType="phone-pad"
+                    editable={!loading}
+                  />
+                  {currentUser?.secondaryPhoneVerified ? (
+                    <Icon name="checkmark-circle" size={20} color="#4CAF50" />
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => {
+                        navigation.navigate('PhoneVerification', {
+                          mode: 'secondary',
+                          phoneNumber: secondaryPhone,
+                        });
+                      }}
+                      style={{padding: 4}}>
+                      <Text style={[styles.verifyLink, {color: theme.primary}]}>
+                        Verify
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={async () => {
+                      try {
+                        setLoading(true);
+                        await authService.removeSecondaryPhone();
+                        setSecondaryPhone('');
+                        const updatedUser = await authService.getCurrentUser();
+                        if (updatedUser) {
+                          await setCurrentUser(updatedUser);
+                        }
+                        Alert.alert('Success', 'Secondary phone removed');
+                      } catch (error: any) {
+                        Alert.alert('Error', error.message);
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    style={{padding: 4}}>
+                    <Icon name="trash-outline" size={20} color="#ff4444" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => {
+                    navigation.navigate('PhoneVerification', {
+                      mode: 'secondary',
+                    });
+                  }}
+                  style={[styles.addButton, {borderColor: theme.primary}]}>
+                  <Icon name="add-circle-outline" size={20} color={theme.primary} />
+                  <Text style={[styles.addButtonText, {color: theme.primary}]}>
+                    Add Secondary Phone
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           ) : (
-            <Text style={[styles.infoValue, {color: phone ? theme.text : theme.textSecondary}]}>
-              {phone || 'Not set'}
-            </Text>
+            <View style={{flex: 1, alignItems: 'flex-end'}}>
+              {secondaryPhone ? (
+                <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
+                  <Text style={[styles.infoValue, {color: theme.text}]}>
+                    {secondaryPhone}
+                  </Text>
+                  {currentUser?.secondaryPhoneVerified ? (
+                    <>
+                      <Icon name="checkmark-circle" size={16} color="#4CAF50" />
+                      <Text style={[styles.verifiedBadge, {color: '#4CAF50'}]}>
+                        Verified
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={[styles.verifiedBadge, {color: theme.textSecondary}]}>
+                      Not Verified
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <Text style={[styles.infoValue, {color: theme.textSecondary}]}>
+                  Not set
+                </Text>
+              )}
+            </View>
           )}
         </View>
 
@@ -467,6 +639,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     marginBottom: 40,
+  },
+  verifiedBadge: {
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  addButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  verifyLink: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 
