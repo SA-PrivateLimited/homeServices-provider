@@ -20,7 +20,7 @@ import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
-import {getJobCardById, updateJobCardStatus, verifyPINAndCompleteTask, cancelTaskWithReason, JobCard} from '../services/jobCardService';
+import {getJobCardById, updateJobCardStatus, verifyPINAndCompleteTask, cancelTaskWithReason, subscribeToJobCardStatus, JobCard} from '../services/jobCardService';
 import PINVerificationModal from '../components/PINVerificationModal';
 import CancelTaskModal from '../components/CancelTaskModal';
 import StartTaskModal from '../components/StartTaskModal';
@@ -44,6 +44,16 @@ export default function JobDetailsScreen({navigation, route}: any) {
 
   useEffect(() => {
     loadJobCard();
+    
+    // Subscribe to real-time status updates
+    const unsubscribe = subscribeToJobCardStatus(
+      jobCardId,
+      (status, updatedAt) => {
+        setJobCard(prev => prev ? {...prev, status} : null);
+      }
+    );
+    
+    return () => unsubscribe();
   }, [jobCardId]);
 
   const loadJobCard = async () => {

@@ -212,6 +212,23 @@ export const createJobCard = async (
         updatedAt: Date.now(),
       });
 
+    // Send notification to customer (backup - websocket service also sends it)
+    // This ensures customer gets notified even if websocket notification fails
+    if (jobCard.customerId) {
+      try {
+        await fcmNotificationService.notifyCustomerServiceAccepted(
+          jobCard.customerId,
+          jobCard.providerName,
+          jobCard.serviceType,
+          jobCard.consultationId || '',
+        );
+        console.log('✅ Notification sent to customer from createJobCard');
+      } catch (notificationError: any) {
+        console.warn('⚠️ Failed to send notification from createJobCard (non-critical):', notificationError.message);
+        // Don't throw - notification failure shouldn't block job card creation
+      }
+    }
+
     return jobCardId;
   } catch (error: any) {
     console.error('Error creating job card:', error);
@@ -383,11 +400,15 @@ export const updateJobCardStatus = async (
 
     // Update in Realtime Database (for real-time synchronization)
     // Update the root node to ensure providerId is available for permission checks
+    const existingJobCardData = jobCardDoc.data();
+    const providerId = existingJobCardData?.providerId || currentUser.uid;
+    
     await database()
       .ref(`jobCards/${jobCardId}`)
       .update({
         status: status,
         updatedAt: Date.now(),
+        providerId: providerId, // Include providerId for filtering in listeners
       });
 
     // Send notification to customer based on status
@@ -504,18 +525,20 @@ export const subscribeToJobCardStatus = (
   jobCardId: string,
   callback: (status: JobCard['status'], updatedAt: number) => void,
 ): (() => void) => {
-  const statusRef = database().ref(`jobCards/${jobCardId}/status`);
+  const jobCardRef = database().ref(`jobCards/${jobCardId}`);
 
-  const onStatusChange = statusRef.on('value', (snapshot) => {
+  const onStatusChange = jobCardRef.on('value', (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.val();
-      callback(data.status, data.updatedAt);
+      if (data && data.status) {
+        callback(data.status, data.updatedAt || Date.now());
+      }
     }
   });
 
   // Return unsubscribe function
   return () => {
-    statusRef.off('value', onStatusChange);
+    jobCardRef.off('value', onStatusChange);
   };
 };
 
@@ -531,20 +554,26 @@ export const subscribeToProviderJobCardStatuses = (
 
   const onStatusChange = providerJobCardsRef.on('child_changed', (snapshot) => {
     const jobCardId = snapshot.key;
-    const statusData = snapshot.child('status').val();
+    const jobCardData = snapshot.val();
     
-    if (statusData && statusData.providerId === providerId) {
-      callback(jobCardId || '', statusData.status, statusData.updatedAt);
+    // Check if this job card belongs to the provider
+    if (jobCardData && jobCardData.providerId === providerId) {
+      const status = jobCardData.status;
+      const updatedAt = jobCardData.updatedAt || Date.now();
+      callback(jobCardId || '', status, updatedAt);
     }
   });
 
   // Also listen for new job cards
   const onJobCardAdded = providerJobCardsRef.on('child_added', (snapshot) => {
     const jobCardId = snapshot.key;
-    const statusData = snapshot.child('status').val();
+    const jobCardData = snapshot.val();
     
-    if (statusData && statusData.providerId === providerId) {
-      callback(jobCardId || '', statusData.status, statusData.updatedAt);
+    // Check if this job card belongs to the provider
+    if (jobCardData && jobCardData.providerId === providerId) {
+      const status = jobCardData.status;
+      const updatedAt = jobCardData.updatedAt || Date.now();
+      callback(jobCardId || '', status, updatedAt);
     }
   });
 
