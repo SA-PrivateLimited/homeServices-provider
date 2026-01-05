@@ -2,6 +2,7 @@ import firestore from '@react-native-firebase/firestore';
 import database from '@react-native-firebase/database';
 import auth from '@react-native-firebase/auth';
 import fcmNotificationService from './fcmNotificationService';
+import {generatePIN} from '../utils/pinGenerator';
 
 export interface JobCard {
   id?: string;
@@ -29,6 +30,7 @@ export interface JobCard {
   };
   serviceType: string;
   problem?: string; // Problem description from customer
+  questionnaireAnswers?: Record<string, any>; // Answers to service-specific questions
   consultationId?: string;
   bookingId?: string;
   status: 'pending' | 'accepted' | 'in-progress' | 'completed' | 'cancelled';
@@ -131,12 +133,37 @@ export const createJobCard = async (
     const customerPhone = bookingData.patientPhone || bookingData.customerPhone || '';
     
     // Get problem description (could be symptoms, notes, problem, description, etc.)
-    const problem = bookingData.problem || 
-                    bookingData.symptoms || 
-                    bookingData.notes || 
-                    bookingData.description || 
-                    bookingData.issue || 
+    const problem = bookingData.problem ||
+                    bookingData.symptoms ||
+                    bookingData.notes ||
+                    bookingData.description ||
+                    bookingData.issue ||
                     '';
+
+    // Get questionnaire answers if available
+    // First try from bookingData (WebSocket notification), then fetch from consultation document as fallback
+    let questionnaireAnswers = bookingData.questionnaireAnswers || undefined;
+    
+    // If not in bookingData, fetch from consultation document
+    if (!questionnaireAnswers && bookingData.consultationId) {
+      try {
+        const consultationDoc = await firestore()
+          .collection('consultations')
+          .doc(bookingData.consultationId)
+          .get();
+        
+        if (consultationDoc.exists) {
+          const consultationData = consultationDoc.data();
+          if (consultationData?.questionnaireAnswers) {
+            questionnaireAnswers = consultationData.questionnaireAnswers;
+            console.log('✅ Fetched questionnaire answers from consultation document');
+          }
+        }
+      } catch (error) {
+        console.warn('Could not fetch questionnaire answers from consultation:', error);
+        // Continue without questionnaire answers - not critical
+      }
+    }
 
     // Create job card with all customer details
     const jobCardRef = firestore().collection('jobCards').doc();
@@ -150,6 +177,7 @@ export const createJobCard = async (
       customerAddress: customerAddress as any,
       serviceType: provider.specialization || provider.specialty || 'Service',
       problem: problem || undefined, // Only include if not empty
+      questionnaireAnswers, // Include questionnaire answers
       consultationId: bookingData.consultationId,
       bookingId: bookingData.bookingId || bookingData.id,
       status: 'accepted',
@@ -314,14 +342,28 @@ export const updateJobCardStatus = async (
       }
     }
 
+    // Generate PIN when starting task (status changes to 'in-progress')
+    let taskPIN: string | undefined;
+    if (status === 'in-progress') {
+      taskPIN = generatePIN();
+      console.log('🔐 Generated PIN for task:', taskPIN);
+    }
+
     // Update in Firestore (for persistence and queries)
+    const updateData: any = {
+      status,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    };
+    
+    if (taskPIN) {
+      updateData.taskPIN = taskPIN;
+      updateData.pinGeneratedAt = firestore.FieldValue.serverTimestamp();
+    }
+    
     await firestore()
       .collection('jobCards')
       .doc(jobCardId)
-      .update({
-        status,
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      });
+      .update(updateData);
 
     // Update consultation status if consultation ID exists
     if (consultationId) {
@@ -361,12 +403,14 @@ export const updateJobCardStatus = async (
     if (customerId && consultationId) {
       try {
         if (status === 'in-progress') {
-          console.log('🔄 Status is in-progress, sending FCM notification');
+          console.log('🔄 Status is in-progress, sending FCM notification with PIN');
           await fcmNotificationService.notifyCustomerServiceStarted(
             customerId,
             providerName,
             serviceType,
             consultationId,
+            jobCardId,
+            taskPIN,
           );
         } else if (status === 'completed') {
           console.log('✅ Status is completed, sending FCM notification');
@@ -545,5 +589,142 @@ export const subscribeToCustomerJobCardStatuses = (
     customerJobCardsRef.off('child_changed', onStatusChange);
     customerJobCardsRef.off('child_added', onJobCardAdded);
   };
+};
+
+/**
+ * Verify PIN and complete task
+ */
+export const verifyPINAndCompleteTask = async (
+  jobCardId: string,
+  enteredPIN: string,
+): Promise<void> => {
+  try {
+    const currentUser = auth().currentUser;
+    if (!currentUser) {
+      throw new Error('User not authenticated');
+    }
+
+    // Get job card to verify PIN
+    const jobCardDoc = await firestore()
+      .collection('jobCards')
+      .doc(jobCardId)
+      .get();
+    
+    if (!jobCardDoc.exists) {
+      throw new Error('Job card not found');
+    }
+    
+    const jobCardData = jobCardDoc.data();
+    const storedPIN = jobCardData?.taskPIN;
+    
+    if (!storedPIN) {
+      throw new Error('No PIN found for this task. Please start the task first.');
+    }
+    
+    // Verify PIN
+    if (enteredPIN !== storedPIN) {
+      throw new Error('Invalid PIN. Please enter the correct PIN sent to the customer.');
+    }
+    
+    // PIN is correct, complete the task
+    await updateJobCardStatus(jobCardId, 'completed');
+    
+    // Clear PIN after successful completion
+    await firestore()
+      .collection('jobCards')
+      .doc(jobCardId)
+      .update({
+        taskPIN: firestore.FieldValue.delete(),
+        pinGeneratedAt: firestore.FieldValue.delete(),
+      });
+  } catch (error: any) {
+    console.error('Error verifying PIN and completing task:', error);
+    throw new Error(error.message || 'Failed to verify PIN and complete task');
+  }
+};
+
+/**
+ * Cancel task with reason
+ */
+export const cancelTaskWithReason = async (
+  jobCardId: string,
+  cancellationReason: string,
+): Promise<void> => {
+  try {
+    const currentUser = auth().currentUser;
+    if (!currentUser) {
+      throw new Error('User not authenticated');
+    }
+
+    // Get job card data
+    const jobCardDoc = await firestore()
+      .collection('jobCards')
+      .doc(jobCardId)
+      .get();
+    
+    if (!jobCardDoc.exists) {
+      throw new Error('Job card not found');
+    }
+    
+    const jobCardData = jobCardDoc.data();
+    const customerId = jobCardData?.customerId;
+    const consultationId = jobCardData?.consultationId || jobCardData?.bookingId;
+    const providerName = jobCardData?.providerName || 'Provider';
+    const serviceType = jobCardData?.serviceType || 'service';
+
+    // Update job card status to cancelled with reason
+    await firestore()
+      .collection('jobCards')
+      .doc(jobCardId)
+      .update({
+        status: 'cancelled',
+        cancellationReason: cancellationReason.trim(),
+        cancelledAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      });
+
+    // Update consultation status if exists
+    if (consultationId) {
+      try {
+        await firestore()
+          .collection('consultations')
+          .doc(consultationId)
+          .update({
+            status: 'cancelled',
+            cancellationReason: cancellationReason.trim(),
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+      } catch (consultationError) {
+        console.warn('Error updating consultation status:', consultationError);
+      }
+    }
+
+    // Update in Realtime Database
+    await database()
+      .ref(`jobCards/${jobCardId}`)
+      .update({
+        status: 'cancelled',
+        updatedAt: Date.now(),
+      });
+
+    // Send notification to customer
+    if (customerId && consultationId) {
+      try {
+        await fcmNotificationService.notifyCustomerServiceCancelled(
+          customerId,
+          providerName,
+          serviceType,
+          consultationId,
+          cancellationReason.trim(),
+        );
+      } catch (notificationError) {
+        console.error('Error sending cancellation notification:', notificationError);
+        // Don't throw - notification failure shouldn't block cancellation
+      }
+    }
+  } catch (error: any) {
+    console.error('Error cancelling task:', error);
+    throw new Error(error.message || 'Failed to cancel task');
+  }
 };
 

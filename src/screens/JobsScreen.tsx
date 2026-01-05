@@ -13,6 +13,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Linking,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import firestore from '@react-native-firebase/firestore';
@@ -130,6 +132,29 @@ export default function JobsScreen({navigation, route}: any) {
     });
   };
 
+  const handleCallCustomer = (phoneNumber?: string) => {
+    if (!phoneNumber) {
+      Alert.alert('Phone Not Available', 'Customer phone number is not available.');
+      return;
+    }
+    
+    const phone = phoneNumber.replace(/[^\d+]/g, ''); // Remove non-digit characters except +
+    const phoneUrl = `tel:${phone}`;
+    
+    Linking.canOpenURL(phoneUrl)
+      .then(supported => {
+        if (supported) {
+          return Linking.openURL(phoneUrl);
+        } else {
+          Alert.alert('Error', 'Unable to make phone call on this device.');
+        }
+      })
+      .catch(err => {
+        console.error('Error opening phone dialer:', err);
+        Alert.alert('Error', 'Failed to open phone dialer.');
+      });
+  };
+
   const renderJobCard = ({item}: {item: JobCard}) => (
     <TouchableOpacity
       style={[styles.jobCard, {backgroundColor: theme.card}]}
@@ -150,6 +175,22 @@ export default function JobsScreen({navigation, route}: any) {
             <Text style={[styles.serviceType, {color: theme.textSecondary}]}>
               {item.serviceType}
             </Text>
+            {item.customerPhone && (
+              <View style={styles.customerPhoneRow}>
+                <Icon name="phone" size={14} color={theme.primary} />
+                <Text style={[styles.customerPhone, {color: theme.textSecondary}]}>
+                  {item.customerPhone}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.callButton, {backgroundColor: theme.primary}]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleCallCustomer(item.customerPhone);
+                  }}>
+                  <Icon name="phone" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
         <View
@@ -196,8 +237,11 @@ export default function JobsScreen({navigation, route}: any) {
 
   if (loading && !refreshing) {
     return (
-      <View style={[styles.container, {backgroundColor: theme.background}]}>
+      <View style={[styles.container, styles.loaderContainer, {backgroundColor: theme.background}]}>
         <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loadingText, {color: theme.textSecondary, marginTop: 16}]}>
+          Loading jobs...
+        </Text>
       </View>
     );
   }
@@ -261,6 +305,14 @@ export default function JobsScreen({navigation, route}: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loaderContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    marginTop: 16,
   },
   filterContainer: {
     flexDirection: 'row',
@@ -326,6 +378,24 @@ const styles = StyleSheet.create({
   serviceType: {
     fontSize: 14,
     marginTop: 2,
+  },
+  customerPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 6,
+  },
+  customerPhone: {
+    fontSize: 12,
+    flex: 1,
+  },
+  callButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   statusBadge: {
     paddingHorizontal: 12,

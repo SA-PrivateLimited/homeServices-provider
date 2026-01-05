@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -17,6 +16,7 @@ import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 import authService from '../services/authService';
 import CountryCodePicker from '../components/CountryCodePicker';
 import {DEFAULT_COUNTRY_CODE, CountryCode} from '../utils/countryCodes';
+import AlertModal from '../components/AlertModal';
 
 interface LoginScreenProps {
   navigation: any;
@@ -32,16 +32,38 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   const {isDarkMode, setCurrentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
 
+  const [alertModal, setAlertModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+
   const handleSendPhoneCode = async () => {
     if (!phoneNumber.trim()) {
-      Alert.alert('Error', 'Please enter your phone number');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter your phone number',
+        type: 'error',
+      });
       return;
     }
 
     // Validate phone number length (minimum 10 digits for India)
     const numericPhone = phoneNumber.replace(/\D/g, '');
     if (numericPhone.length < 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter a valid 10-digit phone number',
+        type: 'error',
+      });
       return;
     }
 
@@ -53,10 +75,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       console.log('Attempting to send code to:', fullPhoneNumber);
       const result = await authService.sendPhoneVerificationCode(fullPhoneNumber);
       setConfirmResult(result);
-      Alert.alert('Success', 'Verification code sent to your phone');
+      setAlertModal({
+        visible: true,
+        title: 'Success',
+        message: 'Verification code sent to your phone',
+        type: 'success',
+      });
     } catch (error: any) {
       console.error('Error sending verification code:', error);
-      Alert.alert('Error', error.message || 'Failed to send verification code. Please try again.');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: error.message || 'Failed to send verification code. Please try again.',
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -64,12 +96,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
 
   const handleVerifyPhoneCode = async () => {
     if (!verificationCode.trim()) {
-      Alert.alert('Error', 'Please enter the verification code');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter the verification code',
+        type: 'error',
+      });
       return;
     }
 
     if (!confirmResult) {
-      Alert.alert('Error', 'Please request a verification code first');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please request a verification code first',
+        type: 'error',
+      });
       return;
     }
 
@@ -130,7 +172,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
         errorMessage = 'Request timed out. Please check your internet connection and try again.';
       }
       
-      Alert.alert('Error', errorMessage);
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: errorMessage,
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -177,7 +224,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
         // User cancelled, don't show error
         return;
       }
-      Alert.alert('Error', error.message || 'Failed to sign in with Google');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: error.message || 'Failed to sign in with Google',
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -356,6 +408,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Alert Modal */}
+      <AlertModal
+        visible={alertModal.visible}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        onClose={() => setAlertModal({...alertModal, visible: false})}
+      />
     </KeyboardAvoidingView>
   );
 };

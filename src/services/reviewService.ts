@@ -151,7 +151,13 @@ export const getProviderReviews = async (
     })) as Review[];
 
     // Sort by createdAt descending if we didn't use orderBy
-    if (reviews.length > 0 && !snapshot.query._queryConstraints.some((c: any) => c.type === 'orderBy')) {
+    // Check if orderBy was used by checking query constraints safely
+    const hasOrderBy = snapshot.query && 
+      (snapshot.query as any)._queryConstraints && 
+      Array.isArray((snapshot.query as any)._queryConstraints) &&
+      (snapshot.query as any)._queryConstraints.some((c: any) => c.type === 'orderBy');
+    
+    if (reviews.length > 0 && !hasOrderBy) {
       reviews = reviews.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     }
 

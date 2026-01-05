@@ -12,7 +12,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -24,6 +23,8 @@ import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import CountryCodePicker from '../components/CountryCodePicker';
 import {DEFAULT_COUNTRY_CODE, CountryCode, COUNTRY_CODES} from '../utils/countryCodes';
+import AlertModal from '../components/AlertModal';
+import SuccessModal from '../components/SuccessModal';
 
 interface PhoneVerificationScreenProps {
   navigation: any;
@@ -74,6 +75,21 @@ export default function PhoneVerificationScreen({
   const {isDarkMode, currentUser, setCurrentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
 
+  // Modal states
+  const [alertModal, setAlertModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
   // Countdown timer for retry
   useEffect(() => {
     if (retryAfter !== null && retryAfter > 0) {
@@ -90,22 +106,34 @@ export default function PhoneVerificationScreen({
     if (retryAfter !== null && retryAfter > 0) {
       const minutes = Math.floor(retryAfter / 60);
       const seconds = retryAfter % 60;
-      Alert.alert(
-        'Too Many Attempts',
-        `Please wait ${minutes}:${seconds.toString().padStart(2, '0')} before trying again.`,
-      );
+      setAlertModal({
+        visible: true,
+        title: 'Too Many Attempts',
+        message: `Please wait ${minutes}:${seconds.toString().padStart(2, '0')} before trying again.`,
+        type: 'warning',
+      });
       return;
     }
 
     if (!phoneNumber.trim()) {
-      Alert.alert('Error', 'Please enter your phone number');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter your phone number',
+        type: 'error',
+      });
       return;
     }
 
     // Validate phone number length (minimum 10 digits for India)
     const numericPhone = phoneNumber.replace(/\D/g, '');
     if (numericPhone.length < 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter a valid 10-digit phone number',
+        type: 'error',
+      });
       return;
     }
 
@@ -119,7 +147,12 @@ export default function PhoneVerificationScreen({
       setConfirmResult(result);
       setStep('code');
       setRetryAfter(null); // Reset retry timer on success
-      Alert.alert('Success', 'Verification code sent to your phone');
+      setAlertModal({
+        visible: true,
+        title: 'Success',
+        message: 'Verification code sent to your phone',
+        type: 'success',
+      });
     } catch (error: any) {
       console.error('Error sending verification code:', error);
       
@@ -127,13 +160,19 @@ export default function PhoneVerificationScreen({
       if (error.message?.includes('Too many attempts') || error.message?.includes('too many verification attempts') || error.code === 'auth/too-many-requests') {
         // Set retry timer to 120 seconds (2 minutes) - shorter wait for better UX
         setRetryAfter(120);
-        Alert.alert(
-          'Verification Limit Reached',
-          'Too many verification attempts for this number. Please wait 2 minutes before trying again, or use a different phone number.',
-          [{text: 'OK'}],
-        );
+        setAlertModal({
+          visible: true,
+          title: 'Verification Limit Reached',
+          message: 'Too many verification attempts for this number. Please wait 2 minutes before trying again, or use a different phone number.',
+          type: 'warning',
+        });
       } else {
-        Alert.alert('Error', error.message || 'Failed to send verification code. Please try again.');
+        setAlertModal({
+          visible: true,
+          title: 'Error',
+          message: error.message || 'Failed to send verification code. Please try again.',
+          type: 'error',
+        });
       }
     } finally {
       setLoading(false);
@@ -142,7 +181,12 @@ export default function PhoneVerificationScreen({
 
   const handleVerifyPhoneCode = async () => {
     if (!verificationCode.trim()) {
-      Alert.alert('Error', 'Please enter the verification code');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter the verification code',
+        type: 'error',
+      });
       return;
     }
 
@@ -150,7 +194,12 @@ export default function PhoneVerificationScreen({
     try {
       const authUser = auth().currentUser;
       if (!authUser) {
-        Alert.alert('Error', 'User not authenticated');
+        setAlertModal({
+          visible: true,
+          title: 'Error',
+          message: 'User not authenticated',
+          type: 'error',
+        });
         setLoading(false);
         return;
       }
@@ -176,6 +225,7 @@ export default function PhoneVerificationScreen({
             .doc(providerDoc.docs[0].id)
             .update({
               phone: fullPhoneNumber,
+              phoneVerified: true,
               updatedAt: firestore.FieldValue.serverTimestamp(),
             });
         }
@@ -198,19 +248,13 @@ export default function PhoneVerificationScreen({
             });
         }
 
-        Alert.alert(
-          'Success',
-          'Phone number updated successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Navigate back to profile
-                navigation.goBack();
-              },
-            },
-          ],
-        );
+        setSuccessMessage('Phone number updated successfully!');
+        setShowSuccessModal(true);
+        setTimeout(() => {
+          setShowSuccessModal(false);
+          // Navigate back to profile
+          navigation.goBack();
+        }, 2000);
       } else if (mode === 'secondary') {
         // For secondary phone mode, verify the code and save as secondary phone
         await confirmResult.confirm(verificationCode);
@@ -258,19 +302,12 @@ export default function PhoneVerificationScreen({
         };
         setCurrentUser(updatedUser as any);
 
-        Alert.alert(
-          'Success',
-          'Secondary phone number added and verified successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Navigate back to profile
-                navigation.goBack();
-              },
-            },
-          ],
-        );
+        setSuccessMessage('Secondary phone number added and verified successfully!');
+        setShowSuccessModal(true);
+        setTimeout(() => {
+          setShowSuccessModal(false);
+          navigation.goBack();
+        }, 2000);
       } else {
         // Default verify mode - original flow
         const user = await authService.verifyPhoneCode(
@@ -279,6 +316,41 @@ export default function PhoneVerificationScreen({
           currentUser?.name || 'User',
           currentUser?.email,
         );
+
+        // Also update provider document if it exists
+        const providerDoc = await firestore()
+          .collection('providers')
+          .doc(authUser.uid)
+          .get();
+
+        if (providerDoc.exists) {
+          await firestore()
+            .collection('providers')
+            .doc(authUser.uid)
+            .update({
+              phone: authUser.phoneNumber || user.phone,
+              phoneVerified: true,
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+            });
+        } else if (authUser.email) {
+          // Try to find by email
+          const emailQuery = await firestore()
+            .collection('providers')
+            .where('email', '==', authUser.email)
+            .limit(1)
+            .get();
+          
+          if (!emailQuery.empty) {
+            await firestore()
+              .collection('providers')
+              .doc(emailQuery.docs[0].id)
+              .update({
+                phone: authUser.phoneNumber || user.phone,
+                phoneVerified: true,
+                updatedAt: firestore.FieldValue.serverTimestamp(),
+              });
+          }
+        }
 
         // Update current user with verified phone
         const updatedUser = {
@@ -289,25 +361,24 @@ export default function PhoneVerificationScreen({
 
         setCurrentUser(updatedUser);
 
-        Alert.alert(
-          'Success',
-          'Phone number verified successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
+        setSuccessMessage('Phone number verified successfully!');
+        setShowSuccessModal(true);
+        setTimeout(() => {
+          setShowSuccessModal(false);
                 // Navigate to provider dashboard
                 navigation.reset({
                   index: 0,
                   routes: [{name: 'ProviderMain'}],
                 });
-              },
-            },
-          ],
-        );
+        }, 2000);
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to verify code');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: error.message || 'Failed to verify code',
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -363,32 +434,32 @@ export default function PhoneVerificationScreen({
           <>
             <View style={styles.phoneInputWrapper}>
               <Text style={[styles.inputLabel, {color: theme.text}]}>Phone Number *</Text>
-              <View style={styles.phoneInputContainer}>
-                <CountryCodePicker
-                  selectedCountry={selectedCountry}
-                  onSelect={setSelectedCountry}
+            <View style={styles.phoneInputContainer}>
+              <CountryCodePicker
+                selectedCountry={selectedCountry}
+                onSelect={setSelectedCountry}
+              />
+              <View style={[styles.inputContainer, {flex: 1}]}>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.card,
+                      color: theme.text,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                  value={phoneNumber}
+                  onChangeText={(text) => {
+                    // Remove non-numeric characters
+                    const numericText = text.replace(/\D/g, '');
+                    setPhoneNumber(numericText);
+                  }}
+                  placeholder="9876543210"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="phone-pad"
+                  autoFocus
                 />
-                <View style={[styles.inputContainer, {flex: 1}]}>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: theme.card,
-                        color: theme.text,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                    value={phoneNumber}
-                    onChangeText={(text) => {
-                      // Remove non-numeric characters
-                      const numericText = text.replace(/\D/g, '');
-                      setPhoneNumber(numericText);
-                    }}
-                    placeholder="9876543210"
-                    placeholderTextColor={theme.textSecondary}
-                    keyboardType="phone-pad"
-                    autoFocus
-                  />
                 </View>
               </View>
             </View>
@@ -421,31 +492,31 @@ export default function PhoneVerificationScreen({
           <>
             <View style={styles.codeInputWrapper}>
               <Text style={[styles.inputLabel, {color: theme.text}]}>Verification Code *</Text>
-              <View style={styles.inputContainer}>
-                <Icon
-                  name="keypad-outline"
-                  size={20}
-                  color={theme.textSecondary}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={[
-                    styles.input,
+            <View style={styles.inputContainer}>
+              <Icon
+                name="keypad-outline"
+                size={20}
+                color={theme.textSecondary}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={[
+                  styles.input,
                     styles.inputWithIcon,
-                    {
-                      backgroundColor: theme.card,
-                      color: theme.text,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  value={verificationCode}
-                  onChangeText={setVerificationCode}
-                  placeholder="Enter 6-digit code"
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  autoFocus
-                />
+                  {
+                    backgroundColor: theme.card,
+                    color: theme.text,
+                    borderColor: theme.border,
+                  },
+                ]}
+                value={verificationCode}
+                onChangeText={setVerificationCode}
+                placeholder="Enter 6-digit code"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
+              />
               </View>
             </View>
 
@@ -486,6 +557,23 @@ export default function PhoneVerificationScreen({
           purposes.
         </Text>
       </View>
+
+      {/* Alert Modal */}
+      <AlertModal
+        visible={alertModal.visible}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        onClose={() => setAlertModal({...alertModal, visible: false})}
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        visible={showSuccessModal}
+        title="Success"
+        message={successMessage || ''}
+        onClose={() => setShowSuccessModal(false)}
+      />
     </KeyboardAvoidingView>
   );
 }

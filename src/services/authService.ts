@@ -183,7 +183,7 @@ export const sendPhoneVerificationCode = async (
     } else if (error.code === 'auth/captcha-check-failed') {
       throw new Error('Security verification failed. Please try again.');
     } else if (error.code === 'auth/app-not-authorized') {
-      throw new Error('App not authorized for phone authentication. Please contact support.');
+      throw new Error('App not authorized for phone authentication. Please add SHA-1 and SHA-256 fingerprints to Firebase Console. Run: ./firebase/addShaFingerprintsCLI.sh for instructions.');
     } else if (error.code === 'auth/missing-phone-number') {
       throw new Error('Phone number is required.');
     } else if (error.message) {

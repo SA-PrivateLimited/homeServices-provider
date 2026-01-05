@@ -20,7 +20,11 @@ import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
-import {getJobCardById, updateJobCardStatus, JobCard} from '../services/jobCardService';
+import {getJobCardById, updateJobCardStatus, verifyPINAndCompleteTask, cancelTaskWithReason, JobCard} from '../services/jobCardService';
+import PINVerificationModal from '../components/PINVerificationModal';
+import CancelTaskModal from '../components/CancelTaskModal';
+import StartTaskModal from '../components/StartTaskModal';
+import Toast from '../components/Toast';
 
 export default function JobDetailsScreen({navigation, route}: any) {
   const {jobCardId} = route.params;
@@ -31,6 +35,12 @@ export default function JobDetailsScreen({navigation, route}: any) {
   const [jobCard, setJobCard] = useState<JobCard | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [showPINModal, setShowPINModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showStartModal, setShowStartModal] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [questionnaireQuestions, setQuestionnaireQuestions] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadJobCard();
@@ -41,6 +51,11 @@ export default function JobDetailsScreen({navigation, route}: any) {
       setLoading(true);
       const job = await getJobCardById(jobCardId);
       setJobCard(job);
+      
+      // Fetch questionnaire questions if available
+      if (job?.questionnaireAnswers && job?.serviceType) {
+        await loadQuestionnaireQuestions(job.serviceType);
+      }
     } catch (error) {
       console.error('Error loading job card:', error);
       Alert.alert('Error', 'Failed to load job details');
@@ -49,18 +64,86 @@ export default function JobDetailsScreen({navigation, route}: any) {
     }
   };
 
-  const handleStatusUpdate = async (newStatus: JobCard['status']) => {
+  const loadQuestionnaireQuestions = async (serviceType: string) => {
+    try {
+      // Fetch service category to get questionnaire questions
+      const categoriesSnapshot = await firestore()
+        .collection('serviceCategories')
+        .where('name', '==', serviceType)
+        .limit(1)
+        .get();
+
+      if (!categoriesSnapshot.empty) {
+        const categoryData = categoriesSnapshot.docs[0].data();
+        const questionnaire = categoryData?.questionnaire || [];
+        
+        // Create a map of questionId -> question text
+        const questionsMap: Record<string, string> = {};
+        questionnaire.forEach((q: any) => {
+          if (q.id && q.question) {
+            questionsMap[q.id] = q.question;
+          }
+        });
+        
+        setQuestionnaireQuestions(questionsMap);
+      }
+    } catch (error) {
+      console.error('Error loading questionnaire questions:', error);
+      // Continue without questions - not critical
+    }
+  };
+
+  const handleStartTask = async () => {
     if (!jobCard) return;
 
     try {
       setUpdating(true);
-      await updateJobCardStatus(jobCardId, newStatus);
-      setJobCard({...jobCard, status: newStatus});
-      Alert.alert('Success', `Job status updated to ${newStatus}`);
+      setShowStartModal(false);
+      await updateJobCardStatus(jobCardId, 'in-progress');
+      // Reload job card to get updated data (including PIN if generated)
+      const updatedJob = await getJobCardById(jobCardId);
+      if (updatedJob) {
+        setJobCard(updatedJob);
+      }
+      setToastMessage('Service started! A PIN has been sent to the customer.');
+      setShowToast(true);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update status');
+      setToastMessage(error.message || 'Failed to start service');
+      setShowToast(true);
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleCompleteTask = async (pin: string) => {
+    try {
+      await verifyPINAndCompleteTask(jobCardId, pin);
+      // Reload job card
+      const updatedJob = await getJobCardById(jobCardId);
+      if (updatedJob) {
+        setJobCard(updatedJob);
+      }
+      setShowPINModal(false);
+      setToastMessage('Task completed successfully!');
+      setShowToast(true);
+    } catch (error: any) {
+      throw error; // Let the modal handle the error
+    }
+  };
+
+  const handleCancelTask = async (reason: string) => {
+    try {
+      await cancelTaskWithReason(jobCardId, reason);
+      // Reload job card
+      const updatedJob = await getJobCardById(jobCardId);
+      if (updatedJob) {
+        setJobCard(updatedJob);
+      }
+      setShowCancelModal(false);
+      setToastMessage('Task cancelled. Customer has been notified.');
+      setShowToast(true);
+    } catch (error: any) {
+      throw error; // Let the modal handle the error
     }
   };
 
@@ -103,8 +186,11 @@ export default function JobDetailsScreen({navigation, route}: any) {
 
   if (loading) {
     return (
-      <View style={[styles.container, {backgroundColor: theme.background}]}>
+      <View style={[styles.container, styles.loaderContainer, {backgroundColor: theme.background}]}>
         <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loadingText, {color: theme.textSecondary, marginTop: 16}]}>
+          Loading job details...
+        </Text>
       </View>
     );
   }
@@ -218,6 +304,60 @@ export default function JobDetailsScreen({navigation, route}: any) {
         )}
       </View>
 
+      {/* Questionnaire Answers */}
+      {jobCard.questionnaireAnswers && Object.keys(jobCard.questionnaireAnswers).length > 0 && (
+        <View style={[styles.card, {backgroundColor: theme.card}]}>
+          <View style={styles.questionnaireHeader}>
+            <Icon name="quiz" size={24} color={theme.primary} />
+            <Text style={[styles.cardTitle, {color: theme.text, marginLeft: 8}]}>
+              Service Requirements
+            </Text>
+          </View>
+          <View style={styles.questionnaireContainer}>
+            {Object.entries(jobCard.questionnaireAnswers).map(([questionId, answer], index) => {
+              const questionNumber = index + 1;
+              const questionText = questionnaireQuestions[questionId] || `Question ${questionNumber}`;
+              
+              // Format answer based on type
+              let formattedAnswer: string;
+              if (typeof answer === 'boolean') {
+                formattedAnswer = answer ? 'Yes' : 'No';
+              } else if (Array.isArray(answer)) {
+                formattedAnswer = answer.join(', ');
+              } else if (answer === null || answer === undefined || answer === '') {
+                formattedAnswer = 'Not provided';
+              } else {
+                formattedAnswer = String(answer);
+              }
+              
+              return (
+                <View key={questionId} style={styles.questionnaireItem}>
+                  <View style={styles.questionNumberBadge}>
+                    <Text style={[styles.questionNumber, {color: theme.primary}]}>
+                      {questionNumber}
+                    </Text>
+                  </View>
+                  <View style={styles.questionnaireContent}>
+                    <Text style={[styles.questionnaireQuestion, {color: theme.text}]}>
+                      {questionText}
+                    </Text>
+                    <Text style={[styles.questionnaireAnswer, {color: theme.textSecondary}]}>
+                      {formattedAnswer}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+          <View style={[styles.questionnaireNote, {backgroundColor: theme.primary + '10'}]}>
+            <Icon name="info-outline" size={16} color={theme.primary} />
+            <Text style={[styles.questionnaireNoteText, {color: theme.primary}]}>
+              Customer provided {Object.keys(jobCard.questionnaireAnswers).length} detail{Object.keys(jobCard.questionnaireAnswers).length !== 1 ? 's' : ''} about their service needs
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Customer Address */}
       {jobCard.customerAddress && (
         <View style={[styles.card, {backgroundColor: theme.card}]}>
@@ -252,36 +392,66 @@ export default function JobDetailsScreen({navigation, route}: any) {
           {jobCard.status === 'accepted' && (
             <TouchableOpacity
               style={[styles.actionButton, {backgroundColor: theme.primary}]}
-              onPress={() => handleStatusUpdate('in-progress')}
+              onPress={() => setShowStartModal(true)}
               disabled={updating}>
-              {updating ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Icon name="play-arrow" size={20} color="#fff" />
-                  <Text style={styles.actionButtonText}>Start Service</Text>
-                </>
-              )}
+              <Icon name="play-arrow" size={20} color="#fff" />
+              <Text style={styles.actionButtonText}>Start Service</Text>
             </TouchableOpacity>
           )}
 
           {jobCard.status === 'in-progress' && (
             <TouchableOpacity
               style={[styles.actionButton, {backgroundColor: '#34C759'}]}
-              onPress={() => handleStatusUpdate('completed')}
+              onPress={() => setShowPINModal(true)}
               disabled={updating}>
-              {updating ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Icon name="check-circle" size={20} color="#fff" />
-                  <Text style={styles.actionButtonText}>Mark as Completed</Text>
-                </>
-              )}
+              <Icon name="check-circle" size={20} color="#fff" />
+              <Text style={styles.actionButtonText}>Mark as Completed</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Cancel Task Button */}
+          {(jobCard.status === 'pending' || jobCard.status === 'accepted' || jobCard.status === 'in-progress') && (
+            <TouchableOpacity
+              style={[styles.actionButton, {backgroundColor: '#FF3B30'}]}
+              onPress={() => setShowCancelModal(true)}
+              disabled={updating}>
+              <Icon name="cancel" size={20} color="#fff" />
+              <Text style={styles.actionButtonText}>Cancel Task</Text>
             </TouchableOpacity>
           )}
         </View>
       )}
+
+      {/* Start Task Modal */}
+      <StartTaskModal
+        visible={showStartModal}
+        onConfirm={handleStartTask}
+        onCancel={() => setShowStartModal(false)}
+        loading={updating}
+      />
+
+      {/* PIN Verification Modal */}
+      <PINVerificationModal
+        visible={showPINModal}
+        onVerify={handleCompleteTask}
+        onCancel={() => setShowPINModal(false)}
+      />
+
+      {/* Cancel Task Modal */}
+      <CancelTaskModal
+        visible={showCancelModal}
+        onCancel={handleCancelTask}
+        onClose={() => setShowCancelModal(false)}
+      />
+
+      {/* Toast Notification */}
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type="success"
+        duration={3000}
+        onHide={() => setShowToast(false)}
+      />
     </ScrollView>
   );
 }
@@ -424,6 +594,58 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginTop: 40,
+  },
+  questionnaireHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  questionnaireContainer: {
+    gap: 12,
+  },
+  questionnaireItem: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  questionNumberBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#007AFF20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  questionNumber: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  questionnaireContent: {
+    flex: 1,
+  },
+  questionnaireQuestion: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  questionnaireAnswer: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '400',
+  },
+  questionnaireNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  questionnaireNoteText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
   },
 });
 

@@ -326,26 +326,37 @@ class FCMNotificationService {
   }
 
   /**
-   * Notify customer when provider starts service
+   * Notify customer when provider starts service (with PIN)
    */
   async notifyCustomerServiceStarted(
     customerId: string,
     providerName: string,
     serviceType: string,
     consultationId: string,
+    jobCardId?: string,
+    pin?: string,
   ): Promise<void> {
     console.log('📱 FCM: Sending notification - Service Started:', {
       customerId,
       providerName,
       serviceType,
       consultationId,
+      jobCardId,
+      hasPIN: !!pin,
     });
+    
+    const body = pin 
+      ? `${providerName} has started your ${serviceType} service. Your verification PIN is: ${pin}. Please share this PIN when the provider completes the service.`
+      : `${providerName} has started your ${serviceType} service`;
+    
     await this.sendToUser(customerId, {
       title: 'Service Started',
-      body: `${providerName} has started your ${serviceType} service`,
+      body,
       type: 'service',
       consultationId,
+      jobCardId: jobCardId || '',
       status: 'in-progress',
+      pin: pin || '',
     });
   }
 
@@ -370,6 +381,33 @@ class FCMNotificationService {
       type: 'service',
       consultationId,
       status: 'completed',
+    });
+  }
+
+  /**
+   * Notify customer when provider cancels service
+   */
+  async notifyCustomerServiceCancelled(
+    customerId: string,
+    providerName: string,
+    serviceType: string,
+    consultationId: string,
+    cancellationReason: string,
+  ): Promise<void> {
+    console.log('📱 FCM: Sending notification - Service Cancelled:', {
+      customerId,
+      providerName,
+      serviceType,
+      consultationId,
+      cancellationReason,
+    });
+    await this.sendToUser(customerId, {
+      title: 'Service Cancelled',
+      body: `${providerName} has cancelled your ${serviceType} service. Reason: ${cancellationReason}`,
+      type: 'service',
+      consultationId,
+      status: 'cancelled',
+      cancellationReason,
     });
   }
 }

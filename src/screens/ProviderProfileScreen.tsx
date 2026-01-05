@@ -416,24 +416,13 @@ export default function ProviderProfileScreen({navigation}: any) {
                 <Icon name="checkmark-circle" size={16} color="#4CAF50" />
               )}
             </View>
-            <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
-              <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1}}>
-                <Text style={[styles.infoValue, {color: theme.text}]}>{profile.phone || 'Not set'}</Text>
-                {storeUser?.phoneVerified && (
-                  <Text style={{fontSize: 12, color: '#4CAF50', fontStyle: 'italic'}}>
-                    Verified
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity
-                onPress={() => {
-                  navigation.navigate('PhoneVerification', {
-                    mode: 'change',
-                  });
-                }}
-                style={{padding: 8, marginLeft: 10}}>
-                <Ionicons name="create-outline" size={20} color={theme.primary} />
-              </TouchableOpacity>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+              <Text style={[styles.infoValue, {color: theme.text}]}>{profile.phone || 'Not set'}</Text>
+              {storeUser?.phoneVerified && (
+                <Text style={{fontSize: 12, color: '#4CAF50', fontStyle: 'italic'}}>
+                  Verified
+                </Text>
+              )}
             </View>
           </View>
         </View>

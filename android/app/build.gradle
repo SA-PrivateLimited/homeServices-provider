@@ -72,6 +72,11 @@ android {
         jniLibs {
             useLegacyPackaging = false
         }
+        // Suppress warnings for third-party libraries that aren't 16 KB aligned yet
+        // These libraries will still work in page size compatible mode
+        pickFirsts = []
+        merges = []
+        excludes = []
     }
 
     sourceSets {

@@ -266,31 +266,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
               </Text>
             )}
           </View>
-          {isEditing && (() => {
-            const authUser = auth().currentUser;
-            const loggedInWithPhone = authUser?.phoneNumber && currentUser?.phoneVerified;
-            if (!loggedInWithPhone) {
-              return (
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      color: theme.text,
-                      backgroundColor: theme.card,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  value={phone}
-                  onChangeText={setPhone}
-                  placeholder="Enter your phone number"
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="phone-pad"
-                  editable={!loading}
-                />
-              );
-            }
-            return null;
-          })()}
         </View>
 
         {/* Secondary Phone */}

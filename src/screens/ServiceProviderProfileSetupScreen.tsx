@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Image,
   Modal,
@@ -19,6 +18,8 @@ import auth from '@react-native-firebase/auth';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {useStore} from '../store';
 import ProviderAddressInput from '../components/ProviderAddressInput';
+import AlertModal from '../components/AlertModal';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 // Service Provider Types (replacing doctor specialties)
 const SERVICE_TYPES = [
@@ -46,7 +47,12 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   const [name, setName] = useState('');
   const [serviceType, setServiceType] = useState('');
   const [email, setEmail] = useState('');
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [sendingEmailVerification, setSendingEmailVerification] = useState(false);
   const [phone, setPhone] = useState('');
+  const [secondaryPhone, setSecondaryPhone] = useState('');
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [secondaryPhoneVerified, setSecondaryPhoneVerified] = useState(false);
   const [experience, setExperience] = useState('');
   const [languages, setLanguages] = useState<string[]>([]);
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -72,6 +78,26 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     latitude?: number;
     longitude?: number;
   } | null>(null);
+
+  // Modal states
+  const [alertModal, setAlertModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+  const [removeDocModal, setRemoveDocModal] = useState<{
+    visible: boolean;
+    docType: string | null;
+  }>({
+    visible: false,
+    docType: null,
+  });
 
   useEffect(() => {
     checkExistingProfile();
@@ -123,7 +149,13 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         
         setServiceType(savedServiceType);
         setEmail(profile.email || user.email || '');
+        // Check email verification from Firebase Auth
+        await user.reload();
+        setEmailVerified(user.emailVerified || profile.emailVerified || false);
         setPhone(profile.phone || user.phoneNumber || '');
+        setPhoneVerified(profile.phoneVerified || false);
+        setSecondaryPhone(profile.secondaryPhone || '');
+        setSecondaryPhoneVerified(profile.secondaryPhoneVerified || false);
         setExperience(profile.experience?.toString() || '');
         setLanguages(profile.languages || []);
         const existingImage = profile.profileImage || profile.photo;
@@ -151,7 +183,11 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         // Set default values from current user
         setName(user.displayName || '');
         setEmail(user.email || '');
+        // Check email verification from Firebase Auth
+        await user.reload();
+        setEmailVerified(user.emailVerified || false);
         setPhone(user.phoneNumber || '');
+        setPhoneVerified(user.phoneNumber ? true : false); // If phone number exists from auth, consider it verified
       }
     } catch (error) {
     } finally {
@@ -203,11 +239,12 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     
     // If document is verified by admin, cannot update/delete (unless profile is rejected)
     if (isVerified && !isRejected) {
-      Alert.alert(
-        'Cannot Upload Document',
-        `This document has been verified by admin. You cannot replace verified documents. Please contact admin if you need to update this document.`,
-        [{text: 'OK'}],
-      );
+      setAlertModal({
+        visible: true,
+        title: 'Cannot Upload Document',
+        message: 'This document has been verified by admin. You cannot replace verified documents. Please contact admin if you need to update this document.',
+        type: 'warning',
+      });
       return;
     }
 
@@ -229,7 +266,12 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
             } else if (docType === 'certificate') {
               setCertificate(downloadURL);
             }
-            Alert.alert('Success', 'Document uploaded successfully');
+            setAlertModal({
+              visible: true,
+              title: 'Success',
+              message: 'Document uploaded successfully',
+              type: 'success',
+            });
           } catch (error: any) {
             console.error('Document upload error:', error.code, error.message);
             let errorMessage = 'Failed to upload document. Please try again.';
@@ -250,13 +292,185 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
               errorMessage = `Upload failed: ${error.message}`;
             }
             
-            Alert.alert('Error', errorMessage);
+            setAlertModal({
+              visible: true,
+              title: 'Error',
+              message: errorMessage,
+              type: 'error',
+            });
           } finally {
             setUploadingDoc(null);
           }
         }
       },
     );
+  };
+
+  const handleSendEmailVerification = async () => {
+    const authUser = auth().currentUser;
+    if (!authUser) {
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'You must be logged in to verify your email',
+        type: 'error',
+      });
+      return;
+    }
+
+    if (!email.trim()) {
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter your email address',
+        type: 'error',
+      });
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter a valid email address',
+        type: 'error',
+      });
+      return;
+    }
+
+    setSendingEmailVerification(true);
+    try {
+      const emailToVerify = email.trim();
+      const currentEmail = authUser.email;
+      
+      // Only update email if it's different from current email
+      if (currentEmail && emailToVerify !== currentEmail) {
+        try {
+          await authUser.updateEmail(emailToVerify);
+          // Update email in Firestore after successful update
+          await firestore()
+            .collection('providers')
+            .doc(authUser.uid)
+            .update({
+              email: emailToVerify,
+              emailVerified: false,
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+            });
+          
+          // Also update users collection if exists
+          const userDoc = await firestore()
+            .collection('users')
+            .doc(authUser.uid)
+            .get();
+          if (userDoc.exists) {
+            await firestore()
+              .collection('users')
+              .doc(authUser.uid)
+              .update({
+                email: emailToVerify,
+                emailVerified: false,
+                updatedAt: firestore.FieldValue.serverTimestamp(),
+              });
+          }
+        } catch (updateError: any) {
+          if (updateError.code === 'auth/requires-recent-login') {
+            setAlertModal({
+              visible: true,
+              title: 'Re-authentication Required',
+              message: 'For security, you need to logout and login again before changing your email address.',
+              type: 'error',
+            });
+            setSendingEmailVerification(false);
+            return;
+          } else if (updateError.code === 'auth/email-already-in-use') {
+            setAlertModal({
+              visible: true,
+              title: 'Error',
+              message: 'This email is already in use by another account',
+              type: 'error',
+            });
+            setSendingEmailVerification(false);
+            return;
+          }
+          throw updateError;
+        }
+      }
+      
+      // Reload user to get latest email
+      await authUser.reload();
+      
+      // Check if user has email in Firebase Auth (required for sendEmailVerification)
+      if (!authUser.email) {
+        setAlertModal({
+          visible: true,
+          title: 'Email Verification Unavailable',
+          message: 'Email address is not set in your account. Please logout and login with email/password to enable email verification, or contact support for assistance.',
+          type: 'error',
+        });
+        setSendingEmailVerification(false);
+        return;
+      }
+      
+      // Send verification email (only if email/password provider is enabled)
+      try {
+        await authUser.sendEmailVerification();
+      } catch (verifyError: any) {
+        // If operation-not-allowed, it means email verification is disabled in Firebase
+        if (verifyError.code === 'auth/operation-not-allowed') {
+          setAlertModal({
+            visible: true,
+            title: 'Email Verification Unavailable',
+            message: 'Email verification is currently disabled in Firebase. Please enable Email/Password provider in Firebase Console > Authentication > Sign-in method.',
+            type: 'error',
+          });
+          setSendingEmailVerification(false);
+          return;
+        } else if (verifyError.code === 'auth/missing-email') {
+          setAlertModal({
+            visible: true,
+            title: 'Email Verification Unavailable',
+            message: 'Email address is not set in your account. Please logout and login with email/password to enable email verification, or contact support for assistance.',
+            type: 'error',
+          });
+          setSendingEmailVerification(false);
+          return;
+        }
+        throw verifyError;
+      }
+
+      setAlertModal({
+        visible: true,
+        title: 'Verification Email Sent',
+        message: 'Please check your email inbox and click the verification link. You may need to check your spam folder.',
+        type: 'success',
+      });
+    } catch (error: any) {
+      console.error('Error sending email verification:', error);
+      let errorMessage = 'Failed to send verification email. Please try again.';
+      
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'This email is already in use by another account';
+      } else if (error.code === 'auth/requires-recent-login') {
+        errorMessage = 'Please logout and login again to change your email';
+      } else if (error.code === 'auth/operation-not-allowed') {
+        errorMessage = 'Email verification is currently disabled. Please enable Email/Password provider in Firebase Console > Authentication > Sign-in method.';
+      } else if (error.code === 'auth/missing-email') {
+        errorMessage = 'Email address is not set in your account. Please logout and login with email/password to enable email verification, or contact support for assistance.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: errorMessage,
+        type: 'error',
+      });
+    } finally {
+      setSendingEmailVerification(false);
+    }
   };
 
   const removeDocument = (docType: 'idProof' | 'addressProof' | 'certificate') => {
@@ -266,44 +480,43 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     
     // If document is verified by admin, cannot update/delete (unless profile is rejected)
     if (isVerified && !isRejected) {
-      Alert.alert(
-        'Cannot Remove Document',
-        'This document has been verified by admin. You cannot remove verified documents. Please contact admin if you need to update this document.',
-        [{text: 'OK'}],
-      );
+      setAlertModal({
+        visible: true,
+        title: 'Cannot Remove Document',
+        message: 'This document has been verified by admin. You cannot remove verified documents. Please contact admin if you need to update this document.',
+        type: 'warning',
+      });
       return;
     }
 
     // Check if provider is approved - prevent deletion if approved
     if (existingProfile?.approvalStatus === 'approved') {
-      Alert.alert(
-        'Cannot Remove Document',
-        'You cannot remove documents once your profile has been approved. Please contact admin if you need to update your documents.',
-        [{text: 'OK'}],
-      );
+      setAlertModal({
+        visible: true,
+        title: 'Cannot Remove Document',
+        message: 'You cannot remove documents once your profile has been approved. Please contact admin if you need to update your documents.',
+        type: 'warning',
+      });
       return;
     }
 
-    Alert.alert(
-      'Remove Document',
-      'Are you sure you want to remove this document?',
-      [
-        {text: 'Cancel', style: 'cancel'},
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            if (docType === 'idProof') {
-              setIdProof(null);
-            } else if (docType === 'addressProof') {
-              setAddressProof(null);
-            } else if (docType === 'certificate') {
-              setCertificate(null);
-            }
-          },
-        },
-      ],
-    );
+    setRemoveDocModal({
+      visible: true,
+      docType: docType,
+    });
+  };
+
+  const confirmRemoveDocument = () => {
+    if (!removeDocModal.docType) return;
+    const docType = removeDocModal.docType;
+    if (docType === 'idProof') {
+      setIdProof(null);
+    } else if (docType === 'addressProof') {
+      setAddressProof(null);
+    } else if (docType === 'certificate') {
+      setCertificate(null);
+    }
+    setRemoveDocModal({visible: false, docType: null});
   };
 
   const generateAvailabilitySlots = async (
@@ -367,61 +580,109 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   const handleSubmit = async () => {
     // Validate name
     if (!name || name.trim().length === 0) {
-      Alert.alert('Error', 'Please enter your name');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter your name',
+        type: 'error',
+      });
       return;
     }
     if (name.trim().length < 2) {
-      Alert.alert('Error', 'Name must be at least 2 characters long');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Name must be at least 2 characters long',
+        type: 'error',
+      });
       return;
     }
 
     // Validate service type
     if (!serviceType || serviceType.trim().length === 0) {
-      Alert.alert('Error', 'Please select a service type');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please select a service type',
+        type: 'error',
+      });
       return;
     }
 
-    // Validate email
-    if (!email || email.trim().length === 0) {
-      Alert.alert('Error', 'Email is required');
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
+    // Validate email (optional, but if provided, must be valid format)
+    if (email && email.trim().length > 0) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        setAlertModal({
+          visible: true,
+          title: 'Error',
+          message: 'Please enter a valid email address',
+          type: 'error',
+        });
+        return;
+      }
     }
 
     // Validate phone
     if (!phone || phone.trim().length === 0) {
-      Alert.alert('Error', 'Please enter your phone number');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter your phone number',
+        type: 'error',
+      });
       return;
     }
     // Remove spaces, dashes, and plus signs for validation
     const phoneDigits = phone.replace(/[\s\-+]/g, '');
     if (phoneDigits.length < 10) {
-      Alert.alert('Error', 'Please enter a valid phone number (at least 10 digits)');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter a valid phone number (at least 10 digits)',
+        type: 'error',
+      });
       return;
     }
 
     // Validate experience
     if (!experience || experience.trim().length === 0) {
-      Alert.alert('Error', 'Please enter your years of experience');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter your years of experience',
+        type: 'error',
+      });
       return;
     }
     const experienceNum = parseInt(experience.trim(), 10);
     if (isNaN(experienceNum) || experienceNum < 0) {
-      Alert.alert('Error', 'Please enter a valid number of years of experience');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter a valid number of years of experience',
+        type: 'error',
+      });
       return;
     }
     if (experienceNum > 100) {
-      Alert.alert('Error', 'Please enter a realistic number of years of experience');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please enter a realistic number of years of experience',
+        type: 'error',
+      });
       return;
     }
 
     // Validate languages
     if (languages.length === 0) {
-      Alert.alert('Error', 'Please select at least one language');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please select at least one language',
+        type: 'error',
+      });
       return;
     }
 
@@ -440,14 +701,21 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           imageUrl = await uploadImage(profileImage);
         } catch (uploadError: any) {
           if (uploadError.code === 'storage/file-not-found') {
-            Alert.alert(
-              'Image Upload Failed',
-              'The selected image file could not be found. Please select the image again.',
-            );
+            setAlertModal({
+              visible: true,
+              title: 'Image Upload Failed',
+              message: 'The selected image file could not be found. Please select the image again.',
+              type: 'error',
+            });
             setLoading(false);
             return;
           }
-          Alert.alert('Warning', 'Failed to upload image. Profile will be saved without updating the image.');
+          setAlertModal({
+            visible: true,
+            title: 'Warning',
+            message: 'Failed to upload image. Profile will be saved without updating the image.',
+            type: 'warning',
+          });
         }
       } else if (profileImage && (profileImage.startsWith('http://') || profileImage.startsWith('https://'))) {
         imageUrl = profileImage;
@@ -456,12 +724,35 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
       // Use user UID as document ID for consistency
       const providerId = user.uid;
 
+      // Determine email verification status
+      // If email is provided, check if it's different from existing email
+      const trimmedEmail = email && email.trim() ? email.trim() : null;
+      const existingEmail = existingProfile?.email || null;
+      const emailChanged = trimmedEmail !== existingEmail;
+      
+      // If email is provided and changed (or new), mark as unverified
+      // Otherwise, preserve existing verification status
+      let finalEmailVerified = false;
+      if (trimmedEmail) {
+        if (emailChanged || !existingProfile) {
+          // New email or changed email - mark as unverified
+          finalEmailVerified = false;
+        } else {
+          // Same email - preserve existing verification status
+          finalEmailVerified = existingProfile?.emailVerified || emailVerified || false;
+        }
+      }
+
       const providerData: any = {
         name,
         specialization: serviceType,
         specialty: serviceType, // Legacy field
-        email,
+        email: trimmedEmail,
+        emailVerified: finalEmailVerified,
         phone,
+        phoneVerified: phoneVerified || existingProfile?.phoneVerified || false,
+        secondaryPhone: secondaryPhone || null,
+        secondaryPhoneVerified: secondaryPhoneVerified || false,
         experience: parseInt(experience, 10),
         languages,
         profileImage: imageUrl,
@@ -487,16 +778,25 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
       await firestore().collection('providers').doc(providerId).set(providerData, {merge: true});
 
       setLoading(false);
-      Alert.alert(
-        'Success',
-        existingProfile
+      setAlertModal({
+        visible: true,
+        title: 'Success',
+        message: existingProfile
           ? 'Profile updated successfully!'
           : 'Profile created successfully! Your profile will be reviewed by an administrator.',
-        [{text: 'OK', onPress: () => navigation.goBack()}],
-      );
+        type: 'success',
+      });
+      setTimeout(() => {
+        navigation.goBack();
+      }, 2000);
     } catch (error: any) {
       setLoading(false);
-      Alert.alert('Error', error.message || 'Failed to save profile. Please try again.');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: error.message || 'Failed to save profile. Please try again.',
+        type: 'error',
+      });
     }
   };
 
@@ -618,24 +918,187 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           </TouchableOpacity>
         </Modal>
 
-        <Text style={styles.label}>Email *</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="provider@example.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+        {/* Email */}
+        <View style={styles.phoneSection}>
+          <View style={styles.phoneHeader}>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
+              <Text style={styles.label}>Email</Text>
+              {emailVerified && (
+                <Icon name="checkmark-circle" size={16} color="#4CAF50" />
+              )}
+            </View>
+          </View>
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="provider@example.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            editable={!loading}
+          />
+          {!emailVerified && email && (
+            <TouchableOpacity
+              onPress={handleSendEmailVerification}
+              disabled={sendingEmailVerification || loading}
+              style={styles.verifyEmailButton}>
+              {sendingEmailVerification ? (
+                <ActivityIndicator size="small" color="#007AFF" />
+              ) : (
+                <>
+                  <Icon name="mail-outline" size={16} color="#007AFF" />
+                  <Text style={styles.verifyEmailText}>Verify Email</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+          {emailVerified ? (
+            <Text style={styles.verifiedText}>Verified</Text>
+          ) : email ? (
+            <Text style={styles.notVerifiedText}>Not Verified</Text>
+          ) : null}
+        </View>
 
-        <Text style={styles.label}>Phone *</Text>
-        <TextInput
-          style={styles.input}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="+91 9876543210"
-          keyboardType="phone-pad"
-        />
+        {/* Primary Phone */}
+        <View style={styles.phoneSection}>
+          <View style={styles.phoneHeader}>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
+              <Text style={styles.label}>Primary Phone *</Text>
+              {phoneVerified && (
+                <Icon name="checkmark-circle" size={16} color="#4CAF50" />
+              )}
+            </View>
+          </View>
+          <View style={styles.phoneRow}>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1}}>
+              <Text style={[styles.phoneDisplay, {color: phone ? '#000' : '#999'}]}>
+                {phone || 'Not set'}
+              </Text>
+              {(() => {
+                const authUser = auth().currentUser;
+                const loggedInWithPhone = !!authUser?.phoneNumber;
+                if (loggedInWithPhone) {
+                  return <Icon name="lock" size={16} color="#999" />;
+                }
+                return null;
+              })()}
+            </View>
+            {(() => {
+              const authUser = auth().currentUser;
+              const loggedInWithPhone = !!authUser?.phoneNumber;
+              if (!loggedInWithPhone) {
+                return (
+                  <TouchableOpacity
+                    onPress={() => {
+                      navigation.navigate('PhoneVerification', {
+                        mode: 'change',
+                        phoneNumber: phone,
+                      });
+                    }}
+                    style={styles.editPhoneButton}>
+                    <Icon name="create" size={18} color="#007AFF" />
+                    <Text style={styles.editPhoneText}>Edit</Text>
+                  </TouchableOpacity>
+                );
+              }
+              return null;
+            })()}
+          </View>
+          {phoneVerified ? (
+            <Text style={styles.verifiedText}>
+              Verified {(() => {
+                const authUser = auth().currentUser;
+                const loggedInWithPhone = !!authUser?.phoneNumber;
+                return loggedInWithPhone ? '(Cannot be changed)' : '';
+              })()}
+            </Text>
+          ) : phone ? (
+            <Text style={styles.notVerifiedText}>Not Verified</Text>
+          ) : null}
+        </View>
+
+        {/* Secondary Phone */}
+        <View style={styles.phoneSection}>
+          <View style={styles.phoneHeader}>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
+              <Text style={styles.label}>Secondary Phone</Text>
+              {secondaryPhoneVerified && (
+                <Icon name="checkmark-circle" size={16} color="#4CAF50" />
+              )}
+            </View>
+          </View>
+          {secondaryPhone ? (
+            <View style={styles.phoneRow}>
+              <Text style={styles.phoneDisplay}>{secondaryPhone}</Text>
+              <View style={{flexDirection: 'row', gap: 8}}>
+                {!secondaryPhoneVerified && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      navigation.navigate('PhoneVerification', {
+                        mode: 'secondary',
+                        phoneNumber: secondaryPhone,
+                      });
+                    }}
+                    style={styles.verifyButton}>
+                    <Text style={styles.verifyButtonText}>Verify</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  onPress={async () => {
+                    try {
+                      const user = auth().currentUser;
+                      if (!user) return;
+                      
+                      await firestore()
+                        .collection('providers')
+                        .doc(user.uid)
+                        .update({
+                          secondaryPhone: firestore.FieldValue.delete(),
+                          secondaryPhoneVerified: firestore.FieldValue.delete(),
+                          updatedAt: firestore.FieldValue.serverTimestamp(),
+                        });
+                      
+                      setSecondaryPhone('');
+                      setSecondaryPhoneVerified(false);
+                      
+                      setAlertModal({
+                        visible: true,
+                        title: 'Success',
+                        message: 'Secondary phone removed',
+                        type: 'success',
+                      });
+                    } catch (error: any) {
+                      setAlertModal({
+                        visible: true,
+                        title: 'Error',
+                        message: error.message || 'Failed to remove secondary phone',
+                        type: 'error',
+                      });
+                    }
+                  }}
+                  style={styles.removeButton}>
+                  <Icon name="delete" size={18} color="#ff4444" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => {
+                navigation.navigate('PhoneVerification', {
+                  mode: 'secondary',
+                });
+              }}
+              style={styles.addPhoneButton}>
+              <Icon name="add-circle-outline" size={20} color="#007AFF" />
+              <Text style={styles.addPhoneText}>Add Secondary Phone</Text>
+            </TouchableOpacity>
+          )}
+          {secondaryPhoneVerified ? (
+            <Text style={styles.verifiedText}>Verified</Text>
+          ) : secondaryPhone ? (
+            <Text style={styles.notVerifiedText}>Not Verified</Text>
+          ) : null}
+        </View>
 
         <Text style={styles.label}>Experience (years) *</Text>
         <TextInput
@@ -866,6 +1329,24 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Alert Modal */}
+      <AlertModal
+        visible={alertModal.visible}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        onClose={() => setAlertModal({...alertModal, visible: false})}
+      />
+
+      {/* Remove Document Confirmation Modal */}
+      <ConfirmationModal
+        visible={removeDocModal.visible}
+        title="Remove Document"
+        message={`Are you sure you want to remove this ${removeDocModal.docType || 'document'}?`}
+        onConfirm={confirmRemoveDocument}
+        onCancel={() => setRemoveDocModal({visible: false, docType: null})}
+      />
     </ScrollView>
   );
 }
@@ -1180,6 +1661,91 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  phoneSection: {
+    marginBottom: 16,
+  },
+  phoneHeader: {
+    marginBottom: 8,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  phoneDisplay: {
+    fontSize: 16,
+    flex: 1,
+  },
+  editPhoneButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  editPhoneText: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  verifyButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#007AFF',
+  },
+  verifyButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  removeButton: {
+    padding: 6,
+  },
+  addPhoneButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    borderRadius: 8,
+    borderStyle: 'dashed',
+  },
+  addPhoneText: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  verifiedText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    marginTop: 4,
+  },
+  notVerifiedText: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+  },
+  verifyEmailButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 8,
+    gap: 6,
+  },
+  verifyEmailText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
   },
 });
 

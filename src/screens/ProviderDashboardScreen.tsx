@@ -33,7 +33,7 @@ import websocketService from '../services/websocketService';
 import soundService from '../services/soundService';
 import {getProviderJobCards} from '../services/jobCardService';
 import BookingAlertModal from '../components/BookingAlertModal';
-import SuccessModal from '../components/SuccessModal';
+import Toast from '../components/Toast';
 import {createJobCard} from '../services/jobCardService';
 
 export default function ProviderDashboardScreen({navigation}: any) {
@@ -44,13 +44,13 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const [isOnline, setIsOnline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [todayEarnings, setTodayEarnings] = useState(0);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
   const [completedToday, setCompletedToday] = useState(0);
   const [rating, setRating] = useState(0);
   const [locationTracking, setLocationTracking] = useState<(() => void) | null>(null);
   const [incomingBooking, setIncomingBooking] = useState<any>(null);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
     if (!currentUser?.uid) {
@@ -232,14 +232,6 @@ export default function ProviderDashboardScreen({navigation}: any) {
         j.status === 'accepted' || j.status === 'in-progress'
       ).length);
 
-      // Calculate today's earnings (assuming each job has a serviceFee)
-      // This is a placeholder - adjust based on your payment structure
-      const earnings = todayJobs.reduce((sum, job) => {
-        // Assuming job has serviceFee field
-        return sum + ((job as any).serviceFee || 0);
-      }, 0);
-      setTodayEarnings(earnings);
-
       setLoading(false);
     } catch (error: any) {
       console.error('Error loading dashboard data:', error);
@@ -337,10 +329,9 @@ export default function ProviderDashboardScreen({navigation}: any) {
       // Refresh dashboard data
       loadDashboardData();
       
-      // Show success modal after a short delay
-      setTimeout(() => {
-        setShowSuccessModal(true);
-      }, 300);
+      // Show toast notification
+      setToastMessage('Service request accepted! Job card created successfully.');
+      setShowToast(true);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to accept service request.');
     } finally {
@@ -376,6 +367,9 @@ export default function ProviderDashboardScreen({navigation}: any) {
     return (
       <View style={[styles.container, styles.loaderContainer, {backgroundColor: theme.background}]}>
         <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loadingText, {color: theme.textSecondary, marginTop: 16}]}>
+          Loading dashboard...
+        </Text>
       </View>
     );
   }
@@ -394,27 +388,14 @@ export default function ProviderDashboardScreen({navigation}: any) {
         />
       )}
 
-      {/* Success Modal */}
-      {showSuccessModal && (
-        <SuccessModal
-          key={`success-modal-${Date.now()}`}
-          visible={showSuccessModal}
-          title="Success"
-          message="Service request accepted! Job card created successfully."
-          icon="checkmark-circle"
-          iconColor="#34C759"
-          buttonText="OK"
-          onClose={() => {
-            console.log('✅ Closing success modal');
-            // Close immediately
-            setShowSuccessModal(false);
-            // Refresh dashboard data after a short delay
-            setTimeout(() => {
-              loadDashboardData();
-            }, 100);
-          }}
-        />
-      )}
+      {/* Toast Notification */}
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type="success"
+        duration={3000}
+        onHide={() => setShowToast(false)}
+      />
       
       <ScrollView
         style={styles.scrollView}
@@ -450,17 +431,6 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
       {/* Stats Cards */}
       <View style={styles.statsContainer}>
-        {/* Today's Earnings */}
-        <View style={[styles.statCard, {backgroundColor: theme.card}]}>
-          <Icon name="attach-money" size={32} color="#34C759" />
-          <Text style={[styles.statValue, {color: theme.text}]}>
-            ₹{todayEarnings.toFixed(0)}
-          </Text>
-          <Text style={[styles.statLabel, {color: theme.textSecondary}]}>
-            Today's Earnings
-          </Text>
-        </View>
-
         {/* Active Jobs */}
         <TouchableOpacity
           style={[styles.statCard, {backgroundColor: theme.card}]}
@@ -520,16 +490,6 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
         <TouchableOpacity
           style={[styles.actionButton, {backgroundColor: theme.card}]}
-          onPress={() => navigation.navigate('History')}>
-          <Icon name="account-balance-wallet" size={24} color={theme.primary} />
-          <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            View Earnings History
-          </Text>
-          <Icon name="chevron-right" size={24} color={theme.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionButton, {backgroundColor: theme.card}]}
           onPress={() => navigation.navigate('Profile')}>
           <Icon name="person" size={24} color={theme.primary} />
           <Text style={[styles.actionButtonText, {color: theme.text}]}>
@@ -561,6 +521,10 @@ const styles = StyleSheet.create({
   loaderContainer: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    marginTop: 16,
   },
   scrollView: {
     flex: 1,
