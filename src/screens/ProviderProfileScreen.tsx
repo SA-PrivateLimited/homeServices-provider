@@ -273,7 +273,7 @@ export default function ProviderProfileScreen({navigation}: any) {
               <Ionicons name="help-circle-outline" size={22} color={theme.text} />
               <View style={styles.settingText}>
                 <Text style={[styles.settingTitle, {color: theme.text}]}>
-                  Help & Support
+                  {String(t('profile.helpSupport'))}
                 </Text>
               </View>
             </View>
@@ -284,15 +284,15 @@ export default function ProviderProfileScreen({navigation}: any) {
             style={[styles.settingItem, {backgroundColor: theme.card}]}
             onPress={() =>
               Alert.alert(
-                'HomeServices Provider',
-                'Version 1.0.0\n\nService Provider portal for HomeServices system',
+                String(t('settings.aboutHomeServices')),
+                String(t('settings.aboutMessage')),
               )
             }>
             <View style={styles.settingLeft}>
               <Ionicons name="information-circle-outline" size={22} color={theme.text} />
               <View style={styles.settingText}>
                 <Text style={[styles.settingTitle, {color: theme.text}]}>
-                  About
+                  {String(t('profile.about'))}
                 </Text>
               </View>
             </View>
@@ -306,7 +306,7 @@ export default function ProviderProfileScreen({navigation}: any) {
               <Ionicons name="log-out-outline" size={22} color="#FF3B30" />
               <View style={styles.settingText}>
                 <Text style={[styles.settingTitle, {color: '#FF3B30'}]}>
-                  Logout
+                  {String(t('profile.logout'))}
                 </Text>
               </View>
             </View>
