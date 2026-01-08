@@ -1,0 +1,10 @@
+{
+  "title": "सूचनाएं",
+  "markAllAsRead": "सभी को पढ़ा हुआ चिह्नित करें",
+  "clearAll": "सभी साफ़ करें",
+  "noNotifications": "कोई सूचना नहीं",
+  "justNow": "अभी",
+  "minutesAgo": "{{count}} मि. पहले",
+  "hoursAgo": "{{count}} घं. पहले",
+  "daysAgo": "{{count}} दिन पहले"
+}

@@ -1,0 +1,19 @@
+{
+  "title": "Help & Support",
+  "apiKeyNotConfigured": "⚠️ OpenAI API key is not configured. Please add OPEN_AI_API_KEY to your .env file and rebuild the app to enable the AI assistant.",
+  "greeting": "👋 Hello! I'm your consultation assistant. I can help you answer questions about your past consultations, appointments, prescriptions, and more. What would you like to know?",
+  "failedToIndex": "⚠️ Failed to index consultations: {{error}}. Some features may not work correctly.",
+  "indexingConsultations": "Indexing consultations...",
+  "consultationsIndexed": "{{count}} consultation{{plural}} indexed",
+  "consultation": "consultation",
+  "consultations": "consultations",
+  "aiAssistant": "AI Assistant",
+  "thinking": "Thinking...",
+  "startConversation": "Start a conversation",
+  "apiKeyNotConfiguredWarning": "OpenAI API key not configured",
+  "askAboutConsultations": "Ask about your consultations...",
+  "contactSupport": "Contact Support",
+  "emailNotAvailable": "Email Not Available",
+  "emailNotAvailableMessage": "Please send an email to {{email}} with your query.",
+  "errorMessage": "I apologize, but I encountered an error: {{error}}. Please contact our support team at support@sa-privatelimited.com for assistance."
+}

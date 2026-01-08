@@ -1,0 +1,10 @@
+{
+  "title": "Job Cards",
+  "pending": "Pending",
+  "accepted": "Accepted",
+  "inProgress": "In Progress",
+  "completed": "Completed",
+  "cancelled": "Cancelled",
+  "immediate": "Immediate",
+  "scheduled": "Scheduled"
+}

@@ -25,12 +25,14 @@ import PINVerificationModal from '../components/PINVerificationModal';
 import CancelTaskModal from '../components/CancelTaskModal';
 import StartTaskModal from '../components/StartTaskModal';
 import Toast from '../components/Toast';
+import useTranslation from '../hooks/useTranslation';
 
 export default function JobDetailsScreen({navigation, route}: any) {
   const {jobCardId} = route.params;
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const currentUser = auth().currentUser;
+  const {t} = useTranslation();
 
   const [jobCard, setJobCard] = useState<JobCard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,7 +70,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
       }
     } catch (error) {
       console.error('Error loading job card:', error);
-      Alert.alert('Error', 'Failed to load job details');
+      Alert.alert(t('common.error'), t('jobDetails.failedToLoad'));
     } finally {
       setLoading(false);
     }
@@ -115,10 +117,10 @@ export default function JobDetailsScreen({navigation, route}: any) {
       if (updatedJob) {
         setJobCard(updatedJob);
       }
-      setToastMessage('Service started! A PIN has been sent to the customer.');
+      setToastMessage(t('jobDetails.serviceStarted'));
       setShowToast(true);
     } catch (error: any) {
-      setToastMessage(error.message || 'Failed to start service');
+      setToastMessage(error.message || t('jobDetails.failedToStart'));
       setShowToast(true);
     } finally {
       setUpdating(false);
@@ -134,7 +136,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
         setJobCard(updatedJob);
       }
       setShowPINModal(false);
-      setToastMessage('Task completed successfully!');
+      setToastMessage(t('jobDetails.taskCompleted'));
       setShowToast(true);
     } catch (error: any) {
       throw error; // Let the modal handle the error
@@ -150,7 +152,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
         setJobCard(updatedJob);
       }
       setShowCancelModal(false);
-      setToastMessage('Task cancelled. Customer has been notified.');
+      setToastMessage(t('jobDetails.taskCancelled'));
       setShowToast(true);
     } catch (error: any) {
       throw error; // Let the modal handle the error
@@ -161,7 +163,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
     if (jobCard?.customerPhone) {
       Linking.openURL(`tel:${jobCard.customerPhone}`);
     } else {
-      Alert.alert('Phone number not available');
+      Alert.alert(t('jobDetails.phoneNotAvailable'));
     }
   };
 
@@ -199,7 +201,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
       <View style={[styles.container, styles.loaderContainer, {backgroundColor: theme.background}]}>
         <ActivityIndicator size="large" color={theme.primary} />
         <Text style={[styles.loadingText, {color: theme.textSecondary, marginTop: 16}]}>
-          Loading job details...
+          {t('jobDetails.loadingJobDetails')}
         </Text>
       </View>
     );
@@ -209,7 +211,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
     return (
       <View style={[styles.container, {backgroundColor: theme.background}]}>
         <Text style={[styles.errorText, {color: theme.text}]}>
-          Job not found
+          {t('jobDetails.jobNotFound')}
         </Text>
       </View>
     );
@@ -234,14 +236,14 @@ export default function JobDetailsScreen({navigation, route}: any) {
             </Text>
             <Text style={[styles.statusSubtext, {color: theme.textSecondary}]}>
               {jobCard.status === 'pending'
-                ? 'Waiting for your action'
+                ? t('jobDetails.waitingForAction')
                 : jobCard.status === 'accepted'
-                ? 'Job accepted'
+                ? t('jobDetails.jobAccepted')
                 : jobCard.status === 'in-progress'
-                ? 'Service in progress'
+                ? t('jobDetails.serviceInProgress')
                 : jobCard.status === 'completed'
-                ? 'Service completed'
-                : 'Job cancelled'}
+                ? t('jobDetails.serviceCompleted')
+                : t('jobDetails.jobCancelled')}
             </Text>
           </View>
         </View>
@@ -250,7 +252,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
       {/* Customer Details */}
       <View style={[styles.card, {backgroundColor: theme.card}]}>
         <Text style={[styles.cardTitle, {color: theme.text}]}>
-          Customer Details
+          {t('jobDetails.customerDetails')}
         </Text>
         <View style={styles.customerInfo}>
           <View style={styles.customerAvatar}>
@@ -279,12 +281,12 @@ export default function JobDetailsScreen({navigation, route}: any) {
       {/* Service Details */}
       <View style={[styles.card, {backgroundColor: theme.card}]}>
         <Text style={[styles.cardTitle, {color: theme.text}]}>
-          Service Details
+          {t('jobDetails.serviceDetails')}
         </Text>
         <View style={styles.detailRow}>
           <Icon name="build" size={20} color={theme.primary} />
           <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
-            Service Type:
+            {t('jobDetails.serviceType')}
           </Text>
           <Text style={[styles.detailValue, {color: theme.text}]}>
             {jobCard.serviceType}
@@ -294,7 +296,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
           <View style={styles.detailRow}>
             <Icon name="description" size={20} color={theme.primary} />
             <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
-              Problem:
+              {t('jobDetails.problem')}
             </Text>
             <Text style={[styles.detailValue, {color: theme.text}]}>
               {jobCard.problem}
@@ -305,7 +307,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
           <View style={styles.detailRow}>
             <Icon name="schedule" size={20} color={theme.primary} />
             <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
-              Scheduled:
+              {t('jobDetails.scheduled')}
             </Text>
             <Text style={[styles.detailValue, {color: theme.text}]}>
               {formatDate(jobCard.scheduledTime)}
@@ -320,22 +322,22 @@ export default function JobDetailsScreen({navigation, route}: any) {
           <View style={styles.questionnaireHeader}>
             <Icon name="quiz" size={24} color={theme.primary} />
             <Text style={[styles.cardTitle, {color: theme.text, marginLeft: 8}]}>
-              Service Requirements
+              {t('jobDetails.serviceRequirements')}
             </Text>
           </View>
           <View style={styles.questionnaireContainer}>
             {Object.entries(jobCard.questionnaireAnswers).map(([questionId, answer], index) => {
               const questionNumber = index + 1;
-              const questionText = questionnaireQuestions[questionId] || `Question ${questionNumber}`;
+              const questionText = questionnaireQuestions[questionId] || `${t('jobDetails.question')} ${questionNumber}`;
               
               // Format answer based on type
               let formattedAnswer: string;
               if (typeof answer === 'boolean') {
-                formattedAnswer = answer ? 'Yes' : 'No';
+                formattedAnswer = answer ? t('jobDetails.yes') : t('jobDetails.no');
               } else if (Array.isArray(answer)) {
                 formattedAnswer = answer.join(', ');
               } else if (answer === null || answer === undefined || answer === '') {
-                formattedAnswer = 'Not provided';
+                formattedAnswer = t('jobDetails.notProvided');
               } else {
                 formattedAnswer = String(answer);
               }
@@ -362,7 +364,10 @@ export default function JobDetailsScreen({navigation, route}: any) {
           <View style={[styles.questionnaireNote, {backgroundColor: theme.primary + '10'}]}>
             <Icon name="info-outline" size={16} color={theme.primary} />
             <Text style={[styles.questionnaireNoteText, {color: theme.primary}]}>
-              Customer provided {Object.keys(jobCard.questionnaireAnswers).length} detail{Object.keys(jobCard.questionnaireAnswers).length !== 1 ? 's' : ''} about their service needs
+              {t('jobDetails.customerProvidedDetails', {
+                count: Object.keys(jobCard.questionnaireAnswers).length,
+                plural: Object.keys(jobCard.questionnaireAnswers).length !== 1 ? 's' : ''
+              })}
             </Text>
           </View>
         </View>
@@ -372,7 +377,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
       {jobCard.customerAddress && (
         <View style={[styles.card, {backgroundColor: theme.card}]}>
           <Text style={[styles.cardTitle, {color: theme.text}]}>
-            Service Address
+            {t('jobDetails.serviceAddress')}
           </Text>
           <View style={styles.addressContainer}>
             <Icon name="location-on" size={20} color={theme.primary} />
@@ -382,7 +387,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
               </Text>
               {jobCard.customerAddress.pincode && (
                 <Text style={[styles.addressDetails, {color: theme.textSecondary}]}>
-                  Pincode: {jobCard.customerAddress.pincode}
+                  {t('jobDetails.pincode')} {jobCard.customerAddress.pincode}
                 </Text>
               )}
               {jobCard.customerAddress.city && (
@@ -405,7 +410,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
               onPress={() => setShowStartModal(true)}
               disabled={updating}>
               <Icon name="play-arrow" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Start Service</Text>
+              <Text style={styles.actionButtonText}>{t('jobDetails.startService')}</Text>
             </TouchableOpacity>
           )}
 
@@ -415,7 +420,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
               onPress={() => setShowPINModal(true)}
               disabled={updating}>
               <Icon name="check-circle" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Mark as Completed</Text>
+              <Text style={styles.actionButtonText}>{t('jobDetails.markAsCompleted')}</Text>
             </TouchableOpacity>
           )}
 
@@ -426,7 +431,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
               onPress={() => setShowCancelModal(true)}
               disabled={updating}>
               <Icon name="cancel" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Cancel Task</Text>
+              <Text style={styles.actionButtonText}>{t('jobDetails.cancelTask')}</Text>
             </TouchableOpacity>
           )}
         </View>

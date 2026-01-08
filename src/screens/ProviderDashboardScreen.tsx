@@ -35,11 +35,13 @@ import {getProviderJobCards} from '../services/jobCardService';
 import BookingAlertModal from '../components/BookingAlertModal';
 import Toast from '../components/Toast';
 import {createJobCard} from '../services/jobCardService';
+import useTranslation from '../hooks/useTranslation';
 
 export default function ProviderDashboardScreen({navigation}: any) {
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const currentUser = auth().currentUser;
+  const {t} = useTranslation();
 
   const [isOnline, setIsOnline] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -236,9 +238,9 @@ export default function ProviderDashboardScreen({navigation}: any) {
     } catch (error: any) {
       console.error('Error loading dashboard data:', error);
       Alert.alert(
-        'Error',
-        error.message || 'Failed to load dashboard data. Please try again.',
-        [{text: 'OK'}]
+        t('common.error'),
+        error.message || t('dashboard.loadDashboardError'),
+        [{text: t('common.ok')}]
       );
       setLoading(false);
     }
@@ -252,14 +254,14 @@ export default function ProviderDashboardScreen({navigation}: any) {
       setIsOnline(newStatus);
       
       Alert.alert(
-        newStatus ? 'You\'re Now Online' : 'You\'re Now Offline',
+        newStatus ? t('dashboard.youreNowOnline') : t('dashboard.youreNowOffline'),
         newStatus
-          ? 'You will receive service requests. Make sure location is enabled.'
-          : 'You will not receive new service requests.',
-        [{text: 'OK'}]
+          ? t('dashboard.onlineMessage')
+          : t('dashboard.offlineMessage'),
+        [{text: t('common.ok')}]
       );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update online status');
+      Alert.alert(t('common.error'), error.message || t('dashboard.updateStatusError'));
     } finally {
       setLoading(false);
     }
@@ -316,7 +318,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
       }
 
       if (!provider || !provider.address || !provider.address.pincode) {
-        Alert.alert('Error', 'Please set up your address in profile settings to accept requests.');
+        Alert.alert(t('common.error'), t('dashboard.addressRequired'));
         return;
       }
 
@@ -328,12 +330,12 @@ export default function ProviderDashboardScreen({navigation}: any) {
       
       // Refresh dashboard data
       loadDashboardData();
-      
+
       // Show toast notification
-      setToastMessage('Service request accepted! Job card created successfully.');
+      setToastMessage(t('dashboard.requestAccepted'));
       setShowToast(true);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to accept service request.');
+      Alert.alert(t('common.error'), error.message || t('dashboard.acceptRequestError'));
     } finally {
       setLoading(false);
     }
@@ -348,10 +350,10 @@ export default function ProviderDashboardScreen({navigation}: any) {
     try {
       setLoading(true);
       await websocketService.rejectBooking(incomingBooking);
-      Alert.alert('Success', 'Service request rejected successfully.');
+      Alert.alert(t('common.success'), t('dashboard.requestRejected'));
       setIncomingBooking(null);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to reject service request.');
+      Alert.alert(t('common.error'), error.message || t('dashboard.rejectRequestError'));
     } finally {
       setLoading(false);
     }
@@ -368,7 +370,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
       <View style={[styles.container, styles.loaderContainer, {backgroundColor: theme.background}]}>
         <ActivityIndicator size="large" color={theme.primary} />
         <Text style={[styles.loadingText, {color: theme.textSecondary, marginTop: 16}]}>
-          Loading dashboard...
+          {t('dashboard.loadingDashboard')}
         </Text>
       </View>
     );
@@ -419,12 +421,12 @@ export default function ProviderDashboardScreen({navigation}: any) {
             color="#fff"
           />
           <Text style={styles.toggleText}>
-            {isOnline ? 'ONLINE' : 'OFFLINE'}
+            {isOnline ? t('dashboard.online') : t('dashboard.offline')}
           </Text>
           <Text style={styles.toggleSubtext}>
             {isOnline
-              ? 'Tap to go offline'
-              : 'Tap to go online and receive requests'}
+              ? t('dashboard.tapToGoOffline')
+              : t('dashboard.tapToGoOnline')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -440,7 +442,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
             {activeJobsCount}
           </Text>
           <Text style={[styles.statLabel, {color: theme.textSecondary}]}>
-            Active Jobs
+            {t('dashboard.activeJobs')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -454,7 +456,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
               {completedToday}
             </Text>
             <Text style={[styles.quickStatLabel, {color: theme.textSecondary}]}>
-              Completed Today
+              {t('dashboard.completedToday')}
             </Text>
           </View>
         </View>
@@ -466,7 +468,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
               {rating.toFixed(1)}
             </Text>
             <Text style={[styles.quickStatLabel, {color: theme.textSecondary}]}>
-              Rating
+              {t('dashboard.rating')}
             </Text>
           </View>
         </View>
@@ -475,7 +477,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
       {/* Quick Actions */}
       <View style={styles.quickActionsContainer}>
         <Text style={[styles.sectionTitle, {color: theme.text}]}>
-          Quick Actions
+          {t('dashboard.quickActions')}
         </Text>
 
         <TouchableOpacity
@@ -483,7 +485,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
           onPress={() => navigation.navigate('Jobs', {filter: 'all'})}>
           <Icon name="list" size={24} color={theme.primary} />
           <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            View Active Jobs
+            {t('dashboard.viewActiveJobs')}
           </Text>
           <Icon name="chevron-right" size={24} color={theme.textSecondary} />
         </TouchableOpacity>
@@ -493,7 +495,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
           onPress={() => navigation.navigate('Profile')}>
           <Icon name="person" size={24} color={theme.primary} />
           <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            Profile & Settings
+            {t('dashboard.profileAndSettings')}
           </Text>
           <Icon name="chevron-right" size={24} color={theme.textSecondary} />
         </TouchableOpacity>

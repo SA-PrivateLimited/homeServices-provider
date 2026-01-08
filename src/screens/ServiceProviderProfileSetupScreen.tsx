@@ -20,6 +20,7 @@ import {useStore} from '../store';
 import ProviderAddressInput from '../components/ProviderAddressInput';
 import AlertModal from '../components/AlertModal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import useTranslation from '../hooks/useTranslation';
 
 // Service Provider Types (replacing doctor specialties)
 const SERVICE_TYPES = [
@@ -44,6 +45,7 @@ const LANGUAGES = ['English', 'Hindi', 'Bengali', 'Telugu', 'Marathi', 'Tamil', 
 
 export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   const {currentUser} = useStore();
+  const {t} = useTranslation();
   const [name, setName] = useState('');
   const [serviceType, setServiceType] = useState('');
   const [email, setEmail] = useState('');
@@ -241,8 +243,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (isVerified && !isRejected) {
       setAlertModal({
         visible: true,
-        title: 'Cannot Upload Document',
-        message: 'This document has been verified by admin. You cannot replace verified documents. Please contact admin if you need to update this document.',
+        title: t('providerProfile.cannotUploadDocument'),
+        message: t('providerProfile.documentVerifiedMessage'),
         type: 'warning',
       });
       return;
@@ -268,33 +270,33 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
             }
             setAlertModal({
               visible: true,
-              title: 'Success',
-              message: 'Document uploaded successfully',
+              title: t('common.success'),
+              message: t('providerProfile.uploadSuccess'),
               type: 'success',
             });
           } catch (error: any) {
             console.error('Document upload error:', error.code, error.message);
-            let errorMessage = 'Failed to upload document. Please try again.';
-            
+            let errorMessage = t('providerProfile.uploadFailed');
+
             if (error.code === 'storage/unauthorized') {
-              errorMessage = 'Permission denied. Please ensure you are logged in and try again.';
+              errorMessage = t('providerProfile.unauthorizedUpload');
             } else if (error.code === 'storage/canceled') {
-              errorMessage = 'Upload canceled. Please try again.';
+              errorMessage = t('providerProfile.uploadCanceled');
             } else if (error.code === 'storage/unknown') {
-              errorMessage = 'Unknown error occurred. Please check your internet connection and try again.';
+              errorMessage = t('providerProfile.unknownError');
             } else if (error.code === 'storage/invalid-format') {
-              errorMessage = 'Invalid file format. Please upload an image (JPG, PNG) or PDF.';
+              errorMessage = t('providerProfile.invalidFormat');
             } else if (error.code === 'storage/file-not-found') {
-              errorMessage = 'File not found. Please select the document again.';
+              errorMessage = t('providerProfile.fileNotFound');
             } else if (error.code === 'storage/quota-exceeded') {
-              errorMessage = 'Storage quota exceeded. Please contact support.';
+              errorMessage = t('providerProfile.quotaExceeded');
             } else if (error.message) {
               errorMessage = `Upload failed: ${error.message}`;
             }
-            
+
             setAlertModal({
               visible: true,
-              title: 'Error',
+              title: t('common.error'),
               message: errorMessage,
               type: 'error',
             });
@@ -311,7 +313,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (!authUser) {
       setAlertModal({
         visible: true,
-        title: 'Error',
+        title: t('common.error'),
         message: 'You must be logged in to verify your email',
         type: 'error',
       });
@@ -321,8 +323,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (!email.trim()) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter your email address',
+        title: t('common.error'),
+        message: t('providerProfile.pleaseEnterValidEmail'),
         type: 'error',
       });
       return;
@@ -333,8 +335,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (!emailRegex.test(email.trim())) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter a valid email address',
+        title: t('common.error'),
+        message: t('providerProfile.pleaseEnterValidEmail'),
         type: 'error',
       });
       return;
@@ -378,8 +380,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           if (updateError.code === 'auth/requires-recent-login') {
             setAlertModal({
               visible: true,
-              title: 'Re-authentication Required',
-              message: 'For security, you need to logout and login again before changing your email address.',
+              title: t('providerProfile.reauthRequired'),
+              message: t('providerProfile.reauthRequiredMessage'),
               type: 'error',
             });
             setSendingEmailVerification(false);
@@ -387,7 +389,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           } else if (updateError.code === 'auth/email-already-in-use') {
             setAlertModal({
               visible: true,
-              title: 'Error',
+              title: t('common.error'),
               message: 'This email is already in use by another account',
               type: 'error',
             });
@@ -405,8 +407,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
       if (!authUser.email) {
         setAlertModal({
           visible: true,
-          title: 'Email Verification Unavailable',
-          message: 'Email address is not set in your account. Please logout and login with email/password to enable email verification, or contact support for assistance.',
+          title: t('providerProfile.emailVerificationUnavailable'),
+          message: t('providerProfile.emailVerificationUnavailableMessage'),
           type: 'error',
         });
         setSendingEmailVerification(false);
@@ -421,8 +423,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         if (verifyError.code === 'auth/operation-not-allowed') {
           setAlertModal({
             visible: true,
-            title: 'Email Verification Unavailable',
-            message: 'Email verification is currently disabled in Firebase. Please enable Email/Password provider in Firebase Console > Authentication > Sign-in method.',
+            title: t('providerProfile.emailVerificationUnavailable'),
+            message: t('providerProfile.emailVerificationUnavailableMessage'),
             type: 'error',
           });
           setSendingEmailVerification(false);
@@ -430,8 +432,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         } else if (verifyError.code === 'auth/missing-email') {
           setAlertModal({
             visible: true,
-            title: 'Email Verification Unavailable',
-            message: 'Email address is not set in your account. Please logout and login with email/password to enable email verification, or contact support for assistance.',
+            title: t('providerProfile.emailVerificationUnavailable'),
+            message: t('providerProfile.emailVerificationUnavailableMessage'),
             type: 'error',
           });
           setSendingEmailVerification(false);
@@ -442,8 +444,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
 
       setAlertModal({
         visible: true,
-        title: 'Verification Email Sent',
-        message: 'Please check your email inbox and click the verification link. You may need to check your spam folder.',
+        title: t('providerProfile.verificationEmailSent'),
+        message: t('providerProfile.verificationEmailSentMessage'),
         type: 'success',
       });
     } catch (error: any) {
@@ -464,7 +466,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
       
       setAlertModal({
         visible: true,
-        title: 'Error',
+        title: t('common.error'),
         message: errorMessage,
         type: 'error',
       });
@@ -482,8 +484,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (isVerified && !isRejected) {
       setAlertModal({
         visible: true,
-        title: 'Cannot Remove Document',
-        message: 'This document has been verified by admin. You cannot remove verified documents. Please contact admin if you need to update this document.',
+        title: t('providerProfile.cannotRemoveDocument'),
+        message: t('providerProfile.documentVerifiedCannotRemove'),
         type: 'warning',
       });
       return;
@@ -493,8 +495,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (existingProfile?.approvalStatus === 'approved') {
       setAlertModal({
         visible: true,
-        title: 'Cannot Remove Document',
-        message: 'You cannot remove documents once your profile has been approved. Please contact admin if you need to update your documents.',
+        title: t('providerProfile.cannotRemoveDocument'),
+        message: t('providerProfile.documentVerifiedCannotRemove'),
         type: 'warning',
       });
       return;
@@ -582,8 +584,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (!name || name.trim().length === 0) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter your name',
+        title: t('common.error'),
+        message: t('providerProfile.pleaseEnterName'),
         type: 'error',
       });
       return;
@@ -591,8 +593,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (name.trim().length < 2) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Name must be at least 2 characters long',
+        title: t('common.error'),
+        message: t('providerProfile.pleaseEnterName'),
         type: 'error',
       });
       return;
@@ -602,8 +604,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (!serviceType || serviceType.trim().length === 0) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please select a service type',
+        title: t('common.error'),
+        message: t('providerProfile.pleaseSelectServiceType'),
         type: 'error',
       });
       return;
@@ -615,8 +617,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
       if (!emailRegex.test(email.trim())) {
         setAlertModal({
           visible: true,
-          title: 'Error',
-          message: 'Please enter a valid email address',
+          title: t('common.error'),
+          message: t('providerProfile.pleaseEnterValidEmail'),
           type: 'error',
         });
         return;
@@ -627,8 +629,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (!phone || phone.trim().length === 0) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter your phone number',
+        title: t('common.error'),
+        message: t('providerProfile.pleaseEnterPhoneNumber'),
         type: 'error',
       });
       return;
@@ -638,8 +640,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (phoneDigits.length < 10) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter a valid phone number (at least 10 digits)',
+        title: t('common.error'),
+        message: t('providerProfile.pleaseEnterValidPhoneNumber'),
         type: 'error',
       });
       return;
@@ -649,8 +651,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (!experience || experience.trim().length === 0) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter your years of experience',
+        title: t('common.error'),
+        message: t('providerProfile.pleaseEnterExperience'),
         type: 'error',
       });
       return;
@@ -659,8 +661,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (isNaN(experienceNum) || experienceNum < 0) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter a valid number of years of experience',
+        title: t('common.error'),
+        message: t('providerProfile.experienceInvalid'),
         type: 'error',
       });
       return;
@@ -668,8 +670,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (experienceNum > 100) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter a realistic number of years of experience',
+        title: t('common.error'),
+        message: t('providerProfile.experienceInvalid'),
         type: 'error',
       });
       return;
@@ -679,8 +681,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     if (languages.length === 0) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please select at least one language',
+        title: t('common.error'),
+        message: t('providerProfile.pleaseSelectAtLeastOneLanguage'),
         type: 'error',
       });
       return;
@@ -780,10 +782,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
       setLoading(false);
       setAlertModal({
         visible: true,
-        title: 'Success',
-        message: existingProfile
-          ? 'Profile updated successfully!'
-          : 'Profile created successfully! Your profile will be reviewed by an administrator.',
+        title: t('common.success'),
+        message: t('providerProfile.profileSaved'),
         type: 'success',
       });
       setTimeout(() => {
@@ -793,8 +793,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
       setLoading(false);
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: error.message || 'Failed to save profile. Please try again.',
+        title: t('common.error'),
+        message: error.message || t('providerProfile.profileSaveFailed'),
         type: 'error',
       });
     }

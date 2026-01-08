@@ -1,0 +1,10 @@
+{
+  "title": "जॉब कार्ड",
+  "pending": "लंबित",
+  "accepted": "स्वीकृत",
+  "inProgress": "प्रगति में",
+  "completed": "पूर्ण",
+  "cancelled": "रद्द",
+  "immediate": "तत्काल",
+  "scheduled": "निर्धारित"
+}

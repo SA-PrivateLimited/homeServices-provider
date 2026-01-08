@@ -1,0 +1,10 @@
+{
+  "title": "Notifications",
+  "markAllAsRead": "Mark all as read",
+  "clearAll": "Clear all",
+  "noNotifications": "No notifications",
+  "justNow": "Just now",
+  "minutesAgo": "{{count}}m ago",
+  "hoursAgo": "{{count}}h ago",
+  "daysAgo": "{{count}}d ago"
+}
