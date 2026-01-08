@@ -11,7 +11,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {CommonActions} from '@react-navigation/native';
+import {Picker} from '@react-native-picker/picker';
 import {useStore} from '../store';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 import {COPYRIGHT_OWNER} from '@env';
 import authService from '../services/authService';
@@ -19,36 +21,38 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
+import useTranslation from '../hooks/useTranslation';
 
 interface SettingsScreenProps {
   navigation: any;
 }
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
-  const {isDarkMode, toggleTheme, currentUser, setCurrentUser} = useStore();
+  const {isDarkMode, toggleTheme, currentUser, setCurrentUser, language, setLanguage} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const {t} = useTranslation();
 
   const handleAbout = () => {
     Alert.alert(
-      'About HomeServices',
-      `Version: 1.0.0\n\nHomeServices is a doctor consultation platform that connects patients with healthcare professionals for online consultations and medical services.\n\n© 2025 ${COPYRIGHT_OWNER || 'SA-PrivateLimited'}. All rights reserved.`,
-      [{text: 'OK'}],
+      t('settings.aboutHomeServices'),
+      t('settings.aboutMessage', {owner: COPYRIGHT_OWNER || 'SA-PrivateLimited'}),
+      [{text: t('common.ok')}],
     );
   };
 
   const handlePrivacy = () => {
     Alert.alert(
-      'Privacy Policy',
-      'HomeServices respects your privacy. Your consultation data is securely stored and encrypted. We do not share your personal information with third parties without your consent.\n\nAll medical consultations are confidential and protected by healthcare privacy regulations.',
-      [{text: 'OK'}],
+      t('settings.privacy'),
+      t('settings.privacyMessage'),
+      [{text: t('common.ok')}],
     );
   };
 
   const handleTerms = () => {
     Alert.alert(
-      'Terms of Service',
-      'HomeServices provides online consultation services connecting patients with licensed healthcare professionals.\n\nBy using this app, you agree to use the services responsibly and understand that consultations are subject to the terms agreed upon with your healthcare provider.',
-      [{text: 'OK'}],
+      t('settings.terms'),
+      t('settings.termsMessage'),
+      [{text: t('common.ok')}],
     );
   };
 
@@ -69,18 +73,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
         routes: [{name: 'Login'}],
       });
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert(t('common.error'), error.message);
     }
   };
 
   const handleRestartAppTour = () => {
     Alert.alert(
-      'Restart App Tour',
-      'This will show you the interactive guide again when you visit different screens. Would you like to restart the app tour?',
+      t('settings.restartAppTour'),
+      t('settings.restartAppTourMessage'),
       [
-        {text: 'Cancel', style: 'cancel'},
+        {text: t('common.cancel'), style: 'cancel'},
         {
-          text: 'Restart Tour',
+          text: t('settings.restartTour'),
           onPress: async () => {
             try {
               const currentAuthUser = auth().currentUser;
@@ -102,12 +106,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
               }
 
               Alert.alert(
-                'Success',
-                'App tour has been reset! You will see the guide when you visit different screens.',
-                [{text: 'OK'}]
+                t('common.success'),
+                t('settings.appTourResetSuccess'),
+                [{text: t('common.ok')}]
               );
             } catch (error) {
-              Alert.alert('Error', 'Failed to restart app tour. Please try again.');
+              Alert.alert(t('common.error'), t('settings.appTourResetError'));
             }
           },
         },
@@ -128,11 +132,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
     onPress?: () => void;
     rightComponent?: React.ReactNode;
   }) => (
-    <TouchableOpacity
-      style={[styles.settingItem, {backgroundColor: theme.card}]}
-      onPress={onPress}
-      disabled={!onPress && !rightComponent}>
-      <View style={styles.settingLeft}>
+    <View style={[styles.settingItem, {backgroundColor: theme.card}]}>
+      <TouchableOpacity
+        style={styles.settingLeft}
+        onPress={onPress}
+        disabled={!onPress || !!rightComponent}
+        activeOpacity={onPress ? 0.7 : 1}>
         <Icon name={icon} size={22} color={theme.primary} />
         <View style={styles.settingText}>
           <Text style={[styles.settingTitle, {color: theme.text}]}>
@@ -144,11 +149,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
             </Text>
           )}
         </View>
-      </View>
-      {rightComponent || (
+      </TouchableOpacity>
+      {rightComponent ? (
+        <View style={{minWidth: 150, alignItems: 'flex-end'}}>{rightComponent}</View>
+      ) : (
         onPress && <Icon name="chevron-forward" size={20} color={theme.textSecondary} />
       )}
-    </TouchableOpacity>
+    </View>
   );
 
   const getInitials = (name: string) => {
@@ -219,12 +226,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-          ACCOUNT
+          {t('settings.account')}
         </Text>
         {currentUser && (
           <SettingItem
             icon="person-circle"
-            title="Profile"
+            title={t('settings.profile')}
             subtitle={currentUser.name}
             onPress={() => {
               // Navigate to Profile screen
@@ -238,20 +245,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
         )}
         <SettingItem
           icon="log-out-outline"
-          title="Logout"
-          subtitle="Sign out of your account"
+          title={t('settings.logout')}
+          subtitle={t('settings.logoutSubtitle')}
           onPress={handleLogout}
         />
       </View>
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-          APPEARANCE
+          {String(t('settings.appearance') || 'APPEARANCE')}
         </Text>
         <SettingItem
           icon="moon"
-          title="Dark Mode"
-          subtitle={isDarkMode ? 'Enabled' : 'Disabled'}
+          title={String(t('settings.darkMode') || 'Dark Mode')}
+          subtitle={isDarkMode ? String(t('common.enabled') || 'Enabled') : String(t('common.disabled') || 'Disabled')}
           rightComponent={
             <Switch
               value={isDarkMode}
@@ -261,64 +268,70 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
             />
           }
         />
+        <SettingItem
+          icon="language"
+          title={String(t('settings.language') || 'Language')}
+          subtitle={language === 'en' ? String(t('settings.english') || 'English') : String(t('settings.hindi') || 'Hindi')}
+          rightComponent={<LanguageSwitcher />}
+        />
       </View>
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-          SUPPORT
+          {t('settings.support')}
         </Text>
         <SettingItem
           icon="help-circle"
-          title="Help & Support"
-          subtitle="Get help with your consultations"
+          title={t('settings.help')}
+          subtitle={t('settings.helpSubtitle')}
           onPress={() => navigation.navigate('HelpSupport')}
         />
         <SettingItem
           icon="book"
-          title="App Tour"
-          subtitle="Restart the interactive guide"
+          title={t('settings.appTour')}
+          subtitle={t('settings.appTourSubtitle')}
           onPress={handleRestartAppTour}
         />
       </View>
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-          INFORMATION
+          {t('settings.information')}
         </Text>
         <SettingItem
           icon="information-circle"
-          title="About"
-          subtitle="App version and information"
+          title={t('settings.about')}
+          subtitle={t('settings.aboutSubtitle')}
           onPress={handleAbout}
         />
         <SettingItem
           icon="shield-checkmark"
-          title="Privacy Policy"
+          title={t('settings.privacy')}
           onPress={handlePrivacy}
         />
         <SettingItem
           icon="document-text"
-          title="Terms of Service"
+          title={t('settings.terms')}
           onPress={handleTerms}
         />
       </View>
 
       <View style={styles.footer}>
         <Icon name="medical" size={32} color={theme.primary} />
-        <Text style={[styles.appName, {color: theme.text}]}>HomeServices</Text>
+        <Text style={[styles.appName, {color: theme.text}]}>{t('settings.appName')}</Text>
         <Text style={[styles.version, {color: theme.textSecondary}]}>
-          Version 1.0.0
+          {t('settings.version')} 1.0.0
         </Text>
         <Text style={[styles.copyright, {color: theme.textSecondary}]}>
           © 2025 {COPYRIGHT_OWNER || 'SA-PrivateLimited'}
         </Text>
         <Text style={[styles.copyright, {color: theme.textSecondary}]}>
-          All rights reserved
+          {t('settings.allRightsReserved')}
         </Text>
         <View style={styles.disclaimer}>
           <Icon name="alert-circle-outline" size={16} color={theme.textSecondary} />
           <Text style={[styles.disclaimerText, {color: theme.textSecondary}]}>
-            For educational purposes only. Always consult healthcare professionals.
+            {t('settings.disclaimer')}
           </Text>
         </View>
       </View>
@@ -439,6 +452,11 @@ const styles = StyleSheet.create({
   },
   profileHeaderEmail: {
     fontSize: 14,
+  },
+  languagePicker: {
+    width: 150,
+    height: 50,
+    backgroundColor: 'transparent',
   },
 });
 

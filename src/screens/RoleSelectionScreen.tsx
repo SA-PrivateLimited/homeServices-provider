@@ -12,6 +12,7 @@ import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import authService from '../services/authService';
+import useTranslation from '../hooks/useTranslation';
 
 type UserRole = 'patient' | 'doctor' | 'admin';
 
@@ -20,6 +21,7 @@ interface RoleSelectionScreenProps {
 }
 
 export default function RoleSelectionScreen({navigation}: RoleSelectionScreenProps) {
+  const {t} = useTranslation();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(false);
   const {setCurrentUser, currentUser} = useStore();
@@ -42,13 +44,13 @@ export default function RoleSelectionScreen({navigation}: RoleSelectionScreenPro
   const handleRoleSelection = async (role: UserRole) => {
     // SECURITY: Prevent users from selecting admin role
     if (role === 'admin') {
-      alert('Admin role cannot be self-assigned. Please contact system administrator.');
+      alert(t('auth.adminRoleCannotBeSelfAssigned'));
       return;
     }
 
     // SECURITY: Only allow role selection if user doesn't have a role yet
     if (currentUser?.role) {
-      alert('You already have a role assigned. Role changes must be done by an administrator.');
+      alert(t('auth.roleAlreadyAssigned'));
       return;
     }
 
@@ -58,13 +60,13 @@ export default function RoleSelectionScreen({navigation}: RoleSelectionScreenPro
     try {
       const user = auth().currentUser;
       if (!user) {
-        throw new Error('No user logged in');
+        throw new Error(t('auth.noUserLoggedIn'));
       }
 
       // SECURITY: Only allow patient or doctor roles to be set by new users
       const allowedRoles: UserRole[] = ['patient', 'doctor'];
       if (!allowedRoles.includes(role)) {
-        throw new Error('Invalid role selection. Admin role can only be assigned by system administrators.');
+        throw new Error(t('auth.invalidRoleSelection'));
       }
 
       // Update user document with selected role (only works if role doesn't exist)
@@ -90,7 +92,7 @@ export default function RoleSelectionScreen({navigation}: RoleSelectionScreenPro
         navigation.replace('ProviderMain');
       }
     } catch (error) {
-      alert('Failed to set user role. Please try again. If you already have a role, contact an administrator to change it.');
+      alert(t('auth.failedToSetRole'));
     } finally {
       setLoading(false);
     }
@@ -100,12 +102,12 @@ export default function RoleSelectionScreen({navigation}: RoleSelectionScreenPro
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>
-          {currentUser?.role ? 'Change Your Role' : 'Welcome to HomeServices'}
+          {currentUser?.role ? t('auth.changeYourRole') : t('auth.welcomeToHomeServices')}
         </Text>
         <Text style={styles.subtitle}>
           {currentUser?.role
-            ? 'Select a new role for your account'
-            : 'Please select your role'}
+            ? t('auth.selectNewRoleSubtitle')
+            : t('auth.pleaseSelectYourRole')}
         </Text>
 
         <View style={styles.roleContainer}>
@@ -124,9 +126,9 @@ export default function RoleSelectionScreen({navigation}: RoleSelectionScreenPro
               ]}>
               <Icon name="person" size={48} color="#fff" />
             </View>
-            <Text style={styles.roleTitle}>Patient</Text>
+            <Text style={styles.roleTitle}>{t('auth.patientRole')}</Text>
             <Text style={styles.roleDescription}>
-              Book consultations, manage medications, and chat with doctors
+              {t('auth.patientRoleDescription')}
             </Text>
           </TouchableOpacity>
 
@@ -145,9 +147,9 @@ export default function RoleSelectionScreen({navigation}: RoleSelectionScreenPro
               ]}>
               <Icon name="medical-services" size={48} color="#fff" />
             </View>
-            <Text style={styles.roleTitle}>Doctor</Text>
+            <Text style={styles.roleTitle}>{t('auth.doctorRole')}</Text>
             <Text style={styles.roleDescription}>
-              Manage appointments, prescribe medications, and consult patients
+              {t('auth.doctorRoleDescription')}
             </Text>
           </TouchableOpacity>
 
@@ -158,7 +160,7 @@ export default function RoleSelectionScreen({navigation}: RoleSelectionScreenPro
         {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#4A90E2" />
-            <Text style={styles.loadingText}>Setting up your account...</Text>
+            <Text style={styles.loadingText}>{t('auth.settingUpAccount')}</Text>
           </View>
         )}
       </View>

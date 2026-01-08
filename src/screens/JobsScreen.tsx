@@ -23,11 +23,13 @@ import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import {fetchJobCardsByProvider, JobCard, subscribeToProviderJobCardStatuses} from '../services/jobCardService';
+import useTranslation from '../hooks/useTranslation';
 
 export default function JobsScreen({navigation, route}: any) {
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const currentUser = auth().currentUser;
+  const {t} = useTranslation();
 
   // Get initial filter from route params, default to 'all'
   const initialFilter = route?.params?.filter || 'all';
@@ -108,15 +110,15 @@ export default function JobsScreen({navigation, route}: any) {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'Pending';
+        return t('jobCards.pending');
       case 'accepted':
-        return 'Accepted';
+        return t('jobCards.accepted');
       case 'in-progress':
-        return 'In Progress';
+        return t('jobCards.inProgress');
       case 'completed':
-        return 'Completed';
+        return t('jobCards.completed');
       case 'cancelled':
-        return 'Cancelled';
+        return t('jobCards.cancelled');
       default:
         return status;
     }
@@ -134,24 +136,24 @@ export default function JobsScreen({navigation, route}: any) {
 
   const handleCallCustomer = (phoneNumber?: string) => {
     if (!phoneNumber) {
-      Alert.alert('Phone Not Available', 'Customer phone number is not available.');
+      Alert.alert(t('common.error'), t('jobs.customerPhoneNotAvailable'));
       return;
     }
-    
+
     const phone = phoneNumber.replace(/[^\d+]/g, ''); // Remove non-digit characters except +
     const phoneUrl = `tel:${phone}`;
-    
+
     Linking.canOpenURL(phoneUrl)
       .then(supported => {
         if (supported) {
           return Linking.openURL(phoneUrl);
         } else {
-          Alert.alert('Error', 'Unable to make phone call on this device.');
+          Alert.alert(t('common.error'), t('jobs.unableToMakeCall'));
         }
       })
       .catch(err => {
         console.error('Error opening phone dialer:', err);
-        Alert.alert('Error', 'Failed to open phone dialer.');
+        Alert.alert(t('common.error'), t('jobs.failedToOpenDialer'));
       });
   };
 

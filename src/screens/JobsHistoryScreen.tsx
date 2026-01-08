@@ -22,8 +22,10 @@ import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import {fetchJobCardsByProvider, JobCard} from '../services/jobCardService';
+import useTranslation from '../hooks/useTranslation';
 
 export default function JobsHistoryScreen({navigation}: any) {
+  const {t} = useTranslation();
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const currentUser = auth().currentUser;
@@ -74,24 +76,24 @@ export default function JobsHistoryScreen({navigation}: any) {
 
   const handleCallCustomer = (phoneNumber?: string) => {
     if (!phoneNumber) {
-      Alert.alert('Phone Not Available', 'Customer phone number is not available.');
+      Alert.alert(t('common.error'), t('jobs.customerPhoneNotAvailable'));
       return;
     }
-    
+
     const phone = phoneNumber.replace(/[^\d+]/g, ''); // Remove non-digit characters except +
     const phoneUrl = `tel:${phone}`;
-    
+
     Linking.canOpenURL(phoneUrl)
       .then(supported => {
         if (supported) {
           return Linking.openURL(phoneUrl);
         } else {
-          Alert.alert('Error', 'Unable to make phone call on this device.');
+          Alert.alert(t('common.error'), t('jobs.unableToMakeCall'));
         }
       })
       .catch(err => {
         console.error('Error opening phone dialer:', err);
-        Alert.alert('Error', 'Failed to open phone dialer.');
+        Alert.alert(t('common.error'), t('jobs.failedToOpenDialer'));
       });
   };
 
@@ -148,7 +150,7 @@ export default function JobsHistoryScreen({navigation}: any) {
                 color: item.status === 'completed' ? '#34C759' : '#FF3B30',
               },
             ]}>
-            {item.status === 'completed' ? 'Completed' : 'Cancelled'}
+            {item.status === 'completed' ? t('jobCards.completed') : t('jobCards.cancelled')}
           </Text>
         </View>
       </View>
@@ -174,7 +176,7 @@ export default function JobsHistoryScreen({navigation}: any) {
       <View style={styles.dateRow}>
         <Icon name="calendar-today" size={16} color={theme.textSecondary} />
         <Text style={[styles.dateText, {color: theme.textSecondary}]}>
-          Completed: {formatDate(item.updatedAt || item.createdAt)}
+          {t('jobs.completedLabel')}: {formatDate(item.updatedAt || item.createdAt)}
         </Text>
       </View>
     </TouchableOpacity>
@@ -185,7 +187,7 @@ export default function JobsHistoryScreen({navigation}: any) {
       <View style={[styles.container, styles.loaderContainer, {backgroundColor: theme.background}]}>
         <ActivityIndicator size="large" color={theme.primary} />
         <Text style={[styles.loadingText, {color: theme.textSecondary, marginTop: 16}]}>
-          Loading job history...
+          {t('jobs.loadingJobHistory')}
         </Text>
       </View>
     );
@@ -197,10 +199,10 @@ export default function JobsHistoryScreen({navigation}: any) {
         <View style={styles.emptyContainer}>
           <Icon name="history" size={64} color={theme.textSecondary} />
           <Text style={[styles.emptyText, {color: theme.text}]}>
-            No job history
+            {t('jobs.noJobHistory')}
           </Text>
           <Text style={[styles.emptySubtext, {color: theme.textSecondary}]}>
-            Your completed jobs will appear here
+            {t('jobs.completedJobsWillAppearHere')}
           </Text>
         </View>
       ) : (

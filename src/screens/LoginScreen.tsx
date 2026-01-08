@@ -17,12 +17,14 @@ import authService from '../services/authService';
 import CountryCodePicker from '../components/CountryCodePicker';
 import {DEFAULT_COUNTRY_CODE, CountryCode} from '../utils/countryCodes';
 import AlertModal from '../components/AlertModal';
+import useTranslation from '../hooks/useTranslation';
 
 interface LoginScreenProps {
   navigation: any;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
+  const {t} = useTranslation();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [confirmResult, setConfirmResult] = useState<any>(null);
@@ -48,8 +50,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     if (!phoneNumber.trim()) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter your phone number',
+        title: t('common.error'),
+        message: t('auth.pleaseEnterPhoneNumber'),
         type: 'error',
       });
       return;
@@ -60,8 +62,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     if (numericPhone.length < 10) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter a valid 10-digit phone number',
+        title: t('common.error'),
+        message: t('auth.pleaseEnterValid10DigitPhone'),
         type: 'error',
       });
       return;
@@ -77,16 +79,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       setConfirmResult(result);
       setAlertModal({
         visible: true,
-        title: 'Success',
-        message: 'Verification code sent to your phone',
+        title: t('common.success'),
+        message: t('auth.verificationCodeSent'),
         type: 'success',
       });
     } catch (error: any) {
       console.error('Error sending verification code:', error);
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: error.message || 'Failed to send verification code. Please try again.',
+        title: t('common.error'),
+        message: error.message || t('auth.failedToSendCode'),
         type: 'error',
       });
     } finally {
@@ -98,8 +100,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     if (!verificationCode.trim()) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter the verification code',
+        title: t('common.error'),
+        message: t('auth.pleaseEnterVerificationCode'),
         type: 'error',
       });
       return;
@@ -108,8 +110,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     if (!confirmResult) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please request a verification code first',
+        title: t('common.error'),
+        message: t('auth.pleaseRequestCodeFirst'),
         type: 'error',
       });
       return;
@@ -162,19 +164,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       }
     } catch (error: any) {
       console.error('❌ [LOGIN] Verification failed:', error);
-      
+
       // Provide more helpful error messages
-      let errorMessage = error.message || 'Failed to verify code';
-      
+      let errorMessage = error.message || t('auth.failedToVerifyCode');
+
       if (error.message?.includes('Connection reset') || error.message?.includes('Connection error')) {
-        errorMessage = 'Network connection error. Please check your internet and try again.';
+        errorMessage = t('auth.networkConnectionError');
       } else if (error.message?.includes('timeout')) {
-        errorMessage = 'Request timed out. Please check your internet connection and try again.';
+        errorMessage = t('auth.requestTimeout');
       }
-      
+
       setAlertModal({
         visible: true,
-        title: 'Error',
+        title: t('common.error'),
         message: errorMessage,
         type: 'error',
       });
@@ -226,8 +228,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       }
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: error.message || 'Failed to sign in with Google',
+        title: t('common.error'),
+        message: error.message || t('auth.failedToSignInWithGoogle'),
         type: 'error',
       });
     } finally {
@@ -245,9 +247,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
         {/* Header */}
         <View style={styles.header}>
           <Icon name="construct" size={60} color={theme.primary} />
-          <Text style={[styles.title, {color: theme.text}]}>HomeServices Provider</Text>
+          <Text style={[styles.title, {color: theme.text}]}>{t('auth.appTitle')}</Text>
           <Text style={[styles.subtitle, {color: theme.textSecondary}]}>
-            Login to provide home services
+            {t('auth.loginSubtitle')}
           </Text>
         </View>
 
@@ -271,7 +273,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                     ]}>
                     <TextInput
                       style={[styles.input, {color: theme.text}]}
-                      placeholder="9876543210"
+                      placeholder={t('auth.phonePlaceholder')}
                       placeholderTextColor={theme.textSecondary}
                       value={phoneNumber}
                       onChangeText={(text) => {
@@ -296,7 +298,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                   {loading ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={styles.buttonText}>Send Code</Text>
+                    <Text style={styles.buttonText}>{t('auth.sendCode')}</Text>
                   )}
                 </TouchableOpacity>
               </>
@@ -304,7 +306,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
               <>
                 <View style={styles.phoneNumberDisplay}>
                   <Text style={[styles.phoneNumberText, {color: theme.textSecondary}]}>
-                    Code sent to: {selectedCountry.dialCode} {phoneNumber}
+                    {t('auth.codeSentTo', {dialCode: selectedCountry.dialCode, phone: phoneNumber})}
                   </Text>
                 </View>
 
@@ -323,7 +325,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                   />
                   <TextInput
                     style={[styles.input, {color: theme.text}]}
-                    placeholder="Enter 6-digit code"
+                    placeholder={t('auth.enterVerificationCode')}
                     placeholderTextColor={theme.textSecondary}
                     value={verificationCode}
                     onChangeText={(text) => {
@@ -352,7 +354,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                   {loading ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={styles.buttonText}>Verify Code</Text>
+                    <Text style={styles.buttonText}>{t('auth.verifyCode')}</Text>
                   )}
                 </TouchableOpacity>
 
@@ -367,7 +369,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                     disabled={loading}>
                     <Icon name="arrow-back" size={16} color={theme.primary} />
                     <Text style={[styles.changeNumberText, {color: theme.primary}]}>
-                      Change Number
+                      {t('auth.changeNumber')}
                     </Text>
                 </TouchableOpacity>
 
@@ -376,7 +378,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                   onPress={handleSendPhoneCode}
                   disabled={loading}>
                   <Text style={[styles.resendText, {color: theme.primary}]}>
-                    Resend Code
+                    {t('auth.resendCode')}
                   </Text>
                 </TouchableOpacity>
                 </View>
@@ -388,7 +390,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
           <View style={styles.dividerContainer}>
             <View style={[styles.divider, {backgroundColor: theme.border}]} />
             <Text style={[styles.dividerText, {color: theme.textSecondary}]}>
-              OR
+              {t('auth.or')}
             </Text>
             <View style={[styles.divider, {backgroundColor: theme.border}]} />
           </View>
@@ -404,7 +406,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
             disabled={loading}>
             <Icon name="logo-google" size={20} color="#DB4437" />
             <Text style={[styles.googleButtonText, {color: theme.text}]}>
-              Continue with Google
+              {t('auth.continueWithGoogle')}
           </Text>
         </TouchableOpacity>
       </ScrollView>

@@ -15,12 +15,14 @@ import {useStore} from '../store';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 import authService from '../services/authService';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
+import useTranslation from '../hooks/useTranslation';
 
 interface ProfileScreenProps {
   navigation: any;
 }
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
+  const {t} = useTranslation();
   const {isDarkMode, currentUser, setCurrentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
 
@@ -52,7 +54,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
     if (!currentUser) return;
 
     if (!name.trim()) {
-      Alert.alert('Error', 'Please enter your name');
+      Alert.alert(t('common.error'), t('profile.pleaseEnterName'));
       return;
     }
 
@@ -89,9 +91,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
       );
       await setCurrentUser(updatedUser);
       setIsEditing(false);
-      Alert.alert('Success', 'Profile updated successfully!');
+      Alert.alert(t('common.success'), t('profile.profileUpdatedSuccess'));
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert(t('common.error'), error.message);
     } finally {
       setLoading(false);
     }
@@ -114,7 +116,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
         routes: [{name: 'Login'}],
       });
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert(t('common.error'), error.message);
     }
   };
 
@@ -122,9 +124,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
     // SECURITY: Users cannot change their own role
     // Only admins can change user roles via Admin Panel
     Alert.alert(
-      'Role Change Restricted',
-      'You cannot change your own role. Please contact an administrator if you need to change your role.',
-      [{text: 'OK'}],
+      t('profile.roleChangeRestricted'),
+      t('profile.roleChangeRestrictedMessage'),
+      [{text: t('common.ok')}],
     );
   };
 
@@ -138,12 +140,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
         ]}>
         <Icon name="person-circle-outline" size={80} color={theme.textSecondary} />
         <Text style={[styles.notLoggedInText, {color: theme.textSecondary}]}>
-          Please login to view your profile
+          {t('profile.pleaseLoginToViewProfile')}
         </Text>
         <TouchableOpacity
           style={[styles.button, {backgroundColor: theme.primary}]}
           onPress={() => navigation.navigate('Login')}>
-          <Text style={styles.buttonText}>Login</Text>
+          <Text style={styles.buttonText}>{t('profile.login')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -171,7 +173,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, {color: theme.text}]}>
-            Personal Information
+            {t('profile.personalInformation')}
           </Text>
           <TouchableOpacity
             onPress={() => setIsEditing(!isEditing)}
@@ -189,7 +191,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
           <View style={styles.infoLabel}>
             <Icon name="person-outline" size={20} color={theme.textSecondary} />
             <Text style={[styles.labelText, {color: theme.textSecondary}]}>
-              Full Name
+              {t('profile.fullName')}
             </Text>
           </View>
           {isEditing ? (
@@ -216,7 +218,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
           <View style={styles.infoLabel}>
             <Icon name="mail-outline" size={20} color={theme.textSecondary} />
             <Text style={[styles.labelText, {color: theme.textSecondary}]}>
-              Email
+              {t('profile.email')}
             </Text>
           </View>
           <Text style={[styles.infoValue, {color: theme.textSecondary}]}>
@@ -230,7 +232,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
             <Icon name="call-outline" size={20} color={theme.textSecondary} />
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
               <Text style={[styles.labelText, {color: theme.textSecondary}]}>
-                Primary Phone
+                {t('profile.primaryPhone')}
               </Text>
               {currentUser?.phoneVerified && (
                 <Icon name="checkmark-circle" size={16} color="#4CAF50" />
@@ -240,7 +242,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
           <View style={{flex: 1, alignItems: 'flex-end'}}>
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
               <Text style={[styles.infoValue, {color: phone ? theme.text : theme.textSecondary}]}>
-                {phone || 'Not set'}
+                {phone || t('profile.notSet')}
               </Text>
               {(() => {
                 const authUser = auth().currentUser;
@@ -253,16 +255,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
             </View>
             {currentUser?.phoneVerified && (
               <Text style={[styles.verifiedBadge, {color: '#4CAF50'}]}>
-                Verified {(() => {
+                {t('profile.verified')} {(() => {
                   const authUser = auth().currentUser;
                   const loggedInWithPhone = authUser?.phoneNumber && currentUser?.phoneVerified;
-                  return loggedInWithPhone ? '(Login number - Cannot be changed)' : '';
+                  return loggedInWithPhone ? `(${t('profile.loginNumberCannotBeChanged')})` : '';
                 })()}
               </Text>
             )}
             {!currentUser?.phoneVerified && phone && (
               <Text style={[styles.verifiedBadge, {color: theme.textSecondary}]}>
-                Not Verified
+                {t('profile.notVerified')}
               </Text>
             )}
           </View>
@@ -274,7 +276,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
             <Icon name="call-outline" size={20} color={theme.textSecondary} />
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
               <Text style={[styles.labelText, {color: theme.textSecondary}]}>
-                Secondary Phone
+                {t('profile.secondaryPhone')}
               </Text>
               {currentUser?.secondaryPhoneVerified && (
                 <Icon name="checkmark-circle" size={16} color="#4CAF50" />
@@ -297,7 +299,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
                     ]}
                     value={secondaryPhone}
                     onChangeText={setSecondaryPhone}
-                    placeholder="Secondary phone number"
+                    placeholder={t('profile.secondaryPhoneNumberPlaceholder')}
                     placeholderTextColor={theme.textSecondary}
                     keyboardType="phone-pad"
                     editable={!loading}
@@ -314,7 +316,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
                       }}
                       style={{padding: 4}}>
                       <Text style={[styles.verifyLink, {color: theme.primary}]}>
-                        Verify
+                        {t('profile.verify')}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -328,9 +330,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
                         if (updatedUser) {
                           await setCurrentUser(updatedUser);
                         }
-                        Alert.alert('Success', 'Secondary phone removed');
+                        Alert.alert(t('common.success'), t('profile.secondaryPhoneRemoved'));
                       } catch (error: any) {
-                        Alert.alert('Error', error.message);
+                        Alert.alert(t('common.error'), error.message);
                       } finally {
                         setLoading(false);
                       }
@@ -349,7 +351,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
                   style={[styles.addButton, {borderColor: theme.primary}]}>
                   <Icon name="add-circle-outline" size={20} color={theme.primary} />
                   <Text style={[styles.addButtonText, {color: theme.primary}]}>
-                    Add Secondary Phone
+                    {t('profile.addSecondaryPhone')}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -365,18 +367,18 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
                     <>
                       <Icon name="checkmark-circle" size={16} color="#4CAF50" />
                       <Text style={[styles.verifiedBadge, {color: '#4CAF50'}]}>
-                        Verified
+                        {t('profile.verified')}
                       </Text>
                     </>
                   ) : (
                     <Text style={[styles.verifiedBadge, {color: theme.textSecondary}]}>
-                      Not Verified
+                      {t('profile.notVerified')}
                     </Text>
                   )}
                 </View>
               ) : (
                 <Text style={[styles.infoValue, {color: theme.textSecondary}]}>
-                  Not set
+                  {t('profile.notSet')}
                 </Text>
               )}
             </View>
@@ -388,7 +390,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
           <View style={styles.infoLabel}>
             <Icon name="male-female-outline" size={20} color={theme.textSecondary} />
             <Text style={[styles.labelText, {color: theme.textSecondary}]}>
-              Gender
+              {t('profile.gender')}
             </Text>
           </View>
           {isEditing ? (
@@ -403,13 +405,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
               ]}
               value={gender}
               onChangeText={setGender}
-              placeholder="Male/Female/Other"
+              placeholder={t('profile.genderPlaceholder')}
               placeholderTextColor={theme.textSecondary}
               editable={!loading}
             />
           ) : (
             <Text style={[styles.infoValue, {color: theme.text}]}>
-              {gender || 'Not set'}
+              {gender || t('profile.notSet')}
             </Text>
           )}
         </View>
@@ -419,7 +421,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
           <View style={styles.infoLabel}>
             <Icon name="water-outline" size={20} color={theme.textSecondary} />
             <Text style={[styles.labelText, {color: theme.textSecondary}]}>
-              Blood Group
+              {t('profile.bloodGroup')}
             </Text>
           </View>
           {isEditing ? (
@@ -434,13 +436,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
               ]}
               value={bloodGroup}
               onChangeText={setBloodGroup}
-              placeholder="A+, B+, O+, etc."
+              placeholder={t('profile.bloodGroupPlaceholder')}
               placeholderTextColor={theme.textSecondary}
               editable={!loading}
             />
           ) : (
             <Text style={[styles.infoValue, {color: theme.text}]}>
-              {bloodGroup || 'Not set'}
+              {bloodGroup || t('profile.notSet')}
             </Text>
           )}
         </View>
@@ -458,7 +460,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Save Changes</Text>
+              <Text style={styles.buttonText}>{t('profile.saveChanges')}</Text>
             )}
           </TouchableOpacity>
         )}
@@ -467,7 +469,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
       {/* Account Actions */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, {color: theme.text}]}>
-          Account
+          {t('profile.account')}
         </Text>
 
         <TouchableOpacity
@@ -475,7 +477,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
           onPress={handleChangeRole}>
           <Icon name="swap-horizontal-outline" size={20} color={theme.primary} />
           <Text style={[styles.actionButtonText, {color: theme.primary}]}>
-            Change Role {currentUser.role && `(Current: ${currentUser.role})`}
+            {t('profile.changeRole')} {currentUser.role && `(${t('profile.currentRole')}: ${currentUser.role})`}
           </Text>
         </TouchableOpacity>
 
@@ -484,14 +486,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
           onPress={handleLogout}>
           <Icon name="log-out-outline" size={20} color="#ff4444" />
           <Text style={[styles.actionButtonText, {color: '#ff4444'}]}>
-            Logout
+            {t('profile.logout')}
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Version Info */}
       <Text style={[styles.versionText, {color: theme.textSecondary}]}>
-        Version 1.0.0
+        {t('profile.version')} 1.0.0
       </Text>
       
       <LogoutConfirmationModal

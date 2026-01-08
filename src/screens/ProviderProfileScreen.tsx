@@ -21,6 +21,8 @@ import ProviderHelpSupportModal from '../components/ProviderHelpSupportModal';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
 import ProviderAddressInput from '../components/ProviderAddressInput';
 import ReviewsList from '../components/ReviewsList';
+import useTranslation from '../hooks/useTranslation';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 
 interface ProviderProfile {
   name: string;
@@ -52,8 +54,9 @@ export default function ProviderProfileScreen({navigation}: any) {
   const [providerAddress, setProviderAddress] = useState<any>(null);
   const [savingAddress, setSavingAddress] = useState(false);
   const currentUser = auth().currentUser;
-  const {currentUser: storeUser, isDarkMode, toggleTheme} = useStore();
+  const {currentUser: storeUser, isDarkMode, toggleTheme, language} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const {t} = useTranslation();
 
   useEffect(() => {
     if (!currentUser) return;
@@ -167,7 +170,7 @@ export default function ProviderProfileScreen({navigation}: any) {
         routes: [{name: 'Login'}],
       });
     } catch (error) {
-      Alert.alert('Error', 'Failed to logout');
+      Alert.alert(String(t('common.error')), String(t('profile.failedToLogout')));
       // Even if logout fails, navigate to login
       navigation.reset({
         index: 0,
@@ -212,14 +215,14 @@ export default function ProviderProfileScreen({navigation}: any) {
             style={[styles.setupButton, {backgroundColor: theme.primary}]}
             onPress={() => navigation.navigate('ProviderProfileSetup')}>
             <Icon name="add-circle-outline" size={20} color="#fff" />
-            <Text style={styles.setupButtonText}>Set Up Profile</Text>
+            <Text style={styles.setupButtonText}>{String(t('profile.setUpProfile'))}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Appearance Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-            APPEARANCE
+            {String(t('settings.appearance') || 'APPEARANCE')}
           </Text>
           <TouchableOpacity
             style={[styles.settingItem, {backgroundColor: theme.card}]}
@@ -228,10 +231,10 @@ export default function ProviderProfileScreen({navigation}: any) {
               <Ionicons name="moon" size={22} color={theme.primary} />
               <View style={styles.settingText}>
                 <Text style={[styles.settingTitle, {color: theme.text}]}>
-                  Dark Mode
+                  {String(t('settings.darkMode') || 'Dark Mode')}
                 </Text>
                 <Text style={[styles.settingSubtitle, {color: theme.textSecondary}]}>
-                  {isDarkMode ? 'Enabled' : 'Disabled'}
+                  {isDarkMode ? String(t('common.enabled') || 'Enabled') : String(t('common.disabled') || 'Disabled')}
                 </Text>
               </View>
             </View>
@@ -242,6 +245,20 @@ export default function ProviderProfileScreen({navigation}: any) {
               thumbColor="#FFFFFF"
             />
           </TouchableOpacity>
+          <View style={[styles.settingItem, {backgroundColor: theme.card}]}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="language" size={22} color={theme.primary} />
+              <View style={styles.settingText}>
+                <Text style={[styles.settingTitle, {color: theme.text}]}>
+                  {String(t('settings.language') || 'Language')}
+                </Text>
+                <Text style={[styles.settingSubtitle, {color: theme.textSecondary}]}>
+                  {language === 'en' ? String(t('settings.english') || 'English') : String(t('settings.hindi') || 'Hindi')}
+                </Text>
+              </View>
+            </View>
+            <LanguageSwitcher />
+          </View>
         </View>
 
         {/* Account Section */}
@@ -297,7 +314,7 @@ export default function ProviderProfileScreen({navigation}: any) {
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.version, {color: theme.textSecondary}]}>Version 1.0.0</Text>
+        <Text style={[styles.version, {color: theme.textSecondary}]}>{String(t('profile.version'))} 1.0.0</Text>
       </ScrollView>
       </>
     );
@@ -359,21 +376,21 @@ export default function ProviderProfileScreen({navigation}: any) {
         {profile.approvalStatus === 'pending' && (
           <View style={[styles.statusBanner, styles.pendingBanner]}>
             <Icon name="hourglass-empty" size={20} color="#FF9500" />
-            <Text style={styles.statusText}>Profile pending admin approval</Text>
+            <Text style={styles.statusText}>{String(t('profile.profilePending'))}</Text>
           </View>
         )}
         {profile.approvalStatus === 'rejected' && (
           <View style={[styles.statusBanner, styles.rejectedBanner]}>
             <Icon name="cancel" size={20} color="#FF3B30" />
             <Text style={styles.statusText}>
-              Profile rejected{profile.rejectionReason ? `: ${profile.rejectionReason}` : ''}
+              {String(t('profile.profileRejected'))}{profile.rejectionReason ? `: ${profile.rejectionReason}` : ''}
             </Text>
           </View>
         )}
         {profile.approvalStatus === 'approved' && (
           <View style={[styles.statusBanner, styles.approvedBanner]}>
             <Icon name="check-circle" size={20} color="#34C759" />
-            <Text style={styles.statusText}>Profile approved</Text>
+            <Text style={styles.statusText}>{String(t('profile.profileApproved'))}</Text>
           </View>
         )}
       </View>
@@ -383,27 +400,27 @@ export default function ProviderProfileScreen({navigation}: any) {
           style={[styles.editButton, {backgroundColor: theme.primary}]}
           onPress={() => navigation.navigate('ProviderProfileSetup')}>
           <Icon name="edit" size={20} color="#fff" />
-          <Text style={styles.editButtonText}>Edit Profile</Text>
+          <Text style={styles.editButtonText}>{String(t('profile.editProfile'))}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={[styles.section, styles.professionalSection, {backgroundColor: theme.card}]}>
-        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>PROFESSIONAL DETAILS</Text>
+        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>{String(t('profile.professionalDetails'))}</Text>
         <View style={styles.infoRow}>
           <Icon name="work" size={20} color={theme.primary} />
           <View style={styles.infoContent}>
-            <Text style={[styles.infoLabel, {color: theme.textSecondary}]}>Experience</Text>
-            <Text style={[styles.infoValue, {color: theme.text}]}>{profile.experience} years</Text>
+            <Text style={[styles.infoLabel, {color: theme.textSecondary}]}>{String(t('profile.experience'))}</Text>
+            <Text style={[styles.infoValue, {color: theme.text}]}>{String(t('profile.experienceYears', {years: profile.experience}))}</Text>
           </View>
         </View>
       </View>
 
       <View style={[styles.section, styles.professionalSection, {backgroundColor: theme.card}]}>
-        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>CONTACT INFORMATION</Text>
+        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>{String(t('profile.contactInformation'))}</Text>
         <View style={styles.infoRow}>
           <Icon name="email" size={20} color={theme.primary} />
           <View style={styles.infoContent}>
-            <Text style={[styles.infoLabel, {color: theme.textSecondary}]}>Email</Text>
+            <Text style={[styles.infoLabel, {color: theme.textSecondary}]}>{String(t('profile.email'))}</Text>
             <Text style={[styles.infoValue, {color: theme.text}]}>{profile.email}</Text>
           </View>
         </View>
@@ -411,16 +428,16 @@ export default function ProviderProfileScreen({navigation}: any) {
           <Icon name="phone" size={20} color={theme.primary} />
           <View style={styles.infoContent}>
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4}}>
-              <Text style={[styles.infoLabel, {color: theme.textSecondary}]}>Primary Phone</Text>
+              <Text style={[styles.infoLabel, {color: theme.textSecondary}]}>{String(t('profile.primaryPhone'))}</Text>
               {storeUser?.phoneVerified && (
                 <Icon name="checkmark-circle" size={16} color="#4CAF50" />
               )}
             </View>
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-              <Text style={[styles.infoValue, {color: theme.text}]}>{profile.phone || 'Not set'}</Text>
+              <Text style={[styles.infoValue, {color: theme.text}]}>{profile.phone || String(t('profile.notSet'))}</Text>
               {storeUser?.phoneVerified && (
                 <Text style={{fontSize: 12, color: '#4CAF50', fontStyle: 'italic'}}>
-                  Verified
+                  {String(t('profile.verified'))}
                 </Text>
               )}
             </View>
@@ -429,7 +446,7 @@ export default function ProviderProfileScreen({navigation}: any) {
       </View>
 
       <View style={[styles.section, styles.professionalSection, {backgroundColor: theme.card}]}>
-        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>YOUR ADDRESS</Text>
+        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>{String(t('profile.yourAddress'))}</Text>
         <ProviderAddressInput
           value={providerAddress}
           onChange={async (address) => {
@@ -465,11 +482,11 @@ export default function ProviderProfileScreen({navigation}: any) {
                       address: address,
                       updatedAt: firestore.FieldValue.serverTimestamp(),
                     });
-                  Alert.alert('Success', 'Address updated successfully');
+                  Alert.alert(String(t('common.success')), String(t('profile.addressUpdatedSuccess')));
                 }
               }
             } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to update address');
+              Alert.alert(String(t('common.error')), error.message || String(t('profile.failedToUpdateAddress')));
             } finally {
               setSavingAddress(false);
             }
@@ -498,16 +515,16 @@ export default function ProviderProfileScreen({navigation}: any) {
       {/* Reviews Section */}
       {profile && currentUser && (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-            REVIEWS
-          </Text>
+        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
+          {String(t('profile.reviews'))}
+        </Text>
           <ReviewsList providerId={currentUser.uid} showHeader={false} />
         </View>
       )}
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-          APPEARANCE
+          {String(t('settings.appearance') || 'APPEARANCE')}
         </Text>
         <TouchableOpacity
           style={[styles.settingItem, {backgroundColor: theme.card}]}
@@ -516,10 +533,10 @@ export default function ProviderProfileScreen({navigation}: any) {
             <Ionicons name="moon" size={22} color={theme.primary} />
             <View style={styles.settingText}>
               <Text style={[styles.settingTitle, {color: theme.text}]}>
-                Dark Mode
+                {String(t('settings.darkMode') || 'Dark Mode')}
               </Text>
               <Text style={[styles.settingSubtitle, {color: theme.textSecondary}]}>
-                {isDarkMode ? 'Enabled' : 'Disabled'}
+                {isDarkMode ? String(t('common.enabled') || 'Enabled') : String(t('common.disabled') || 'Disabled')}
               </Text>
             </View>
           </View>
@@ -530,11 +547,25 @@ export default function ProviderProfileScreen({navigation}: any) {
             thumbColor="#FFFFFF"
           />
         </TouchableOpacity>
+        <View style={[styles.settingItem, {backgroundColor: theme.card}]}>
+          <View style={styles.settingLeft}>
+            <Ionicons name="language" size={22} color={theme.primary} />
+            <View style={styles.settingText}>
+              <Text style={[styles.settingTitle, {color: theme.text}]}>
+                {String(t('settings.language') || 'Language')}
+              </Text>
+              <Text style={[styles.settingSubtitle, {color: theme.textSecondary}]}>
+                {language === 'en' ? String(t('settings.english') || 'English') : String(t('settings.hindi') || 'Hindi')}
+              </Text>
+            </View>
+          </View>
+          <LanguageSwitcher />
+        </View>
       </View>
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-          ACCOUNT
+          {String(t('profile.account'))}
         </Text>
         <TouchableOpacity
           style={[styles.settingItem, {backgroundColor: theme.card}]}
@@ -543,7 +574,7 @@ export default function ProviderProfileScreen({navigation}: any) {
             <Ionicons name="help-circle-outline" size={22} color={theme.text} />
             <View style={styles.settingText}>
               <Text style={[styles.settingTitle, {color: theme.text}]}>
-                Help & Support
+                {String(t('profile.helpSupport'))}
               </Text>
             </View>
           </View>
@@ -554,15 +585,15 @@ export default function ProviderProfileScreen({navigation}: any) {
           style={[styles.settingItem, {backgroundColor: theme.card}]}
           onPress={() =>
             Alert.alert(
-              'HomeServices Provider',
-              'Version 1.0.0\n\nService Provider portal for HomeServices system',
+              String(t('settings.aboutHomeServices') || 'HomeServices Provider'),
+              `${String(t('profile.version'))} 1.0.0\n\n${String(t('settings.aboutMessage') || 'Service Provider portal for HomeServices system')}`,
             )
           }>
           <View style={styles.settingLeft}>
             <Ionicons name="information-circle-outline" size={22} color={theme.text} />
             <View style={styles.settingText}>
               <Text style={[styles.settingTitle, {color: theme.text}]}>
-                About
+                {String(t('profile.about'))}
               </Text>
             </View>
           </View>
@@ -576,7 +607,7 @@ export default function ProviderProfileScreen({navigation}: any) {
             <Ionicons name="log-out-outline" size={22} color="#FF3B30" />
             <View style={styles.settingText}>
               <Text style={[styles.settingTitle, {color: '#FF3B30'}]}>
-              Logout
+              {String(t('profile.logout'))}
             </Text>
             </View>
           </View>
@@ -584,7 +615,7 @@ export default function ProviderProfileScreen({navigation}: any) {
         </TouchableOpacity>
       </View>
 
-      <Text style={[styles.version, {color: theme.textSecondary}]}>Version 1.0.0</Text>
+      <Text style={[styles.version, {color: theme.textSecondary}]}>{String(t('profile.version'))} 1.0.0</Text>
     </ScrollView>
     </>
   );

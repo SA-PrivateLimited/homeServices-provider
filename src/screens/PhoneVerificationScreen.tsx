@@ -25,6 +25,7 @@ import CountryCodePicker from '../components/CountryCodePicker';
 import {DEFAULT_COUNTRY_CODE, CountryCode, COUNTRY_CODES} from '../utils/countryCodes';
 import AlertModal from '../components/AlertModal';
 import SuccessModal from '../components/SuccessModal';
+import useTranslation from '../hooks/useTranslation';
 
 interface PhoneVerificationScreenProps {
   navigation: any;
@@ -35,6 +36,7 @@ export default function PhoneVerificationScreen({
   navigation,
   route,
 }: PhoneVerificationScreenProps) {
+  const {t} = useTranslation();
   const mode = route?.params?.mode || 'verify'; // 'verify', 'change', or 'secondary'
   const initialPhoneNumber = route?.params?.phoneNumber || '';
   const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber);
@@ -108,8 +110,8 @@ export default function PhoneVerificationScreen({
       const seconds = retryAfter % 60;
       setAlertModal({
         visible: true,
-        title: 'Too Many Attempts',
-        message: `Please wait ${minutes}:${seconds.toString().padStart(2, '0')} before trying again.`,
+        title: t('auth.tooManyAttempts'),
+        message: t('auth.pleaseWaitBeforeRetry', {minutes, seconds: seconds.toString().padStart(2, '0')}),
         type: 'warning',
       });
       return;
@@ -118,8 +120,8 @@ export default function PhoneVerificationScreen({
     if (!phoneNumber.trim()) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter your phone number',
+        title: t('common.error'),
+        message: t('auth.pleaseEnterPhoneNumber'),
         type: 'error',
       });
       return;
@@ -130,8 +132,8 @@ export default function PhoneVerificationScreen({
     if (numericPhone.length < 10) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter a valid 10-digit phone number',
+        title: t('common.error'),
+        message: t('auth.pleaseEnterValid10DigitPhone'),
         type: 'error',
       });
       return;
@@ -149,28 +151,28 @@ export default function PhoneVerificationScreen({
       setRetryAfter(null); // Reset retry timer on success
       setAlertModal({
         visible: true,
-        title: 'Success',
-        message: 'Verification code sent to your phone',
+        title: t('common.success'),
+        message: t('auth.verificationCodeSent'),
         type: 'success',
       });
     } catch (error: any) {
       console.error('Error sending verification code:', error);
-      
+
       // Handle rate limiting with retry timer
       if (error.message?.includes('Too many attempts') || error.message?.includes('too many verification attempts') || error.code === 'auth/too-many-requests') {
         // Set retry timer to 120 seconds (2 minutes) - shorter wait for better UX
         setRetryAfter(120);
         setAlertModal({
           visible: true,
-          title: 'Verification Limit Reached',
-          message: 'Too many verification attempts for this number. Please wait 2 minutes before trying again, or use a different phone number.',
+          title: t('auth.verificationLimitReached'),
+          message: t('auth.tooManyVerificationAttempts'),
           type: 'warning',
         });
       } else {
         setAlertModal({
           visible: true,
-          title: 'Error',
-          message: error.message || 'Failed to send verification code. Please try again.',
+          title: t('common.error'),
+          message: error.message || t('auth.failedToSendCode'),
           type: 'error',
         });
       }
@@ -183,8 +185,8 @@ export default function PhoneVerificationScreen({
     if (!verificationCode.trim()) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: 'Please enter the verification code',
+        title: t('common.error'),
+        message: t('auth.pleaseEnterVerificationCode'),
         type: 'error',
       });
       return;
@@ -196,8 +198,8 @@ export default function PhoneVerificationScreen({
       if (!authUser) {
         setAlertModal({
           visible: true,
-          title: 'Error',
-          message: 'User not authenticated',
+          title: t('common.error'),
+          message: t('auth.userNotAuthenticated'),
           type: 'error',
         });
         setLoading(false);
@@ -248,7 +250,7 @@ export default function PhoneVerificationScreen({
             });
         }
 
-        setSuccessMessage('Phone number updated successfully!');
+        setSuccessMessage(t('auth.phoneNumberUpdatedSuccessfully'));
         setShowSuccessModal(true);
         setTimeout(() => {
           setShowSuccessModal(false);
@@ -302,7 +304,7 @@ export default function PhoneVerificationScreen({
         };
         setCurrentUser(updatedUser as any);
 
-        setSuccessMessage('Secondary phone number added and verified successfully!');
+        setSuccessMessage(t('auth.secondaryPhoneAddedSuccessfully'));
         setShowSuccessModal(true);
         setTimeout(() => {
           setShowSuccessModal(false);
@@ -361,7 +363,7 @@ export default function PhoneVerificationScreen({
 
         setCurrentUser(updatedUser);
 
-        setSuccessMessage('Phone number verified successfully!');
+        setSuccessMessage(t('auth.phoneNumberVerifiedSuccessfully'));
         setShowSuccessModal(true);
         setTimeout(() => {
           setShowSuccessModal(false);
@@ -375,8 +377,8 @@ export default function PhoneVerificationScreen({
     } catch (error: any) {
       setAlertModal({
         visible: true,
-        title: 'Error',
-        message: error.message || 'Failed to verify code',
+        title: t('common.error'),
+        message: error.message || t('auth.failedToVerifyCode'),
         type: 'error',
       });
     } finally {
@@ -404,7 +406,7 @@ export default function PhoneVerificationScreen({
           </TouchableOpacity>
           <View style={styles.headerContent}>
             <Text style={[styles.headerTitle, {color: theme.text}]}>
-              {mode === 'secondary' ? 'Add Secondary Phone' : 'Update Phone Number'}
+              {mode === 'secondary' ? t('auth.addSecondaryPhone') : t('auth.updatePhoneNumber')}
             </Text>
           </View>
         </View>
@@ -416,24 +418,24 @@ export default function PhoneVerificationScreen({
         </View>
 
         <Text style={[styles.title, {color: theme.text}]}>
-          {mode === 'change' 
-            ? 'Change Your Phone Number' 
+          {mode === 'change'
+            ? t('auth.changeYourPhoneNumber')
             : mode === 'secondary'
-            ? 'Add Secondary Phone Number'
-            : 'Verify Your Phone Number'}
+            ? t('auth.addSecondaryPhoneNumber')
+            : t('auth.verifyYourPhoneNumber')}
         </Text>
         <Text style={[styles.subtitle, {color: theme.textSecondary}]}>
-          {mode === 'change' 
-            ? 'Enter your new phone number to update your contact information.'
+          {mode === 'change'
+            ? t('auth.enterNewPhoneNumberSubtitle')
             : mode === 'secondary'
-            ? 'Add a secondary phone number for backup contact. This will be verified via SMS.'
-            : 'Phone verification is required to use HomeServices. This helps us ensure account security and enable important features.'}
+            ? t('auth.addSecondaryPhoneSubtitle')
+            : t('auth.phoneVerificationRequiredSubtitle')}
         </Text>
 
         {step === 'phone' ? (
           <>
             <View style={styles.phoneInputWrapper}>
-              <Text style={[styles.inputLabel, {color: theme.text}]}>Phone Number *</Text>
+              <Text style={[styles.inputLabel, {color: theme.text}]}>{t('auth.phoneNumberRequired')}</Text>
             <View style={styles.phoneInputContainer}>
               <CountryCodePicker
                 selectedCountry={selectedCountry}
@@ -455,7 +457,7 @@ export default function PhoneVerificationScreen({
                     const numericText = text.replace(/\D/g, '');
                     setPhoneNumber(numericText);
                   }}
-                  placeholder="9876543210"
+                  placeholder={t('auth.phonePlaceholder')}
                   placeholderTextColor={theme.textSecondary}
                   keyboardType="phone-pad"
                   autoFocus
@@ -481,17 +483,17 @@ export default function PhoneVerificationScreen({
                 <ActivityIndicator color="#fff" />
               ) : retryAfter !== null && retryAfter > 0 ? (
                 <Text style={styles.buttonText}>
-                  Retry in {Math.floor(retryAfter / 60)}:{(retryAfter % 60).toString().padStart(2, '0')}
+                  {t('auth.retryIn', {minutes: Math.floor(retryAfter / 60), seconds: (retryAfter % 60).toString().padStart(2, '0')})}
                 </Text>
               ) : (
-                <Text style={styles.buttonText}>Send Verification Code</Text>
+                <Text style={styles.buttonText}>{t('auth.sendVerificationCode')}</Text>
               )}
             </TouchableOpacity>
           </>
         ) : (
           <>
             <View style={styles.codeInputWrapper}>
-              <Text style={[styles.inputLabel, {color: theme.text}]}>Verification Code *</Text>
+              <Text style={[styles.inputLabel, {color: theme.text}]}>{t('auth.verificationCodeRequired')}</Text>
             <View style={styles.inputContainer}>
               <Icon
                 name="keypad-outline"
@@ -511,7 +513,7 @@ export default function PhoneVerificationScreen({
                 ]}
                 value={verificationCode}
                 onChangeText={setVerificationCode}
-                placeholder="Enter 6-digit code"
+                placeholder={t('auth.enterVerificationCode')}
                 placeholderTextColor={theme.textSecondary}
                 keyboardType="number-pad"
                 maxLength={6}
@@ -537,7 +539,7 @@ export default function PhoneVerificationScreen({
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Verify Code</Text>
+                <Text style={styles.buttonText}>{t('auth.verifyCode')}</Text>
               )}
             </TouchableOpacity>
 
@@ -546,15 +548,14 @@ export default function PhoneVerificationScreen({
               onPress={handleResendCode}
               disabled={loading}>
               <Text style={[styles.resendText, {color: theme.primary}]}>
-                Resend Code
+                {t('auth.resendCode')}
               </Text>
             </TouchableOpacity>
           </>
         )}
 
         <Text style={[styles.infoText, {color: theme.textSecondary}]}>
-          By continuing, you agree to receive SMS messages for verification
-          purposes.
+          {t('auth.smsVerificationAgreement')}
         </Text>
       </View>
 
@@ -570,7 +571,7 @@ export default function PhoneVerificationScreen({
       {/* Success Modal */}
       <SuccessModal
         visible={showSuccessModal}
-        title="Success"
+        title={t('common.success')}
         message={successMessage || ''}
         onClose={() => setShowSuccessModal(false)}
       />

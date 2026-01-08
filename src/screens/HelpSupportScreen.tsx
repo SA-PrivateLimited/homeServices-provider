@@ -20,6 +20,7 @@ import ragService from '../services/ragService';
 import consultationService from '../services/consultationService';
 import {OPEN_AI_API_KEY} from '@env';
 import FormattedText from '../components/FormattedText';
+import useTranslation from '../hooks/useTranslation';
 
 interface ChatMessage {
   id: string;
@@ -31,6 +32,7 @@ interface ChatMessage {
 }
 
 const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
+  const {t} = useTranslation();
   const {isDarkMode, currentUser, consultations} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -47,7 +49,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
         {
           id: '1',
           role: 'assistant',
-          content: '⚠️ OpenAI API key is not configured. Please add OPEN_AI_API_KEY to your .env file and rebuild the app to enable the AI assistant.',
+          content: t('help.apiKeyNotConfigured'),
           timestamp: new Date(),
         },
       ]);
@@ -59,7 +61,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
       {
         id: '1',
         role: 'assistant',
-        content: '👋 Hello! I\'m your consultation assistant. I can help you answer questions about your past consultations, appointments, prescriptions, and more. What would you like to know?',
+        content: t('help.greeting'),
         timestamp: new Date(),
       },
     ]);
@@ -71,7 +73,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
     if (currentUser && consultations.length > 0) {
       indexConsultations();
     }
-  }, [currentUser, consultations]);
+  }, [currentUser, consultations, t]);
 
   const loadIndexStats = async () => {
     try {
@@ -91,7 +93,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
       await ragService.indexConsultations(consultations);
       await loadIndexStats();
     } catch (error: any) {
-      addMessage('assistant', `⚠️ Failed to index consultations: ${error.message}. Some features may not work correctly.`);
+      addMessage('assistant', t('help.failedToIndex', {error: error.message}));
     } finally {
       setIsIndexing(false);
     }
@@ -126,17 +128,17 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
           return Linking.openURL(mailtoLink);
         } else {
           Alert.alert(
-            'Email Not Available',
-            `Please send an email to ${supportEmail} with your query.`,
-            [{text: 'OK'}]
+            t('help.emailNotAvailable'),
+            t('help.emailNotAvailableMessage', {email: supportEmail}),
+            [{text: t('common.ok')}]
           );
         }
       })
       .catch(err => {
         Alert.alert(
-          'Email Not Available',
-          `Please send an email to ${supportEmail} with your query.`,
-          [{text: 'OK'}]
+          t('help.emailNotAvailable'),
+          t('help.emailNotAvailableMessage', {email: supportEmail}),
+          [{text: t('common.ok')}]
         );
       });
   };
@@ -198,7 +200,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
           {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             role: 'assistant',
-            content: `I apologize, but I encountered an error: ${error.message}. Please contact our support team at support@sa-privatelimited.com for assistance.`,
+            content: t('help.errorMessage', {error: error.message}),
             timestamp: new Date(),
             needsEscalation: true,
           },
@@ -216,7 +218,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
       return (
         <View style={[styles.messageContainer, styles.assistantMessage]}>
           <ActivityIndicator size="small" color={theme.primary} />
-          <Text style={[styles.loadingText, {color: theme.textSecondary}]}>Thinking...</Text>
+          <Text style={[styles.loadingText, {color: theme.textSecondary}]}>{t('help.thinking')}</Text>
         </View>
       );
     }
@@ -260,7 +262,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
             onPress={handleContactSupport}
             activeOpacity={0.8}>
             <Icon name="mail-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.escalationButtonText}>Contact Support</Text>
+            <Text style={styles.escalationButtonText}>{t('help.contactSupport')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -280,18 +282,21 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
           <Icon name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, {color: theme.text}]}>Help & Support</Text>
+          <Text style={[styles.headerTitle, {color: theme.text}]}>{t('help.title')}</Text>
           {isIndexing ? (
             <Text style={[styles.headerSubtitle, {color: theme.textSecondary}]}>
-              Indexing consultations...
+              {t('help.indexingConsultations')}
             </Text>
           ) : indexStats.count > 0 ? (
             <Text style={[styles.headerSubtitle, {color: theme.textSecondary}]}>
-              {indexStats.count} consultation{indexStats.count !== 1 ? 's' : ''} indexed
+              {t('help.consultationsIndexed', {
+                count: indexStats.count,
+                plural: indexStats.count !== 1 ? 's' : ''
+              })}
             </Text>
           ) : (
             <Text style={[styles.headerSubtitle, {color: theme.textSecondary}]}>
-              AI Assistant
+              {t('help.aiAssistant')}
             </Text>
           )}
         </View>
@@ -321,7 +326,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
           <View style={styles.emptyContainer}>
             <Icon name="chatbubbles-outline" size={64} color={theme.textSecondary} />
             <Text style={[styles.emptyText, {color: theme.textSecondary}]}>
-              Start a conversation
+              {t('help.startConversation')}
             </Text>
           </View>
         }
@@ -333,7 +338,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
           <View style={[styles.warningBanner, {backgroundColor: '#FFF3CD', borderLeftColor: '#FFC107'}]}>
             <Icon name="warning" size={20} color="#856404" />
             <Text style={[styles.warningText, {color: '#856404'}]}>
-              OpenAI API key not configured
+              {t('help.apiKeyNotConfiguredWarning')}
             </Text>
           </View>
         )}
@@ -347,7 +352,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
                 borderColor: theme.border,
               },
             ]}
-            placeholder="Ask about your consultations..."
+            placeholder={t('help.askAboutConsultations')}
             placeholderTextColor={theme.textSecondary}
             value={inputText}
             onChangeText={setInputText}
