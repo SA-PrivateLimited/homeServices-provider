@@ -74,9 +74,16 @@ android {
         }
         // Suppress warnings for third-party libraries that aren't 16 KB aligned yet
         // These libraries will still work in page size compatible mode
-        pickFirsts = []
-        merges = []
-        excludes = []
+        // Fix duplicate META-INF files issue - pick first occurrence
+        resources {
+            pickFirsts += [
+                'META-INF/BC2048KE.SF',
+                'META-INF/BC2048KE.DSA',
+                'META-INF/BC2048KE.RSA',
+                'META-INF/BC1024KE.DSA',
+                'META-INF/com.android.tools/proguard/coroutines.pro'
+            ]
+        }
     }
 
     sourceSets {

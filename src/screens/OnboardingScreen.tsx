@@ -13,6 +13,7 @@ import {lightTheme, darkTheme} from '../utils/theme';
 import Icon from 'react-native-vector-icons/Ionicons';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
+import useTranslation from '../hooks/useTranslation';
 
 const {width, height} = Dimensions.get('window');
 
@@ -113,10 +114,88 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({navigation, route}) 
   const {userRole} = route.params;
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const {t} = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const steps = userRole === 'patient' ? patientSteps : doctorSteps;
+  // Translate steps dynamically
+  const patientStepsTranslated: OnboardingStep[] = [
+    {
+      id: 1,
+      title: t('onboarding.welcomeToHomeServices'),
+      description: t('onboarding.welcomeDescription'),
+      icon: 'medical',
+      iconColor: '#4A90E2',
+    },
+    {
+      id: 2,
+      title: t('onboarding.findDoctors'),
+      description: t('onboarding.findDoctorsDescription'),
+      icon: 'search',
+      iconColor: '#27AE60',
+    },
+    {
+      id: 3,
+      title: t('onboarding.bookConsultations'),
+      description: t('onboarding.bookConsultationsDescription'),
+      icon: 'calendar',
+      iconColor: '#E67E22',
+    },
+    {
+      id: 4,
+      title: t('onboarding.chatWithDoctors'),
+      description: t('onboarding.chatWithDoctorsDescription'),
+      icon: 'chatbubbles',
+      iconColor: '#9B59B6',
+    },
+    {
+      id: 5,
+      title: t('onboarding.viewPrescriptions'),
+      description: t('onboarding.viewPrescriptionsDescription'),
+      icon: 'document-text',
+      iconColor: '#E74C3C',
+    },
+  ];
+
+  const doctorStepsTranslated: OnboardingStep[] = [
+    {
+      id: 1,
+      title: t('onboarding.welcomeDr'),
+      description: t('onboarding.welcomeDrDescription'),
+      icon: 'medical',
+      iconColor: '#4A90E2',
+    },
+    {
+      id: 2,
+      title: t('onboarding.completeYourProfile'),
+      description: t('onboarding.completeYourProfileDescription'),
+      icon: 'person',
+      iconColor: '#27AE60',
+    },
+    {
+      id: 3,
+      title: t('onboarding.setYourAvailability'),
+      description: t('onboarding.setYourAvailabilityDescription'),
+      icon: 'time',
+      iconColor: '#E67E22',
+    },
+    {
+      id: 4,
+      title: t('onboarding.manageAppointments'),
+      description: t('onboarding.manageAppointmentsDescription'),
+      icon: 'calendar',
+      iconColor: '#9B59B6',
+    },
+    {
+      id: 5,
+      title: t('onboarding.createPrescriptions'),
+      description: t('onboarding.createPrescriptionsDescription'),
+      icon: 'create',
+      iconColor: '#E74C3C',
+    },
+  ];
+
+  const steps = userRole === 'patient' ? patientStepsTranslated : doctorStepsTranslated;
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
@@ -195,7 +274,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({navigation, route}) 
       <TouchableOpacity
         style={styles.skipButton}
         onPress={handleSkip}>
-        <Text style={[styles.skipText, {color: theme.primary}]}>Skip</Text>
+        <Text style={[styles.skipText, {color: theme.primary}]}>{t('onboarding.skip')}</Text>
       </TouchableOpacity>
 
       {/* Scrollable steps */}
@@ -252,7 +331,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({navigation, route}) 
             style={[styles.navButton, {backgroundColor: theme.card, borderColor: theme.border}]}
             onPress={handlePrevious}>
             <Icon name="arrow-back" size={24} color={theme.text} />
-            <Text style={[styles.navButtonText, {color: theme.text}]}>Previous</Text>
+            <Text style={[styles.navButtonText, {color: theme.text}]}>{t('onboarding.previous')}</Text>
           </TouchableOpacity>
         )}
 
@@ -262,7 +341,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({navigation, route}) 
           style={[styles.navButton, styles.nextButton, {backgroundColor: theme.primary}]}
           onPress={handleNext}>
           <Text style={[styles.navButtonText, {color: '#fff'}]}>
-            {currentStep === steps.length - 1 ? 'Get Started' : 'Next'}
+            {currentStep === steps.length - 1 ? t('onboarding.getStarted') : t('onboarding.next')}
           </Text>
           <Icon
             name={currentStep === steps.length - 1 ? 'checkmark' : 'arrow-forward'}
