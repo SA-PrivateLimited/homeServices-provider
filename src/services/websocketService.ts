@@ -33,6 +33,13 @@ class WebSocketService {
     console.log('📝 [WEBSOCKET] Registering booking callback. Current callbacks:', this.bookingCallbacks.length);
     this.bookingCallbacks.push(callback);
     console.log('✅ [WEBSOCKET] Callback registered. Total callbacks:', this.bookingCallbacks.length);
+    
+    // Ensure listener is set up if socket is already connected
+    if (this.socket?.connected) {
+      console.log('📋 [WEBSOCKET] Socket already connected, ensuring listener is set up');
+      this.setupBookingListener();
+    }
+    
     // Return unsubscribe function
     return () => {
       this.bookingCallbacks = this.bookingCallbacks.filter(cb => cb !== callback);
@@ -145,7 +152,7 @@ class WebSocketService {
         // Setup booking listener immediately after connection (socket is guaranteed to exist here)
         console.log('📋 [WEBSOCKET] Setting up booking listener after connect...');
         if (this.socket) {
-        this.setupBookingListener();
+          this.setupBookingListener();
         } else {
           console.error('❌ [WEBSOCKET] Socket became null during connect handler');
         }
@@ -224,10 +231,10 @@ class WebSocketService {
         console.log('📋 [WEBSOCKET] Callbacks count after reconnect:', this.bookingCallbacks.length);
         // Re-setup booking listener after reconnection (ensure socket exists)
         if (this.socket) {
-        this.setupBookingListener();
-        // Rejoin room after reconnection
-        if (this.currentProviderId) {
-          console.log(`📤 [WEBSOCKET] Rejoining room after reconnect: provider-${this.currentProviderId}`);
+          this.setupBookingListener();
+          // Rejoin room after reconnection
+          if (this.currentProviderId) {
+            console.log(`📤 [WEBSOCKET] Rejoining room after reconnect: provider-${this.currentProviderId}`);
             this.socket.emit('join-provider-room', this.currentProviderId);
           }
         } else {
@@ -251,6 +258,7 @@ class WebSocketService {
   /**
    * Setup booking event listener (called after socket connection)
    * This ensures the listener is always set up with current callbacks
+   * IMPORTANT: Listener checks callbacks array at EVENT TIME, not setup time
    */
   private setupBookingListener(): void {
     if (!this.socket) {
@@ -261,20 +269,25 @@ class WebSocketService {
     // Remove any existing listeners first to avoid duplicates
     this.socket.off('new-booking');
     
-    console.log('📋 [WEBSOCKET] Setting up booking listener with', this.bookingCallbacks.length, 'callback(s)');
+    const currentCallbackCount = this.bookingCallbacks.length;
+    console.log('📋 [WEBSOCKET] Setting up booking listener. Current callbacks at setup time:', currentCallbackCount);
+    console.log('📋 [WEBSOCKET] Note: Listener will check callbacks at EVENT TIME, not setup time');
     
     this.socket.on('new-booking', (bookingData: any) => {
+      // Check callbacks at EVENT TIME (when booking arrives), not at listener setup time
+      const callbacksAtEventTime = this.bookingCallbacks.length;
       console.log('🔔 [WEBSOCKET] ===== NEW BOOKING EVENT RECEIVED =====');
       console.log('🔔 [WEBSOCKET] New booking received via WebSocket:', {
         bookingId: bookingData.consultationId || bookingData.id || bookingData.bookingId,
         customerName: bookingData.customerName || bookingData.patientName,
         providerId: this.currentProviderId,
         socketId: this.socket?.id,
-        callbacksRegistered: this.bookingCallbacks.length,
+        callbacksRegisteredAtSetup: currentCallbackCount,
+        callbacksRegisteredAtEventTime: callbacksAtEventTime, // This is what matters!
         fullBookingData: bookingData,
       });
       
-      if (this.bookingCallbacks.length === 0) {
+      if (callbacksAtEventTime === 0) {
         console.warn('⚠️ [WEBSOCKET] No callbacks registered when booking received');
         console.warn('⚠️ [WEBSOCKET] This should not happen - callback should be registered before WebSocket connects');
         console.warn('⚠️ [WEBSOCKET] Waiting for callback registration...');
@@ -285,15 +298,18 @@ class WebSocketService {
         const maxAttempts = 5;
         const checkCallback = () => {
           attempts++;
-          if (this.bookingCallbacks.length > 0) {
-            console.log(`✅ [WEBSOCKET] Callback registered after ${attempts} attempt(s), processing booking now`);
+          const currentCallbacks = this.bookingCallbacks.length;
+          if (currentCallbacks > 0) {
+            console.log(`✅ [WEBSOCKET] Callback registered after ${attempts} attempt(s) (${currentCallbacks} callback(s) found), processing booking now`);
             this.handleNewBooking(bookingData);
           } else if (attempts < maxAttempts) {
-            console.log(`⏳ [WEBSOCKET] Still waiting for callback (attempt ${attempts}/${maxAttempts})...`);
+            console.log(`⏳ [WEBSOCKET] Still waiting for callback (attempt ${attempts}/${maxAttempts}, current callbacks: ${currentCallbacks})...`);
             setTimeout(checkCallback, 500);
           } else {
             console.error('❌ [WEBSOCKET] No callback registered after all attempts. Booking notification will be lost.');
+            console.error('❌ [WEBSOCKET] Callbacks checked:', currentCallbacks);
             console.error('❌ [WEBSOCKET] Make sure ProviderDashboardScreen registers callback via onNewBooking()');
+            console.error('❌ [WEBSOCKET] Check if component unmounted or useEffect cleanup ran unexpectedly');
             }
         };
         setTimeout(checkCallback, 500);
@@ -305,7 +321,8 @@ class WebSocketService {
     });
     
     console.log('✅ [WEBSOCKET] new-booking event listener registered');
-    console.log('📋 [WEBSOCKET] Current callbacks count:', this.bookingCallbacks.length);
+    console.log('📋 [WEBSOCKET] Current callbacks count at setup:', this.bookingCallbacks.length);
+    console.log('📋 [WEBSOCKET] Listener will check callbacks dynamically when events arrive');
   }
 
   /**
@@ -431,6 +448,8 @@ class WebSocketService {
       const customerId = consultationData?.customerId || consultationData?.patientId;
       const serviceType = consultationData?.serviceType || providerProfile?.specialization || 'service';
       const providerName = providerProfile?.name || providerProfile?.providerName || 'Provider';
+      const customerPhone = consultationData?.customerPhone || consultationData?.patientPhone || consultationData?.phone;
+      const problem = consultationData?.problem || consultationData?.symptoms || consultationData?.notes || consultationData?.description;
 
       // Prepare provider details to store
       const providerDetails: any = {
@@ -491,17 +510,39 @@ class WebSocketService {
         throw updateError;
       }
       
-      // Send notification to customer
+      // Send notification to customer (immediately after accepting)
       if (customerId) {
-        fcmNotificationService.notifyCustomerServiceAccepted(
+        console.log('📱 [ACCEPT] Sending acceptance notification to customer:', {
           customerId,
           providerName,
           serviceType,
           consultationId,
-        ).catch(error => {
-          console.error('❌ [ACCEPT] Error sending acceptance notification:', error);
-          // Don't throw - notification failure shouldn't block booking acceptance
+          customerPhone: !!customerPhone,
+          hasProblem: !!problem,
         });
+        
+        try {
+          await fcmNotificationService.notifyCustomerServiceAccepted(
+            customerId,
+            providerName,
+            serviceType,
+            consultationId,
+            customerPhone,
+            problem,
+          );
+          console.log('✅ [ACCEPT] Acceptance notification sent successfully to customer');
+        } catch (notificationError: any) {
+          console.error('❌ [ACCEPT] Error sending acceptance notification:', {
+            error: notificationError.message,
+            code: notificationError.code,
+            customerId,
+          });
+          // Don't throw - notification failure shouldn't block booking acceptance
+          // createJobCard() will also send a notification as backup
+        }
+      } else {
+        console.warn('⚠️ [ACCEPT] Cannot send notification - customerId not found in consultation data');
+        console.warn('⚠️ [ACCEPT] Consultation data keys:', Object.keys(consultationData || {}));
       }
     } catch (error: any) {
       console.error('❌ [ACCEPT] Error accepting booking:', {

@@ -297,18 +297,31 @@ class FCMNotificationService {
     providerName: string,
     serviceType: string,
     consultationId: string,
+    customerPhone?: string,
+    problem?: string,
   ): Promise<void> {
     console.log('📱 FCM: Sending notification - Service Accepted:', {
       customerId,
       providerName,
       serviceType,
       consultationId,
+      customerPhone,
+      hasProblem: !!problem,
     });
     
     try {
+      let body = `${providerName} has accepted your ${serviceType} service request`;
+      if (customerPhone) {
+        body += `. Phone: ${customerPhone}`;
+      }
+      if (problem) {
+        const problemText = problem.length > 100 ? problem.substring(0, 100) + '...' : problem;
+        body += `. Problem: ${problemText}`;
+      }
+
       await this.sendToUser(customerId, {
         title: 'Service Request Accepted',
-        body: `${providerName} has accepted your ${serviceType} service request`,
+        body: body,
         type: 'service',
         consultationId,
         status: 'accepted',
@@ -335,6 +348,8 @@ class FCMNotificationService {
     consultationId: string,
     jobCardId?: string,
     pin?: string,
+    customerPhone?: string,
+    problem?: string,
   ): Promise<void> {
     console.log('📱 FCM: Sending notification - Service Started:', {
       customerId,
@@ -343,11 +358,21 @@ class FCMNotificationService {
       consultationId,
       jobCardId,
       hasPIN: !!pin,
+      customerPhone,
+      hasProblem: !!problem,
     });
     
-    const body = pin 
+    let body = pin 
       ? `${providerName} has started your ${serviceType} service. Your verification PIN is: ${pin}. Please share this PIN when the provider completes the service.`
       : `${providerName} has started your ${serviceType} service`;
+    
+    if (customerPhone) {
+      body += `. Phone: ${customerPhone}`;
+    }
+    if (problem) {
+      const problemText = problem.length > 80 ? problem.substring(0, 80) + '...' : problem;
+      body += `. Problem: ${problemText}`;
+    }
     
     await this.sendToUser(customerId, {
       title: 'Service Started',
@@ -368,16 +393,30 @@ class FCMNotificationService {
     providerName: string,
     serviceType: string,
     consultationId: string,
+    customerPhone?: string,
+    problem?: string,
   ): Promise<void> {
     console.log('📱 FCM: Sending notification - Service Completed:', {
       customerId,
       providerName,
       serviceType,
       consultationId,
+      customerPhone,
+      hasProblem: !!problem,
     });
+    
+    let body = `${providerName} has completed your ${serviceType} service`;
+    if (customerPhone) {
+      body += `. Phone: ${customerPhone}`;
+    }
+    if (problem) {
+      const problemText = problem.length > 80 ? problem.substring(0, 80) + '...' : problem;
+      body += `. Problem: ${problemText}`;
+    }
+    
     await this.sendToUser(customerId, {
       title: 'Service Completed',
-      body: `${providerName} has completed your ${serviceType} service`,
+      body: body,
       type: 'service',
       consultationId,
       status: 'completed',
@@ -393,6 +432,8 @@ class FCMNotificationService {
     serviceType: string,
     consultationId: string,
     cancellationReason: string,
+    customerPhone?: string,
+    problem?: string,
   ): Promise<void> {
     console.log('📱 FCM: Sending notification - Service Cancelled:', {
       customerId,
@@ -400,10 +441,22 @@ class FCMNotificationService {
       serviceType,
       consultationId,
       cancellationReason,
+      customerPhone,
+      hasProblem: !!problem,
     });
+    
+    let body = `${providerName} has cancelled your ${serviceType} service. Reason: ${cancellationReason}`;
+    if (customerPhone) {
+      body += `. Phone: ${customerPhone}`;
+    }
+    if (problem) {
+      const problemText = problem.length > 80 ? problem.substring(0, 80) + '...' : problem;
+      body += `. Problem: ${problemText}`;
+    }
+    
     await this.sendToUser(customerId, {
       title: 'Service Cancelled',
-      body: `${providerName} has cancelled your ${serviceType} service. Reason: ${cancellationReason}`,
+      body: body,
       type: 'service',
       consultationId,
       status: 'cancelled',

@@ -96,7 +96,7 @@ export const createJobCard = async (
     }
 
     // Get customer address from booking data or user profile
-    let customerAddress = {
+    let customerAddress: any = {
       address: '',
       pincode: '',
     };
@@ -165,13 +165,43 @@ export const createJobCard = async (
       }
     }
 
+    // Get customerId - try multiple sources
+    let customerId = bookingData.patientId || bookingData.customerId || '';
+    
+    // If customerId is missing but consultationId exists, fetch from consultation document
+    if (!customerId && bookingData.consultationId) {
+      try {
+        const consultationDoc = await firestore()
+          .collection('consultations')
+          .doc(bookingData.consultationId)
+          .get();
+        
+        if (consultationDoc.exists) {
+          const consultationData = consultationDoc.data();
+          customerId = consultationData?.customerId || consultationData?.patientId || '';
+          if (customerId) {
+            console.log('✅ Fetched customerId from consultation document:', customerId);
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not fetch customerId from consultation:', error);
+      }
+    }
+    
+    // Validate customerId is present
+    if (!customerId) {
+      console.error('❌ Cannot create job card: customerId is missing');
+      console.error('Booking data keys:', Object.keys(bookingData));
+      throw new Error('Customer ID is required to create job card');
+    }
+
     // Create job card with all customer details
     const jobCardRef = firestore().collection('jobCards').doc();
     const jobCard: Omit<JobCard, 'id'> = {
       providerId,
       providerName: provider.name || currentUser.displayName || 'Provider',
       providerAddress,
-      customerId: bookingData.patientId || bookingData.customerId || '',
+      customerId, // Now guaranteed to be non-empty
       customerName,
       customerPhone,
       customerAddress: customerAddress as any,
@@ -212,21 +242,61 @@ export const createJobCard = async (
         updatedAt: Date.now(),
       });
 
-    // Send notification to customer (backup - websocket service also sends it)
-    // This ensures customer gets notified even if websocket notification fails
-    if (jobCard.customerId) {
-      try {
-        await fcmNotificationService.notifyCustomerServiceAccepted(
-          jobCard.customerId,
-          jobCard.providerName,
-          jobCard.serviceType,
-          jobCard.consultationId || '',
-        );
-        console.log('✅ Notification sent to customer from createJobCard');
-      } catch (notificationError: any) {
-        console.warn('⚠️ Failed to send notification from createJobCard (non-critical):', notificationError.message);
-        // Don't throw - notification failure shouldn't block job card creation
-      }
+    // Send notification to customer (backup - Firebase function onJobCardCreated also sends it)
+    // This ensures customer gets notified even if Firebase function fails
+    // customerId is guaranteed to be present at this point (validated above)
+    try {
+      console.log('📱 Sending acceptance notification to customer:', {
+        customerId: jobCard.customerId,
+        providerName: jobCard.providerName,
+        serviceType: jobCard.serviceType,
+        consultationId: jobCard.consultationId || 'N/A',
+      });
+      
+      await fcmNotificationService.notifyCustomerServiceAccepted(
+        jobCard.customerId,
+        jobCard.providerName,
+        jobCard.serviceType,
+        jobCard.consultationId || '',
+        jobCard.customerPhone,
+        jobCard.problem,
+      );
+      console.log('✅ Notification sent to customer from createJobCard');
+    } catch (notificationError: any) {
+      console.error('❌ Failed to send notification from createJobCard:', {
+        error: notificationError.message,
+        code: notificationError.code,
+        customerId: jobCard.customerId,
+      });
+      console.warn('⚠️ Firebase function onJobCardCreated should send notification as fallback');
+      // Don't throw - notification failure shouldn't block job card creation
+      // Firebase function onJobCardCreated will also try to send notification
+    }
+
+    // Send notification to admins
+    try {
+      console.log('📱 Sending acceptance notification to admins:', {
+        jobCardId,
+        providerName: jobCard.providerName,
+        serviceType: jobCard.serviceType,
+        customerName: jobCard.customerName,
+      });
+      
+      await fcmNotificationService.sendToAdmins({
+        title: 'Service Request Accepted',
+        body: `${jobCard.providerName} has accepted a ${jobCard.serviceType} service request from ${jobCard.customerName}`,
+        type: 'service',
+        jobCardId: jobCardId,
+        consultationId: jobCard.consultationId || '',
+        status: 'accepted',
+      });
+      console.log('✅ Notification sent to admins from createJobCard');
+    } catch (adminNotificationError: any) {
+      console.error('❌ Failed to send admin notification from createJobCard:', {
+        error: adminNotificationError.message,
+        code: adminNotificationError.code,
+      });
+      // Don't throw - admin notification failure shouldn't block job card creation
     }
 
     return jobCardId;
@@ -328,6 +398,8 @@ export const updateJobCardStatus = async (
     const consultationId = jobCardData?.consultationId || jobCardData?.bookingId;
     const providerName = jobCardData?.providerName || 'Provider';
     const serviceType = jobCardData?.serviceType || 'service';
+    const customerPhone = jobCardData?.customerPhone;
+    const problem = jobCardData?.problem;
 
     // If customerId is missing but consultationId exists, fetch it from consultation document
     if (!customerId && consultationId) {
@@ -421,7 +493,9 @@ export const updateJobCardStatus = async (
       serviceType,
     });
 
-    if (customerId && consultationId) {
+    // Send notification if customerId is present (consultationId is optional)
+    // Firebase function onJobCardUpdated will also send notifications as a fallback
+    if (customerId) {
       try {
         if (status === 'in-progress') {
           console.log('🔄 Status is in-progress, sending FCM notification with PIN');
@@ -429,9 +503,11 @@ export const updateJobCardStatus = async (
             customerId,
             providerName,
             serviceType,
-            consultationId,
+            consultationId || '',
             jobCardId,
             taskPIN,
+            customerPhone,
+            problem,
           );
         } else if (status === 'completed') {
           console.log('✅ Status is completed, sending FCM notification');
@@ -439,7 +515,9 @@ export const updateJobCardStatus = async (
             customerId,
             providerName,
             serviceType,
-            consultationId,
+            consultationId || '',
+            customerPhone,
+            problem,
           );
           
           // Emit WebSocket event to customer room for real-time review prompt
@@ -503,13 +581,17 @@ export const updateJobCardStatus = async (
           error: notificationError.message,
           status,
         });
+        console.warn('⚠️ Firebase function onJobCardUpdated will handle notification as fallback');
         // Don't throw - notification failure shouldn't block status update
+        // Firebase function onJobCardUpdated should send notification as fallback
       }
     } else {
-      console.warn('⚠️ [PROVIDER] Cannot send notification - missing customerId or consultationId:', {
+      console.warn('⚠️ [PROVIDER] Cannot send notification - missing customerId:', {
         customerId: !!customerId,
         consultationId: !!consultationId,
+        jobCardId,
       });
+      console.warn('⚠️ Firebase function onJobCardUpdated should handle notification as fallback');
     }
   } catch (error) {
     console.error('Error updating job card status:', error);
@@ -700,6 +782,8 @@ export const cancelTaskWithReason = async (
     const consultationId = jobCardData?.consultationId || jobCardData?.bookingId;
     const providerName = jobCardData?.providerName || 'Provider';
     const serviceType = jobCardData?.serviceType || 'service';
+    const customerPhone = jobCardData?.customerPhone;
+    const problem = jobCardData?.problem;
 
     // Update job card status to cancelled with reason
     await firestore()
@@ -737,14 +821,16 @@ export const cancelTaskWithReason = async (
       });
 
     // Send notification to customer
-    if (customerId && consultationId) {
+    if (customerId) {
       try {
         await fcmNotificationService.notifyCustomerServiceCancelled(
           customerId,
           providerName,
           serviceType,
-          consultationId,
+          consultationId || '',
           cancellationReason.trim(),
+          customerPhone,
+          problem,
         );
       } catch (notificationError) {
         console.error('Error sending cancellation notification:', notificationError);
