@@ -23,5 +23,18 @@
   "select": "चुनें",
   "continue": "जारी रखें",
   "enabled": "सक्षम",
-  "disabled": "अक्षम"
+  "disabled": "अक्षम",
+  "home": "होम",
+  "jobs": "नौकरियां",
+  "history": "इतिहास",
+  "profile": "प्रोफ़ाइल",
+  "services": "सेवाएं",
+  "providers": "प्रदाता",
+  "settings": "सेटिंग्स",
+  "logout": "लॉगआउट",
+  "logoutTitle": "लॉगआउट",
+  "logoutMessage": "क्या आप वाकई लॉगआउट करना चाहते हैं?",
+  "logoutSubMessage": "अपने अकाउंट तक पहुंचने के लिए आपको फिर से साइन इन करना होगा।",
+  "request": "अनुरोध",
+  "browse": "ब्राउज़ करें"
 }

@@ -23,5 +23,18 @@
   "select": "Select",
   "continue": "Continue",
   "enabled": "Enabled",
-  "disabled": "Disabled"
+  "disabled": "Disabled",
+  "home": "Home",
+  "jobs": "Jobs",
+  "history": "History",
+  "profile": "Profile",
+  "services": "Services",
+  "providers": "Providers",
+  "settings": "Settings",
+  "logout": "Logout",
+  "logoutTitle": "Logout",
+  "logoutMessage": "Are you sure you want to logout?",
+  "logoutSubMessage": "You'll need to sign in again to access your account.",
+  "request": "Request",
+  "browse": "Browse"
 }

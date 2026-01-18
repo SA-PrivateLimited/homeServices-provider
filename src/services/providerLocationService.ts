@@ -134,6 +134,15 @@ export const updateProviderLocation = async (): Promise<void> => {
       return;
     }
 
+    // Check location permission before attempting to get location
+    const permissionStatus = await GeolocationService.checkLocationPermission();
+    if (permissionStatus !== 'granted') {
+      // Permission not granted - skip location update silently
+      // This is not an error, just a normal case when permission hasn't been granted yet
+      console.log('Location permission not granted, skipping location update');
+      return;
+    }
+
     // Get current location
     const location = await GeolocationService.getCurrentLocation();
     if (!location) {
@@ -185,8 +194,15 @@ export const startLocationTracking = (): (() => void) => {
   const updateLocation = async () => {
     try {
       await updateProviderLocation();
-    } catch (error) {
-      console.error('Error in location tracking:', error);
+    } catch (error: any) {
+      // Check if it's a permission error - if so, log as warning instead of error
+      const errorMessage = error?.message || String(error) || '';
+      if (errorMessage.includes('permission') || errorMessage.includes('Permission')) {
+        console.warn('Location permission not granted, skipping location update');
+      } else {
+        // For other errors (network, etc.), log as error
+        console.error('Error in location tracking:', error);
+      }
     }
   };
 

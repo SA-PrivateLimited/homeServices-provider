@@ -2,10 +2,8 @@ import React from 'react';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-import AdminDoctorsListScreen from '../screens/AdminDoctorsListScreen';
 import AdminAppointmentsScreen from '../screens/AdminAppointmentsScreen';
 import AdminSettingsScreen from '../screens/AdminSettingsScreen';
-import AdminDoctorApprovalsScreen from '../screens/AdminDoctorApprovalsScreen';
 import AdminUsersManagementScreen from '../screens/AdminUsersManagementScreen';
 import AdminFeeChangeRequestsScreen from '../screens/AdminFeeChangeRequestsScreen';
 import AdminOrdersScreen from '../screens/AdminOrdersScreen';
@@ -19,24 +17,6 @@ export default function AdminTabNavigator() {
         tabBarActiveTintColor: '#FF9500',
         tabBarInactiveTintColor: '#8E8E93',
       }}>
-      <Tab.Screen
-        name="Doctors"
-        component={AdminDoctorsListScreen}
-        options={{
-          tabBarIcon: ({color, size}) => (
-            <Icon name="local-hospital" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Approvals"
-        component={AdminDoctorApprovalsScreen}
-        options={{
-          tabBarIcon: ({color, size}) => (
-            <Icon name="verified-user" size={size} color={color} />
-          ),
-        }}
-      />
       <Tab.Screen
         name="Fee Requests"
         component={AdminFeeChangeRequestsScreen}

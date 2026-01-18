@@ -18,6 +18,7 @@ import CountryCodePicker from '../components/CountryCodePicker';
 import {DEFAULT_COUNTRY_CODE, CountryCode} from '../utils/countryCodes';
 import AlertModal from '../components/AlertModal';
 import useTranslation from '../hooks/useTranslation';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 
 interface LoginScreenProps {
   navigation: any;
@@ -244,6 +245,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled">
+        {/* Language Switcher */}
+        <View style={styles.languageSwitcherContainer}>
+          <LanguageSwitcher compact />
+        </View>
+        
         {/* Header */}
         <View style={styles.header}>
           <Icon name="construct" size={60} color={theme.primary} />
@@ -431,6 +437,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20,
     justifyContent: 'center',
+  },
+  languageSwitcherContainer: {
+    alignItems: 'flex-end',
+    marginBottom: 20,
+    marginTop: 20,
   },
   header: {
     alignItems: 'center',

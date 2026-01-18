@@ -13,6 +13,10 @@ import enErrors from './locales/en/errors.json';
 import enMessages from './locales/en/messages.json';
 import enNotifications from './locales/en/notifications.json';
 import enHelp from './locales/en/help.json';
+import enDashboard from './locales/en/dashboard.json';
+import enJobDetails from './locales/en/jobDetails.json';
+import enOnboarding from './locales/en/onboarding.json';
+import enProviderProfile from './locales/en/providerProfile.json';
 
 // Hindi translations
 import hiCommon from './locales/hi/common.json';
@@ -25,6 +29,10 @@ import hiErrors from './locales/hi/errors.json';
 import hiMessages from './locales/hi/messages.json';
 import hiNotifications from './locales/hi/notifications.json';
 import hiHelp from './locales/hi/help.json';
+import hiDashboard from './locales/hi/dashboard.json';
+import hiJobDetails from './locales/hi/jobDetails.json';
+import hiOnboarding from './locales/hi/onboarding.json';
+import hiProviderProfile from './locales/hi/providerProfile.json';
 
 // Merge all translations
 const en = {
@@ -33,11 +41,15 @@ const en = {
   settings: enSettings,
   jobs: enJobs,
   jobCards: enJobCards,
+  jobDetails: enJobDetails,
   profile: enProfile,
+  providerProfile: enProviderProfile,
   errors: enErrors,
   messages: enMessages,
   notifications: enNotifications,
   help: enHelp,
+  dashboard: enDashboard,
+  onboarding: enOnboarding,
 };
 
 const hi = {
@@ -46,11 +58,15 @@ const hi = {
   settings: hiSettings,
   jobs: hiJobs,
   jobCards: hiJobCards,
+  jobDetails: hiJobDetails,
   profile: hiProfile,
+  providerProfile: hiProviderProfile,
   errors: hiErrors,
   messages: hiMessages,
   notifications: hiNotifications,
   help: hiHelp,
+  dashboard: hiDashboard,
+  onboarding: hiOnboarding,
 };
 
 const LANGUAGE_KEY = '@app_language';

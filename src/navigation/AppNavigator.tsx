@@ -6,27 +6,20 @@ import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
+import LanguageSwitcher from '../components/LanguageSwitcher';
+import useTranslation from '../hooks/useTranslation';
 
 // Screens
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import RoleSelectionScreen from '../screens/RoleSelectionScreen';
-import AdminLoginScreen from '../screens/AdminLoginScreen';
 
 // Tab Navigators
-import MainTabs from './MainTabs'; // Patient tabs (existing)
 import ProviderTabNavigator from './ProviderTabNavigator'; // Provider tabs
-import AdminTabNavigator from './AdminTabNavigator'; // Admin tabs (new)
 
 // Shared screens
 import JobDetailsScreen from '../screens/JobDetailsScreen';
-import AdminConsultationDetailScreen from '../screens/AdminConsultationDetailScreen';
-import AdminAddDoctorScreen from '../screens/AdminAddDoctorScreen';
-import AdminEditDoctorScreen from '../screens/AdminEditDoctorScreen';
-import AdminUsersManagementScreen from '../screens/AdminUsersManagementScreen';
 import ServiceProviderProfileSetupScreen from '../screens/ServiceProviderProfileSetupScreen';
-import AdminDoctorApprovalsScreen from '../screens/AdminDoctorApprovalsScreen';
-import PaymentScreen from '../components/PaymentScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
 import PhoneVerificationScreen from '../screens/PhoneVerificationScreen';
 
@@ -34,11 +27,12 @@ const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const [initializing, setInitializing] = useState(true);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [phoneVerified, setPhoneVerified] = useState<boolean | null>(null);
   const {isDarkMode, setCurrentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const {t} = useTranslation();
 
   useEffect(() => {
     const unsubscribe = auth().onAuthStateChanged(async (authUser) => {
@@ -122,7 +116,6 @@ export default function AppNavigator() {
         {/* Authentication */}
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="SignUp" component={SignUpScreen} />
-        <Stack.Screen name="AdminLogin" component={AdminLoginScreen} options={{headerShown: true, title: 'Admin Login'}} />
         <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
         <Stack.Screen 
           name="PhoneVerification" 
@@ -133,14 +126,8 @@ export default function AppNavigator() {
           }}
         />
 
-        {/* Patient Navigation */}
-        <Stack.Screen name="Main" component={MainTabs} />
-
         {/* Provider Navigation */}
         <Stack.Screen name="ProviderMain" component={ProviderTabNavigator} />
-
-        {/* Admin Navigation */}
-        <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
 
         {/* Shared Screens */}
         <Stack.Screen
@@ -154,63 +141,18 @@ export default function AppNavigator() {
           }}
         />
         <Stack.Screen
-          name="AdminConsultationDetail"
-          component={AdminConsultationDetailScreen}
-          options={{
-            headerShown: true,
-            title: 'Consultation Details',
-            headerStyle: {backgroundColor: theme.card},
-            headerTintColor: theme.text,
-          }}
-        />
-        <Stack.Screen
-          name="AddDoctor"
-          component={AdminAddDoctorScreen}
-          options={{
-            headerShown: true,
-            title: 'Add Doctor',
-            headerStyle: {backgroundColor: theme.card},
-            headerTintColor: theme.text,
-          }}
-        />
-        <Stack.Screen
-          name="EditDoctor"
-          component={AdminEditDoctorScreen}
-          options={{
-            headerShown: true,
-            title: 'Edit Doctor',
-            headerStyle: {backgroundColor: theme.card},
-            headerTintColor: theme.text,
-          }}
-        />
-        <Stack.Screen
-          name="AdminUsersManagement"
-          component={AdminUsersManagementScreen}
-          options={{
-            headerShown: true,
-            title: 'User Management',
-            headerStyle: {backgroundColor: theme.card},
-            headerTintColor: theme.text,
-          }}
-        />
-        <Stack.Screen
           name="ProviderProfileSetup"
           component={ServiceProviderProfileSetupScreen}
           options={{
             headerShown: true,
-            title: 'Service Provider Profile Setup',
+            title: String(t('providerProfile.serviceProviderProfile') || 'Service Provider Profile Setup'),
             headerStyle: {backgroundColor: theme.card},
             headerTintColor: theme.text,
-          }}
-        />
-        <Stack.Screen
-          name="Payment"
-          component={PaymentScreen}
-          options={{
-            headerShown: true,
-            title: 'Payment',
-            headerStyle: {backgroundColor: theme.card},
-            headerTintColor: theme.text,
+            headerRight: () => (
+              <View style={{marginRight: 10}}>
+                <LanguageSwitcher compact />
+              </View>
+            ),
           }}
         />
         <Stack.Screen

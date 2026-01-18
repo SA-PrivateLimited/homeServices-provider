@@ -17,6 +17,7 @@ import ProfileSetupModal from '../components/ProfileSetupModal';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import websocketService from '../services/websocketService';
+import useTranslation from '../hooks/useTranslation';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -101,6 +102,7 @@ const JobsHistoryStack = () => {
 
 export default function ProviderTabNavigator() {
   const navigation = useNavigation();
+  const {t} = useTranslation();
   const [showProfileSetupModal, setShowProfileSetupModal] = useState(false);
   const [hasCheckedProfile, setHasCheckedProfile] = useState(false);
   const currentUser = auth().currentUser;
@@ -218,7 +220,7 @@ export default function ProviderTabNavigator() {
             tabBarIcon: ({color, size}) => (
               <Icon name="dashboard" size={size} color={color} />
             ),
-            tabBarLabel: 'Home',
+            tabBarLabel: t('common.home'),
           }}
         />
         <Tab.Screen
@@ -228,7 +230,7 @@ export default function ProviderTabNavigator() {
             tabBarIcon: ({color, size}) => (
               <Icon name="work" size={size} color={color} />
             ),
-            tabBarLabel: 'Jobs',
+            tabBarLabel: t('common.jobs'),
           }}
         />
         <Tab.Screen
@@ -238,7 +240,7 @@ export default function ProviderTabNavigator() {
             tabBarIcon: ({color, size}) => (
               <Icon name="history" size={size} color={color} />
             ),
-            tabBarLabel: 'History',
+            tabBarLabel: t('common.history'),
           }}
         />
         <Tab.Screen
@@ -248,6 +250,7 @@ export default function ProviderTabNavigator() {
             tabBarIcon: ({color, size}) => (
               <Icon name="person" size={size} color={color} />
             ),
+            tabBarLabel: t('common.profile'),
           }}
         />
       </Tab.Navigator>

@@ -491,62 +491,144 @@ class GeolocationService {
     longitude?: number;
   }> {
     try {
-      // For India, search with country code
-      const url = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(pincode)}&country=India&addressdetails=1&limit=1`;
+      // Check if this is an Indian pincode (6 digits starting with 1-8)
+      const isIndianPincode = /^[1-8]\d{5}$/.test(pincode.trim());
       
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'HomeServices-App/1.0',
-        },
-      });
+      if (isIndianPincode) {
+        // For India, search with country code to ensure accurate results
+        const url = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(pincode)}&countrycodes=in&addressdetails=1&limit=5`;
+        
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'HomeServices-App/1.0',
+          },
+        });
 
-      if (!response.ok) {
-        throw new Error('Geocoding failed');
-      }
+        if (!response.ok) {
+          throw new Error('Geocoding failed');
+        }
 
-      const data = await response.json();
-      
-      if (!data || data.length === 0) {
-        return {};
-      }
+        const data = await response.json();
+        
+        if (!data || data.length === 0) {
+          // Return empty but indicate it's India
+          return {
+            country: 'India',
+          };
+        }
 
-      const result = data[0];
-      const address = result.address || {};
-      
-      const city = address.city || address.town || address.village || address.county || undefined;
-      const state = address.state || undefined;
-      const country = address.country || undefined;
-      
-      // Build full address string
-      const addressParts = [];
-      if (address.road) {
-        addressParts.push(address.road);
-      }
-      if (address.neighbourhood || address.suburb) {
-        addressParts.push(address.neighbourhood || address.suburb);
-      }
-      if (city) {
-        addressParts.push(city);
-      }
-      if (state) {
-        addressParts.push(state);
-      }
-      addressParts.push(pincode);
-      if (country) {
-        addressParts.push(country);
-      }
+        // Find the result with India as country, or use first result if all are India
+        let result = data.find((item: any) => item.address?.country === 'India' || item.address?.country_code === 'in');
+        if (!result) {
+          result = data[0];
+        }
 
-      const fullAddress = addressParts.join(', ');
+        const address = result.address || {};
+        
+        // Validate country - must be India for Indian pincodes
+        let country = address.country || address.country_code?.toUpperCase() === 'IN' ? 'India' : undefined;
+        if (isIndianPincode && country !== 'India') {
+          // Force India for Indian pincodes if API returns wrong country
+          country = 'India';
+        }
+        
+        const city = address.city || address.town || address.village || address.county || address.district || undefined;
+        const state = address.state || address.state_district || undefined;
+        
+        // Build full address string
+        const addressParts = [];
+        if (address.road) {
+          addressParts.push(address.road);
+        }
+        if (address.neighbourhood || address.suburb) {
+          addressParts.push(address.neighbourhood || address.suburb);
+        }
+        if (city) {
+          addressParts.push(city);
+        }
+        if (state) {
+          addressParts.push(state);
+        }
+        addressParts.push(pincode.trim());
+        if (country) {
+          addressParts.push(country);
+        }
 
-      return {
-        address: fullAddress || result.display_name || undefined,
-        city,
-        state,
-        country,
-        latitude: result.lat ? parseFloat(result.lat) : undefined,
-        longitude: result.lon ? parseFloat(result.lon) : undefined,
-      };
+        const fullAddress = addressParts.join(', ');
+
+        return {
+          address: fullAddress || result.display_name || undefined,
+          city,
+          state,
+          country: country || 'India', // Default to India for Indian pincodes
+          latitude: result.lat ? parseFloat(result.lat) : undefined,
+          longitude: result.lon ? parseFloat(result.lon) : undefined,
+        };
+      } else {
+        // For non-Indian pincodes, use standard geocoding
+        const url = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(pincode)}&addressdetails=1&limit=1`;
+        
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'HomeServices-App/1.0',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Geocoding failed');
+        }
+
+        const data = await response.json();
+        
+        if (!data || data.length === 0) {
+          return {};
+        }
+
+        const result = data[0];
+        const address = result.address || {};
+        
+        const city = address.city || address.town || address.village || address.county || undefined;
+        const state = address.state || undefined;
+        const country = address.country || undefined;
+        
+        // Build full address string
+        const addressParts = [];
+        if (address.road) {
+          addressParts.push(address.road);
+        }
+        if (address.neighbourhood || address.suburb) {
+          addressParts.push(address.neighbourhood || address.suburb);
+        }
+        if (city) {
+          addressParts.push(city);
+        }
+        if (state) {
+          addressParts.push(state);
+        }
+        addressParts.push(pincode);
+        if (country) {
+          addressParts.push(country);
+        }
+
+        const fullAddress = addressParts.join(', ');
+
+        return {
+          address: fullAddress || result.display_name || undefined,
+          city,
+          state,
+          country,
+          latitude: result.lat ? parseFloat(result.lat) : undefined,
+          longitude: result.lon ? parseFloat(result.lon) : undefined,
+        };
+      }
     } catch (error) {
+      // For Indian pincodes, return at least country info even on error
+      const isIndianPincode = /^[1-8]\d{5}$/.test(pincode.trim());
+      if (isIndianPincode) {
+        return {
+          country: 'India',
+        };
+      }
       return {};
     }
   }

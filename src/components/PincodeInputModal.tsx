@@ -130,32 +130,64 @@ const PincodeInputModal: React.FC<PincodeInputModalProps> = ({
         updatedAt: firestore.FieldValue.serverTimestamp(),
       };
 
-      // Try to fetch address if not already set
-      if (!address) {
-        const geocodeData = await GeolocationService.geocodePincode(pincode.trim());
-        if (geocodeData.address) {
-          addressData.address = geocodeData.address;
-          addressData.city = geocodeData.city;
-          addressData.state = geocodeData.state;
-          addressData.country = geocodeData.country;
-          if (geocodeData.latitude) addressData.latitude = geocodeData.latitude;
-          if (geocodeData.longitude) addressData.longitude = geocodeData.longitude;
-        }
+      // Always re-geocode from pincode to ensure address matches the pincode
+      // This fixes cases where GPS coordinates gave wrong address
+      const geocodeData = await GeolocationService.geocodePincode(pincode.trim());
+      if (geocodeData.address && geocodeData.country === 'India') {
+        // Use address from pincode geocoding (most accurate)
+        addressData.address = geocodeData.address;
+        addressData.city = geocodeData.city;
+        addressData.state = geocodeData.state;
+        addressData.country = geocodeData.country || 'India';
+        if (geocodeData.latitude) addressData.latitude = geocodeData.latitude;
+        if (geocodeData.longitude) addressData.longitude = geocodeData.longitude;
       } else {
-        // Use existing address if available
+        // If pincode geocoding fails or returns non-India, check if existing address is valid
         const userDoc = await firestore()
           .collection('users')
           .doc(currentUser.uid)
           .get();
         const userData = userDoc.data();
         const location = userData?.location;
-        if (location) {
-          if (location.address) addressData.address = location.address;
-          if (location.city) addressData.city = location.city;
-          if (location.state) addressData.state = location.state;
-          if (location.country) addressData.country = location.country;
+        
+        // Validate existing address - must be from India and contain the pincode
+        const existingAddress = location?.address || '';
+        const existingCountry = location?.country || '';
+        const existingPincode = location?.pincode || '';
+        const isIndianPincode = /^[1-8]\d{5}$/.test(pincode.trim()); // Indian pincode format
+        
+        // Only use existing address if it's from India and matches the pincode
+        if (isIndianPincode && existingCountry === 'India' && existingPincode === pincode.trim() && 
+            existingAddress && (existingAddress.includes(pincode.trim()) || existingAddress.includes('India'))) {
+          // Existing address is valid and matches pincode
+          addressData.address = location.address;
+          addressData.city = location.city;
+          addressData.state = location.state;
+          addressData.country = 'India';
           if (location.latitude) addressData.latitude = location.latitude;
           if (location.longitude) addressData.longitude = location.longitude;
+        } else {
+          // Build minimal address from pincode for Indian pincodes
+          if (isIndianPincode) {
+            addressData.country = 'India';
+            if (location?.city && location?.state) {
+              addressData.address = `${location.city}, ${location.state}, ${pincode.trim()}, India`;
+              addressData.city = location.city;
+              addressData.state = location.state;
+            } else {
+              addressData.address = `Pincode ${pincode.trim()}, India`;
+            }
+          } else {
+            // For non-Indian pincodes, use geocoded data if available
+            if (geocodeData.address) {
+              addressData.address = geocodeData.address;
+              addressData.city = geocodeData.city;
+              addressData.state = geocodeData.state;
+              addressData.country = geocodeData.country;
+              if (geocodeData.latitude) addressData.latitude = geocodeData.latitude;
+              if (geocodeData.longitude) addressData.longitude = geocodeData.longitude;
+            }
+          }
         }
       }
 

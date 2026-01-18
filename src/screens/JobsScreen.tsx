@@ -90,6 +90,14 @@ export default function JobsScreen({navigation, route}: any) {
     ? jobCards 
     : jobCards.filter(job => job.status === filter);
 
+  // Calculate counts for each status
+  const getStatusCount = (status: 'all' | 'pending' | 'accepted' | 'in-progress' | 'completed') => {
+    if (status === 'all') {
+      return jobCards.length;
+    }
+    return jobCards.filter(job => job.status === status).length;
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
@@ -97,7 +105,7 @@ export default function JobsScreen({navigation, route}: any) {
       case 'accepted':
         return '#007AFF';
       case 'in-progress':
-        return '#34C759';
+        return '#FF9500'; // Orange instead of green
       case 'completed':
         return '#34C759';
       case 'cancelled':
@@ -272,6 +280,22 @@ export default function JobsScreen({navigation, route}: any) {
               ]}>
               {status === 'all' ? 'All' : getStatusText(status)}
             </Text>
+            <View style={[
+              styles.countBadge,
+              {
+                backgroundColor: filter === status ? 'rgba(255, 255, 255, 0.3)' : theme.textSecondary + '20',
+              },
+            ]}>
+              <Text
+                style={[
+                  styles.countText,
+                  {
+                    color: filter === status ? '#fff' : theme.textSecondary,
+                  },
+                ]}>
+                {getStatusCount(status)}
+              </Text>
+            </View>
           </TouchableOpacity>
         ))}
       </View>
@@ -323,6 +347,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   filterTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -331,6 +357,18 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  countBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  countText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   listContent: {
     padding: 16,

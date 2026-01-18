@@ -4,7 +4,7 @@ import {useTranslation as useI18nTranslation} from 'react-i18next';
  * Custom hook for translations
  * Provides easy access to translation function with type safety
  */
-export const useTranslation = () => {
+const useTranslation = () => {
   const {t, i18n} = useI18nTranslation();
 
   return {

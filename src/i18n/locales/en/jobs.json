@@ -32,5 +32,8 @@
   "completedLabel": "Completed",
   "loadingJobHistory": "Loading job history...",
   "noJobHistory": "No job history",
-  "completedJobsWillAppearHere": "Your completed jobs will appear here"
+  "completedJobsWillAppearHere": "Your completed jobs will appear here",
+  "all": "All",
+  "noJobsFound": "No jobs found",
+  "noJobsFoundForStatus": "No {{status}} jobs"
 }

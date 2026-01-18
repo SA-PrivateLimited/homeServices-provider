@@ -1,5 +1,5 @@
 import React from 'react';
-import {View, StyleSheet} from 'react-native';
+import {View, Text, StyleSheet, Platform} from 'react-native';
 import {Picker} from '@react-native-picker/picker';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
@@ -14,7 +14,13 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({compact = false}) =>
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
 
+  const currentLanguage = language || 'en';
+  const languageLabel = currentLanguage === 'hi' 
+    ? String(t('settings.hindi') || 'Hindi') 
+    : String(t('settings.english') || 'English');
+
   const handleLanguageChange = async (itemValue: 'en' | 'hi') => {
+    if (itemValue === null || itemValue === undefined) return;
     try {
       // setLanguage already calls changeLanguage internally
       await setLanguage(itemValue);
@@ -24,31 +30,32 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({compact = false}) =>
   };
 
   if (compact) {
-    // Compact version for headers
+    // Compact version for headers - shows selected language with dropdown
     return (
       <View style={[styles.compactContainer, {backgroundColor: theme.card, borderColor: theme.border}]}>
         <Picker
-          selectedValue={language}
+          selectedValue={currentLanguage}
           onValueChange={handleLanguageChange}
           style={[styles.compactPicker, {color: theme.text}]}
           dropdownIconColor={theme.text}
-          mode="dropdown"
+          mode={Platform.OS === 'android' ? 'dropdown' : 'default'}
         >
-          <Picker.Item label="EN" value="en" />
-          <Picker.Item label="HI" value="hi" />
+          <Picker.Item label="English" value="en" />
+          <Picker.Item label="हिंदी" value="hi" />
         </Picker>
       </View>
     );
   }
 
-  // Full version for settings
+  // Full version for settings - uses dropdown mode (not modal)
   return (
     <View style={[styles.container, {backgroundColor: theme.card, borderColor: theme.border}]}>
       <Picker
-        selectedValue={language}
+        selectedValue={currentLanguage}
         onValueChange={handleLanguageChange}
         style={[styles.picker, {color: theme.text}]}
         dropdownIconColor={theme.textSecondary}
+        mode={Platform.OS === 'android' ? 'dropdown' : 'default'}
       >
         <Picker.Item label={String(t('settings.english') || 'English')} value="en" />
         <Picker.Item label={String(t('settings.hindi') || 'Hindi')} value="hi" />
@@ -72,7 +79,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     overflow: 'hidden',
-    width: 80,
+    minWidth: 90,
+    maxWidth: 120,
   },
   compactPicker: {
     height: 36,

@@ -27,6 +27,7 @@ import {useStore} from './src/store';
 import NotificationService from './src/services/notificationService';
 import GeolocationService from './src/services/geolocationService';
 import WebSocketService from './src/services/websocketService';
+import './src/i18n'; // Initialize i18n
 
 const App = () => {
   const {isDarkMode, hydrate, currentUser} = useStore();

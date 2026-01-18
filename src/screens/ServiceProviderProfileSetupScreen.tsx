@@ -12,16 +12,16 @@ import {
   FlatList,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import firestore from '@react-native-firebase/firestore';
-import storage from '@react-native-firebase/storage';
 import auth from '@react-native-firebase/auth';
+import storage from '@react-native-firebase/storage';
+import {providersApi} from '../services/api/providersApi';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {useStore} from '../store';
+import {lightTheme, darkTheme} from '../utils/theme';
 import ProviderAddressInput from '../components/ProviderAddressInput';
 import AlertModal from '../components/AlertModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import useTranslation from '../hooks/useTranslation';
-
 // Service Provider Types (replacing doctor specialties)
 const SERVICE_TYPES = [
   'Carpenter',
@@ -44,8 +44,9 @@ const SERVICE_TYPES = [
 const LANGUAGES = ['English', 'Hindi', 'Bengali', 'Telugu', 'Marathi', 'Tamil', 'Gujarati', 'Kannada', 'Malayalam', 'Punjabi'];
 
 export default function ServiceProviderProfileSetupScreen({navigation}: any) {
-  const {currentUser} = useStore();
+  const {currentUser, isDarkMode} = useStore();
   const {t} = useTranslation();
+  const theme = isDarkMode ? darkTheme : lightTheme;
   const [name, setName] = useState('');
   const [serviceType, setServiceType] = useState('');
   const [email, setEmail] = useState('');
@@ -113,26 +114,18 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         return;
       }
 
-      // Check in 'providers' collection - try UID first (phone auth)
-      let providerDoc = await firestore()
-        .collection('providers')
-        .doc(user.uid)
-        .get();
+      // Get provider profile via backend API
+      let profile: any = null;
+      
+      // Try to get by UID first (phone auth)
+      profile = await providersApi.getProviderByUid(user.uid);
       
       // If not found by UID, try email (Google auth)
-      if (!providerDoc.exists && user.email) {
-        const emailQuery = await firestore()
-          .collection('providers')
-          .where('email', '==', user.email)
-          .limit(1)
-          .get();
-        if (!emailQuery.empty) {
-          providerDoc = emailQuery.docs[0];
-        }
+      if (!profile && user.email) {
+        profile = await providersApi.getProviderByEmail(user.email);
       }
 
-      if (providerDoc.exists) {
-        const profile: any = {id: providerDoc.id, ...providerDoc.data()};
+      if (profile) {
         setExistingProfile(profile);
         setName(profile.name || '');
         
@@ -351,31 +344,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
       if (currentEmail && emailToVerify !== currentEmail) {
         try {
           await authUser.updateEmail(emailToVerify);
-          // Update email in Firestore after successful update
-          await firestore()
-            .collection('providers')
-            .doc(authUser.uid)
-            .update({
-              email: emailToVerify,
-              emailVerified: false,
-              updatedAt: firestore.FieldValue.serverTimestamp(),
-            });
-          
-          // Also update users collection if exists
-          const userDoc = await firestore()
-            .collection('users')
-            .doc(authUser.uid)
-            .get();
-          if (userDoc.exists) {
-            await firestore()
-              .collection('users')
-              .doc(authUser.uid)
-              .update({
-                email: emailToVerify,
-                emailVerified: false,
-                updatedAt: firestore.FieldValue.serverTimestamp(),
-              });
-          }
+          // Email update in provider profile will be saved via backend API when profile is saved
         } catch (updateError: any) {
           if (updateError.code === 'auth/requires-recent-login') {
             setAlertModal({
@@ -776,8 +745,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         providerData.createdAt = firestore.FieldValue.serverTimestamp();
       }
 
-      // Use set with merge to handle both create and update
-      await firestore().collection('providers').doc(providerId).set(providerData, {merge: true});
+      // Save provider profile via backend API (document URLs already uploaded to Firebase Storage)
+      await providersApi.updateMyProfile(providerData);
 
       setLoading(false);
       setAlertModal({
@@ -811,9 +780,9 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Service Provider Profile</Text>
+        <Text style={styles.title}>{t('providerProfile.serviceProviderProfile')}</Text>
         <Text style={styles.subtitle}>
-          {existingProfile ? 'Update your profile' : 'Complete your profile to start receiving service requests'}
+          {existingProfile ? t('providerProfile.updateYourProfile') : t('providerProfile.completeYourProfile')}
         </Text>
 
         {/* Profile Photo */}
@@ -828,7 +797,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
               />
               <View style={styles.imageOverlay}>
                 <Icon name="edit" size={20} color="#fff" />
-                <Text style={styles.editText}>Change Photo</Text>
+                <Text style={styles.editText}>{t('providerProfile.changePhoto')}</Text>
               </View>
             </View>
           ) : (
@@ -854,20 +823,20 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           )}
         </TouchableOpacity>
 
-        <Text style={styles.label}>Name *</Text>
+        <Text style={styles.label}>{t('providerProfile.nameRequired')}</Text>
         <TextInput
           style={styles.input}
           value={name}
           onChangeText={setName}
-          placeholder="John Doe"
+          placeholder={t('providerProfile.namePlaceholder')}
         />
 
-        <Text style={styles.label}>Service Type *</Text>
+        <Text style={styles.label}>{t('providerProfile.serviceTypeRequired')}</Text>
         <TouchableOpacity
           style={styles.dropdownButton}
           onPress={() => setShowServiceTypeDropdown(true)}>
           <Text style={[styles.dropdownButtonText, !serviceType && styles.dropdownPlaceholder]}>
-            {serviceType || 'Select Service Type'}
+            {serviceType || t('providerProfile.selectServiceType')}
           </Text>
           <Icon name="arrow-drop-down" size={24} color="#666" />
         </TouchableOpacity>
@@ -883,7 +852,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
             onPress={() => setShowServiceTypeDropdown(false)}>
             <View style={styles.dropdownModal}>
               <View style={styles.dropdownHeader}>
-                <Text style={styles.dropdownTitle}>Select Service Type</Text>
+                <Text style={styles.dropdownTitle}>{t('providerProfile.selectServiceType')}</Text>
                 <TouchableOpacity onPress={() => setShowServiceTypeDropdown(false)}>
                   <Icon name="close" size={24} color="#666" />
                 </TouchableOpacity>
@@ -922,7 +891,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         <View style={styles.phoneSection}>
           <View style={styles.phoneHeader}>
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
-              <Text style={styles.label}>Email</Text>
+              <Text style={styles.label}>{t('providerProfile.emailLabel')}</Text>
               {emailVerified && (
                 <Icon name="checkmark-circle" size={16} color="#4CAF50" />
               )}
@@ -932,7 +901,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
             style={styles.input}
             value={email}
             onChangeText={setEmail}
-            placeholder="provider@example.com"
+            placeholder={t('providerProfile.emailPlaceholder')}
             keyboardType="email-address"
             autoCapitalize="none"
             editable={!loading}

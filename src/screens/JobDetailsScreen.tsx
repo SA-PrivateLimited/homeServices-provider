@@ -475,6 +475,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    marginTop: 16,
+  },
   statusCard: {
     padding: 16,
     margin: 16,

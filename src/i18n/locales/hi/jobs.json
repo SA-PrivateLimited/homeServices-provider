@@ -32,5 +32,8 @@
   "completedLabel": "पूर्ण",
   "loadingJobHistory": "कार्य इतिहास लोड हो रहा है...",
   "noJobHistory": "कोई कार्य इतिहास नहीं",
-  "completedJobsWillAppearHere": "आपके पूर्ण कार्य यहां दिखाई देंगे"
+  "completedJobsWillAppearHere": "आपके पूर्ण कार्य यहां दिखाई देंगे",
+  "all": "सभी",
+  "noJobsFound": "कोई कार्य नहीं मिला",
+  "noJobsFoundForStatus": "कोई {{status}} कार्य नहीं"
 }
