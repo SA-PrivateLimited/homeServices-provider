@@ -36,5 +36,6 @@
   "logoutMessage": "Are you sure you want to logout?",
   "logoutSubMessage": "You'll need to sign in again to access your account.",
   "request": "Request",
-  "browse": "Browse"
+  "browse": "Browse",
+  "optional": "Optional"
 }

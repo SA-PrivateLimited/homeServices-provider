@@ -1,4 +1,4 @@
-package com.homeservices.provider
+package com.homeservices.providerapp
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

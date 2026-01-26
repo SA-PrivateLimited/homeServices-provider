@@ -103,9 +103,16 @@ export async function apiRequest<T>(
         errorData = {message: response.statusText};
       }
 
-      throw new Error(
-        errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`,
-      );
+      const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+      console.error('❌ [API] Request failed:', {
+        url,
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+        errorMessage,
+      });
+      
+      throw new Error(errorMessage);
     }
 
     // Parse response

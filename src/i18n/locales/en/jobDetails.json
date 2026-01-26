@@ -34,5 +34,18 @@
   "cancelTask": "Cancel Task",
   "serviceStarted": "Service started! A PIN has been sent to the customer.",
   "taskCompleted": "Task completed successfully!",
-  "taskCancelled": "Task cancelled. Customer has been notified."
+  "taskCancelled": "Task cancelled. Customer has been notified.",
+  "verifyPIN": "Verify PIN",
+  "enter4DigitPIN": "Enter the 4-digit PIN sent to the customer",
+  "pleaseEnter4DigitPIN": "Please enter a 4-digit PIN",
+  "invalidPIN": "Invalid PIN. Please try again.",
+  "verifying": "Verifying...",
+  "verifyAndComplete": "Verify & Complete",
+  "addServiceDetails": "Add Service Details",
+  "serviceAmount": "Service Amount",
+  "optional": "Optional",
+  "materialsUsed": "Materials Used",
+  "materialDescription": "Material Description",
+  "quantity": "Quantity",
+  "unitPrice": "Unit Price"
 }

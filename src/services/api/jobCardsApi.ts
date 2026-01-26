@@ -66,6 +66,14 @@ export interface UpdateJobCardStatusData {
   startedAt?: string | Date;
   completedAt?: string | Date;
   cancellationReason?: string;
+  serviceAmount?: number;
+  materialsUsed?: Array<{
+    description: string;
+    quantity?: number;
+    unitPrice?: number;
+    total?: number;
+  }>;
+  jobCardPdfUrl?: string;
 }
 
 /**

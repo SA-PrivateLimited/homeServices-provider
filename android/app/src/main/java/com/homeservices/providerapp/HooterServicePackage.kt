@@ -1,4 +1,4 @@
-package com.homeservices.provider
+package com.homeservices.providerapp
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule

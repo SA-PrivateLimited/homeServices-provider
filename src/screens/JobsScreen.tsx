@@ -17,8 +17,6 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import firestore from '@react-native-firebase/firestore';
-import database from '@react-native-firebase/database';
 import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
@@ -423,7 +421,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
-    gap: 6,
+    width: '100%',
+    gap: 1,
   },
   customerPhone: {
     fontSize: 12,
@@ -435,7 +434,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 1,
   },
   statusBadge: {
     paddingHorizontal: 12,

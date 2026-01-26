@@ -5,6 +5,15 @@
 
 import {apiGet} from './apiClient';
 
+export interface QuestionnaireItem {
+  id: string;
+  question: string;
+  questionHi?: string;
+  type: 'text' | 'number' | 'select' | 'multiselect' | 'boolean';
+  options?: string[];
+  required?: boolean;
+}
+
 export interface ServiceCategory {
   _id?: string;
   id?: string;
@@ -15,6 +24,8 @@ export interface ServiceCategory {
   icon?: string;
   color?: string;
   enabled?: boolean;
+  isActive?: boolean;
+  questionnaire?: QuestionnaireItem[];
   createdAt?: string | Date;
   updatedAt?: string | Date;
 }
@@ -49,7 +60,21 @@ export async function getServiceCategoryById(categoryId: string): Promise<Servic
   }
 }
 
+/**
+ * Get service category by name
+ */
+export async function getServiceCategoryByName(name: string): Promise<ServiceCategory | null> {
+  try {
+    const categories = await getServiceCategories();
+    return categories.find(c => c.name === name) || null;
+  } catch (error) {
+    console.error('Error fetching service category by name:', error);
+    return null;
+  }
+}
+
 export const serviceCategoriesApi = {
   getAll: getServiceCategories,
   getById: getServiceCategoryById,
+  getByName: getServiceCategoryByName,
 };

@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {useFocusEffect} from '@react-navigation/native';
 import {
   View,
@@ -14,8 +14,8 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
 import {useStore} from '../store';
+import {getMyProfile, updateMyProfile} from '../services/api/providersApi';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 import ProviderHelpSupportModal from '../components/ProviderHelpSupportModal';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
@@ -58,102 +58,66 @@ export default function ProviderProfileScreen({navigation}: any) {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
 
-  useEffect(() => {
-    if (!currentUser) return;
-
-    let unsubscribeUid: (() => void) | null = null;
-    let unsubscribeEmail: (() => void) | null = null;
-    let profileFound = false;
-
-    const loadProfile = (providerData: ProviderProfile) => {
-      // Always update profile to ensure fresh data after edits
-      // The onSnapshot will fire when data changes, so we should always update
-      setProfile(providerData);
-      // Load provider address
-      if ((providerData as any).address) {
-        setProviderAddress((providerData as any).address);
-      }
-      // Reset image error when profile updates
-      setImageError(false);
+  const loadProviderProfile = useCallback(async () => {
+    if (!currentUser) {
       setLoading(false);
-      profileFound = true;
-    };
+      return;
+    }
 
-    // Check by UID first (phone auth or if saved with UID as doc ID)
-    unsubscribeUid = firestore()
-      .collection('providers')
-      .doc(currentUser.uid)
-      .onSnapshot(
-        docSnapshot => {
-          if (docSnapshot.exists) {
-            const providerData = docSnapshot.data() as ProviderProfile;
-            loadProfile(providerData);
-            // Unsubscribe from email listener if UID found
-            if (unsubscribeEmail) {
-              unsubscribeEmail();
-              unsubscribeEmail = null;
-            }
-          } else {
-            // If not found by UID, check by email (Google auth)
-            if (currentUser.email && !unsubscribeEmail) {
-              unsubscribeEmail = firestore()
-                .collection('providers')
-                .where('email', '==', currentUser.email)
-                .limit(1)
-                .onSnapshot(
-                  emailSnapshot => {
-                    if (!emailSnapshot.empty && !profileFound) {
-                      const providerData = emailSnapshot.docs[0].data() as ProviderProfile;
-                      loadProfile(providerData);
-                    } else if (emailSnapshot.empty && !profileFound) {
-                      setLoading(false);
-                    }
-                  },
-                  error => {
-                    if (!profileFound) {
-                      setLoading(false);
-                    }
-                  },
-                );
-            } else if (!currentUser.email && !profileFound) {
-              // No email, no profile found
-              setLoading(false);
-            }
-          }
-        },
-        error => {
-          // If UID check fails, try email as fallback
-          if (currentUser.email && !unsubscribeEmail) {
-            unsubscribeEmail = firestore()
-              .collection('providers')
-              .where('email', '==', currentUser.email)
-              .limit(1)
-              .onSnapshot(
-                emailSnapshot => {
-                  if (!emailSnapshot.empty && !profileFound) {
-                    const providerData = emailSnapshot.docs[0].data() as ProviderProfile;
-                    loadProfile(providerData);
-                  } else if (!profileFound) {
-                    setLoading(false);
-                  }
-                },
-                emailError => {
-                  if (!profileFound) {
-                    setLoading(false);
-                  }
-                },
-              );
-          } else if (!profileFound) {
-            setLoading(false);
-          }
-        },
-      );
+    try {
+      setLoading(true);
+      const provider = await getMyProfile();
 
-    return () => {
-      if (unsubscribeUid) unsubscribeUid();
-      if (unsubscribeEmail) unsubscribeEmail();
-    };
+      if (provider) {
+        const providerData: ProviderProfile = {
+          name: provider.name || '',
+          specialization: provider.specialization,
+          specialty: provider.specialty,
+          email: provider.email || '',
+          phone: provider.phone || provider.phoneNumber || '',
+          experience: provider.experience || 0,
+          consultationFee: provider.serviceFee || 0,
+          rating: provider.rating || 0,
+          profileImage: (provider as any).profileImage,
+          photo: (provider as any).photo,
+          availableDays: (provider as any).availableDays || [],
+          languages: (provider as any).languages,
+          startTime: (provider as any).startTime,
+          endTime: (provider as any).endTime,
+          slotDuration: (provider as any).slotDuration,
+          approvalStatus: provider.approvalStatus,
+          qualifications: (provider as any).qualifications,
+          qualification: (provider as any).qualification,
+        };
+        setProfile(providerData);
+
+        // Load provider address
+        if ((provider as any).address) {
+          setProviderAddress((provider as any).address);
+        }
+        // Reset image error when profile updates
+        setImageError(false);
+      } else {
+        setProfile(null);
+      }
+    } catch (error) {
+      console.error('Error loading provider profile:', error);
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
   }, [currentUser]);
+
+  useEffect(() => {
+    loadProviderProfile();
+  }, [loadProviderProfile]);
+
+  // Refresh profile when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadProviderProfile();
+    }, [loadProviderProfile])
+  );
 
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
 
@@ -165,17 +129,34 @@ export default function ProviderProfileScreen({navigation}: any) {
     setShowLogoutModal(false);
     try {
       await auth().signOut();
-      navigation.reset({
-        index: 0,
-        routes: [{name: 'Login'}],
-      });
+      // Navigate to Login screen using parent navigator (root stack)
+      const parentNavigation = navigation.getParent();
+      if (parentNavigation) {
+        parentNavigation.reset({
+          index: 0,
+          routes: [{name: 'Login'}],
+        });
+      } else {
+        navigation.reset({
+          index: 0,
+          routes: [{name: 'Login'}],
+        });
+      }
     } catch (error) {
       Alert.alert(String(t('common.error')), String(t('profile.failedToLogout')));
       // Even if logout fails, navigate to login
-      navigation.reset({
-        index: 0,
-        routes: [{name: 'Login'}],
-      });
+      const parentNavigation = navigation.getParent();
+      if (parentNavigation) {
+        parentNavigation.reset({
+          index: 0,
+          routes: [{name: 'Login'}],
+        });
+      } else {
+        navigation.reset({
+          index: 0,
+          routes: [{name: 'Login'}],
+        });
+      }
     }
   };
 
@@ -193,6 +174,11 @@ export default function ProviderProfileScreen({navigation}: any) {
         <ProviderHelpSupportModal
           visible={showHelpModal}
           onClose={() => setShowHelpModal(false)}
+        />
+        <LogoutConfirmationModal
+          visible={showLogoutModal}
+          onConfirm={handleConfirmLogout}
+          onCancel={() => setShowLogoutModal(false)}
         />
       <ScrollView style={[styles.container, {backgroundColor: theme.background}]}>
         {/* Profile Setup Header */}
@@ -430,7 +416,7 @@ export default function ProviderProfileScreen({navigation}: any) {
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4}}>
               <Text style={[styles.infoLabel, {color: theme.textSecondary}]}>{String(t('profile.primaryPhone'))}</Text>
               {storeUser?.phoneVerified && (
-                <Icon name="checkmark-circle" size={16} color="#4CAF50" />
+                <Icon name="check-circle" size={16} color="#4CAF50" />
               )}
             </View>
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
@@ -453,38 +439,11 @@ export default function ProviderProfileScreen({navigation}: any) {
             setProviderAddress(address);
             setSavingAddress(true);
             try {
-              const currentUser = auth().currentUser;
-              if (currentUser) {
-                // Check by UID first
-                let providerDoc = await firestore()
-                  .collection('providers')
-                  .doc(currentUser.uid)
-                  .get();
-                
-                // If not found by UID, check by email
-                if (!providerDoc.exists && currentUser.email) {
-                  const emailQuery = await firestore()
-                    .collection('providers')
-                    .where('email', '==', currentUser.email)
-                    .limit(1)
-                    .get();
-                  
-                  if (!emailQuery.empty) {
-                    providerDoc = emailQuery.docs[0];
-                  }
-                }
-                
-                if (providerDoc.exists) {
-                  await firestore()
-                    .collection('providers')
-                    .doc(providerDoc.id)
-                    .update({
-                      address: address,
-                      updatedAt: firestore.FieldValue.serverTimestamp(),
-                    });
-                  Alert.alert(String(t('common.success')), String(t('profile.addressUpdatedSuccess')));
-                }
-              }
+              await updateMyProfile({
+                address: address,
+                updatedAt: new Date().toISOString(),
+              } as any);
+              Alert.alert(String(t('common.success')), String(t('profile.addressUpdatedSuccess')));
             } catch (error: any) {
               Alert.alert(String(t('common.error')), error.message || String(t('profile.failedToUpdateAddress')));
             } finally {

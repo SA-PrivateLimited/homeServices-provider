@@ -1,7 +1,6 @@
 import {useState, useEffect} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
 import {GuideStep} from '../components/GuideTooltip';
 
 const GUIDE_STORAGE_KEY = '@homeservices_guide_completed';
@@ -34,32 +33,17 @@ export const useAppGuide = (
       const currentUser = auth().currentUser;
       if (!currentUser || !userRole) return;
 
-      // Check in Firestore first
-      const userDoc = await firestore()
-        .collection('users')
-        .doc(currentUser.uid)
-        .get();
+      // Check in AsyncStorage
+      const completed = await AsyncStorage.getItem(
+        `${GUIDE_STORAGE_KEY}_${screenName}_${currentUser.uid}`
+      );
 
-      if (userDoc.exists) {
-        const userData = userDoc.data();
-        const hasCompletedGuide = userData?.hasCompletedGuide?.[screenName];
-
-        if (!hasCompletedGuide) {
-          setShowGuide(true);
-          setCurrentStep(0);
-        }
-      } else {
-        // Fallback to AsyncStorage
-        const completed = await AsyncStorage.getItem(
-          `${GUIDE_STORAGE_KEY}_${screenName}_${currentUser.uid}`
-        );
-
-        if (!completed) {
-          setShowGuide(true);
-          setCurrentStep(0);
-        }
+      if (!completed) {
+        setShowGuide(true);
+        setCurrentStep(0);
       }
     } catch (error) {
+      console.log('Error checking guide status:', error);
     }
   };
 
@@ -68,25 +52,13 @@ export const useAppGuide = (
       const currentUser = auth().currentUser;
       if (!currentUser) return;
 
-      // Save to Firestore
-      await firestore()
-        .collection('users')
-        .doc(currentUser.uid)
-        .set(
-          {
-            hasCompletedGuide: {
-              [screenName]: true,
-            },
-          },
-          {merge: true}
-        );
-
-      // Also save to AsyncStorage as backup
+      // Save to AsyncStorage
       await AsyncStorage.setItem(
         `${GUIDE_STORAGE_KEY}_${screenName}_${currentUser.uid}`,
         'true'
       );
     } catch (error) {
+      console.log('Error marking guide as completed:', error);
     }
   };
 

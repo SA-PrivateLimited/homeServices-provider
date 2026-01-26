@@ -13,10 +13,10 @@ const getApiBaseUrl = (): string => {
     const platform = require('react-native').Platform.OS;
     
     if (platform === 'android') {
-      return 'http://10.0.2.2:3001/api'; // Android emulator
+      return 'http://10.0.2.2:3000/api'; // Android emulator
     }
 
-    return 'http://localhost:3001/api'; // iOS simulator or web
+    return 'http://localhost:3000/api'; // iOS simulator or web
   }
   
   // Production - replace with your production backend URL

@@ -3,11 +3,11 @@ import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {View, ActivityIndicator, StyleSheet} from 'react-native';
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import useTranslation from '../hooks/useTranslation';
+import {getMe} from '../services/api/usersApi';
 
 // Screens
 import LoginScreen from '../screens/LoginScreen';
@@ -22,6 +22,7 @@ import JobDetailsScreen from '../screens/JobDetailsScreen';
 import ServiceProviderProfileSetupScreen from '../screens/ServiceProviderProfileSetupScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
 import PhoneVerificationScreen from '../screens/PhoneVerificationScreen';
+import ShareContactRecommendationScreen from '../screens/ShareContactRecommendationScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -38,36 +39,60 @@ export default function AppNavigator() {
     const unsubscribe = auth().onAuthStateChanged(async (authUser) => {
       if (authUser) {
         try {
-          const userDoc = await firestore()
-            .collection('users')
-            .doc(authUser.uid)
-            .get();
+          // Fetch user data from backend API
+          const userData = await getMe();
 
-          if (userDoc.exists) {
-            const userData = userDoc.data();
+          if (userData) {
             // HomeServicesProvider app is for providers only - set role to provider
             setUserRole('provider');
-            setPhoneVerified(userData?.phoneVerified === true);
-            
-            // Update store with user data
+
+            // If user logged in with phone, consider phone verified
+            const hasAuthPhone = !!authUser.phoneNumber;
+            setPhoneVerified(hasAuthPhone || userData?.phoneVerified === true);
+
+            // Update store with user data, including phone from Firebase Auth
             setCurrentUser({
-              id: userDoc.id,
+              id: userData._id || userData.id || authUser.uid,
               ...userData,
-              createdAt: userData?.createdAt?.toDate(),
-              phoneVerified: userData?.phoneVerified === true,
+              // Prioritize phone from Firebase Auth (login phone)
+              phone: authUser.phoneNumber || userData?.phone || '',
+              phoneVerified: hasAuthPhone || userData?.phoneVerified === true,
             } as any);
           } else {
             // New user - set as provider for HomeServicesProvider app
             setUserRole('provider');
-            setPhoneVerified(false);
+            const hasAuthPhone = !!authUser.phoneNumber;
+            setPhoneVerified(hasAuthPhone);
+
+            // Set basic user data from auth
+            setCurrentUser({
+              id: authUser.uid,
+              name: authUser.displayName || '',
+              email: authUser.email || '',
+              phone: authUser.phoneNumber || '',
+              phoneVerified: hasAuthPhone,
+              role: 'provider',
+            } as any);
           }
         } catch (error) {
-          setUserRole(null);
-          setPhoneVerified(null);
+          console.error('Error fetching user data:', error);
+          // Even on error, set basic data from auth
+          const hasAuthPhone = !!authUser.phoneNumber;
+          setUserRole('provider');
+          setPhoneVerified(hasAuthPhone);
+          setCurrentUser({
+            id: authUser.uid,
+            name: authUser.displayName || '',
+            email: authUser.email || '',
+            phone: authUser.phoneNumber || '',
+            phoneVerified: hasAuthPhone,
+            role: 'provider',
+          } as any);
         }
       } else {
         setUserRole(null);
         setPhoneVerified(null);
+        setCurrentUser(null);
       }
 
       setUser(authUser);
@@ -160,6 +185,21 @@ export default function AppNavigator() {
           component={HelpSupportScreen}
           options={{
             headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="ShareContactRecommendation"
+          component={ShareContactRecommendationScreen}
+          options={{
+            headerShown: true,
+            title: String(t('recommendations.shareContact') || 'Share Contact'),
+            headerStyle: {backgroundColor: theme.card},
+            headerTintColor: theme.text,
+            headerRight: () => (
+              <View style={{marginRight: 10}}>
+                <LanguageSwitcher compact />
+              </View>
+            ),
           }}
         />
       </Stack.Navigator>

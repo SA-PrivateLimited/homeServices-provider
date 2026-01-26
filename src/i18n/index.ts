@@ -17,6 +17,7 @@ import enDashboard from './locales/en/dashboard.json';
 import enJobDetails from './locales/en/jobDetails.json';
 import enOnboarding from './locales/en/onboarding.json';
 import enProviderProfile from './locales/en/providerProfile.json';
+import enRecommendations from './locales/en/recommendations.json';
 
 // Hindi translations
 import hiCommon from './locales/hi/common.json';
@@ -33,6 +34,7 @@ import hiDashboard from './locales/hi/dashboard.json';
 import hiJobDetails from './locales/hi/jobDetails.json';
 import hiOnboarding from './locales/hi/onboarding.json';
 import hiProviderProfile from './locales/hi/providerProfile.json';
+import hiRecommendations from './locales/hi/recommendations.json';
 
 // Merge all translations
 const en = {
@@ -67,6 +69,7 @@ const hi = {
   help: hiHelp,
   dashboard: hiDashboard,
   onboarding: hiOnboarding,
+  recommendations: hiRecommendations,
 };
 
 const LANGUAGE_KEY = '@app_language';

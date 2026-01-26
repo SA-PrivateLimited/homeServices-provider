@@ -1,18 +1,35 @@
 /**
  * Service Categories Service
  * Manages service types/categories for home services
+ * Uses HomeServicesBackend API for all database operations
  */
 
-import firestore from '@react-native-firebase/firestore';
+import {serviceCategoriesApi, type ServiceCategory as ServiceCategoryApi} from './api/serviceCategoriesApi';
+
+export interface QuestionnaireQuestion {
+  id: string;
+  question: string; // English question (backward compatibility)
+  questionHi?: string; // Hindi question (optional)
+  type: 'text' | 'number' | 'select' | 'multiselect' | 'boolean';
+  options?: string[]; // English options for select and multiselect types (backward compatibility)
+  optionsHi?: string[]; // Hindi options for select and multiselect types (optional)
+  required: boolean;
+  placeholder?: string; // English placeholder (backward compatibility)
+  placeholderHi?: string; // Hindi placeholder (optional)
+}
 
 export interface ServiceCategory {
   id: string;
-  name: string;
+  name: string; // English name (backward compatibility)
+  nameHi?: string; // Hindi name (optional)
   icon: string; // Material icon name
   color: string; // Hex color code
-  description?: string;
+  description?: string; // English description
+  descriptionHi?: string; // Hindi description
   isActive: boolean;
   order: number; // Display order
+  questionnaire?: QuestionnaireQuestion[]; // Questions for this service category
+  requiresVehicle?: boolean; // For driver/transport services
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -109,17 +126,35 @@ export const DEFAULT_SERVICE_CATEGORIES: Omit<ServiceCategory, 'id' | 'createdAt
 
 /**
  * Fetch all active service categories
+ * Uses backend API
  */
 export const fetchServiceCategories = async (): Promise<ServiceCategory[]> => {
   try {
-    const snapshot = await firestore()
-      .collection(COLLECTIONS.SERVICE_CATEGORIES)
-      .where('isActive', '==', true)
-      .orderBy('order', 'asc')
-      .get();
+    const categories = await serviceCategoriesApi.getAll();
+    
+    // Filter active categories and map to ServiceCategory format
+    const activeCategories = categories
+      .filter((cat: ServiceCategoryApi) => cat.isActive !== false)
+      .map((cat: ServiceCategoryApi) => {
+        return {
+          id: cat._id || cat.id || '',
+          name: cat.name || '',
+          nameHi: (cat as any).nameHi || (cat as any).nameHindi,
+          icon: cat.icon || 'build',
+          color: cat.color || '#3498db',
+          description: cat.description,
+          descriptionHi: cat.descriptionHi || (cat as any).descriptionHindi,
+          isActive: cat.isActive !== false,
+          order: cat.order || 0,
+          questionnaire: cat.questionnaire,
+          requiresVehicle: cat.requiresVehicle,
+          createdAt: cat.createdAt ? (cat.createdAt instanceof Date ? cat.createdAt : new Date(cat.createdAt)) : new Date(),
+          updatedAt: cat.updatedAt ? (cat.updatedAt instanceof Date ? cat.updatedAt : new Date(cat.updatedAt)) : new Date(),
+        } as ServiceCategory;
+      });
 
-    if (snapshot.empty) {
-      // If no categories exist, return defaults
+    // If no categories from API, return defaults as fallback
+    if (activeCategories.length === 0) {
       return DEFAULT_SERVICE_CATEGORIES.map((cat, index) => ({
         ...cat,
         id: `default_${index}`,
@@ -128,15 +163,10 @@ export const fetchServiceCategories = async (): Promise<ServiceCategory[]> => {
       }));
     }
 
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data()?.createdAt?.toDate(),
-      updatedAt: doc.data()?.updatedAt?.toDate(),
-    })) as ServiceCategory[];
+    return activeCategories;
   } catch (error) {
     console.error('Error fetching service categories:', error);
-    // Return defaults on error
+    // Return defaults on error as fallback
     return DEFAULT_SERVICE_CATEGORIES.map((cat, index) => ({
       ...cat,
       id: `default_${index}`,
@@ -147,67 +177,58 @@ export const fetchServiceCategories = async (): Promise<ServiceCategory[]> => {
 };
 
 /**
- * Initialize service categories in Firestore (Admin only)
+ * Initialize service categories (Admin only)
+ * Note: This should be handled by the backend admin API
+ * This function is kept for backward compatibility but may not work
  */
 export const initializeServiceCategories = async (): Promise<void> => {
-  try {
-    const batch = firestore().batch();
-    
-    DEFAULT_SERVICE_CATEGORIES.forEach((category, index) => {
-      const docRef = firestore()
-        .collection(COLLECTIONS.SERVICE_CATEGORIES)
-        .doc();
-      
-      batch.set(docRef, {
-        ...category,
-        createdAt: firestore.FieldValue.serverTimestamp(),
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      });
-    });
-
-    await batch.commit();
-    console.log('Service categories initialized successfully');
-  } catch (error) {
-    console.error('Error initializing service categories:', error);
-    throw new Error('Failed to initialize service categories');
-  }
+  console.warn('initializeServiceCategories: Service categories should be initialized via backend admin API');
+  throw new Error('Service categories initialization should be done via backend admin API');
 };
 
 /**
  * Get service category by name
+ * Uses backend API
  */
 export const getServiceCategoryByName = async (
   name: string,
 ): Promise<ServiceCategory | null> => {
   try {
-    const snapshot = await firestore()
-      .collection(COLLECTIONS.SERVICE_CATEGORIES)
-      .where('name', '==', name)
-      .where('isActive', '==', true)
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) {
-      // Check defaults
-      const defaultCat = DEFAULT_SERVICE_CATEGORIES.find(cat => cat.name === name);
-      if (defaultCat) {
-        return {
-          ...defaultCat,
-          id: `default_${DEFAULT_SERVICE_CATEGORIES.indexOf(defaultCat)}`,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-      }
-      return null;
+    // Fetch all categories and filter by name
+    // Note: Backend should ideally provide a search/by-name endpoint
+    const categories = await serviceCategoriesApi.getAll();
+    const category = categories.find((cat: ServiceCategoryApi) => cat.name === name && cat.isActive !== false);
+    
+    if (category) {
+      return {
+        id: category._id || category.id || '',
+        name: category.name || '',
+        nameHi: (category as any).nameHi || category.nameHindi,
+        icon: category.icon || 'build',
+        color: category.color || '#3498db',
+        description: category.description,
+        descriptionHi: category.descriptionHi || category.descriptionHindi,
+        isActive: category.isActive !== false,
+        order: category.order || 0,
+        questionnaire: category.questionnaire,
+        requiresVehicle: category.requiresVehicle,
+        createdAt: category.createdAt ? (category.createdAt instanceof Date ? category.createdAt : new Date(category.createdAt)) : new Date(),
+        updatedAt: category.updatedAt ? (category.updatedAt instanceof Date ? category.updatedAt : new Date(category.updatedAt)) : new Date(),
+      } as ServiceCategory;
     }
-
-    const doc = snapshot.docs[0];
-    return {
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data()?.createdAt?.toDate(),
-      updatedAt: doc.data()?.updatedAt?.toDate(),
-    } as ServiceCategory;
+    
+    // Check defaults as fallback
+    const defaultCat = DEFAULT_SERVICE_CATEGORIES.find(cat => cat.name === name);
+    if (defaultCat) {
+      return {
+        ...defaultCat,
+        id: `default_${DEFAULT_SERVICE_CATEGORIES.indexOf(defaultCat)}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
+    
+    return null;
   } catch (error) {
     console.error('Error fetching service category:', error);
     return null;

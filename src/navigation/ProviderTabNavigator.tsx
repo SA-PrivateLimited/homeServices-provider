@@ -3,8 +3,8 @@ import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
+import {getMyProfile} from '../services/api/providersApi';
 
 import ProviderDashboardScreen from '../screens/ProviderDashboardScreen';
 import JobsScreen from '../screens/JobsScreen';
@@ -111,32 +111,16 @@ export default function ProviderTabNavigator() {
     if (!currentUser) return;
 
     try {
-      // Check by UID first (phone auth or if saved with UID as doc ID)
-      let providerDoc = await firestore()
-        .collection('providers')
-        .doc(currentUser.uid)
-        .get();
-
-      // If not found by UID, check by email (Google auth)
-      if (!providerDoc.exists && currentUser.email) {
-        const emailQuery = await firestore()
-          .collection('providers')
-          .where('email', '==', currentUser.email)
-          .limit(1)
-          .get();
-
-        if (!emailQuery.empty) {
-          providerDoc = emailQuery.docs[0];
-        }
-      }
+      // Use backend API to check provider profile
+      const provider = await getMyProfile();
 
       // If no profile exists, show the modal
-      if (!providerDoc.exists) {
+      if (!provider) {
         setShowProfileSetupModal(true);
         setHasCheckedProfile(true);
       } else {
         // Profile exists - connect WebSocket for real-time booking notifications
-        const providerId = providerDoc.id;
+        const providerId = provider._id || provider.id || currentUser.uid;
         try {
           websocketService.connect(providerId);
           console.log('WebSocket connected for provider:', providerId);
@@ -149,6 +133,8 @@ export default function ProviderTabNavigator() {
       }
     } catch (error) {
       console.error('Error checking provider profile:', error);
+      // On error, still mark as checked but don't show modal
+      // This prevents blocking the user if API is temporarily unavailable
       setHasCheckedProfile(true);
     }
   }, [currentUser]);

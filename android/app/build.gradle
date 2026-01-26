@@ -15,10 +15,10 @@ android {
     ndkVersion rootProject.ext.ndkVersion
     compileSdkVersion rootProject.ext.compileSdkVersion
 
-    namespace "com.homeservices.provider"
+    namespace "com.homeservices.providerapp"
 
     defaultConfig {
-        applicationId "com.homeservices.provider"
+        applicationId "com.homeservices.providerapp"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 2

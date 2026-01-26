@@ -110,11 +110,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
     try {
       await authService.logout();
       await setCurrentUser(null);
-      // Navigate to Login screen
-      navigation.reset({
-        index: 0,
-        routes: [{name: 'Login'}],
-      });
+      // Navigate to Login screen using parent navigator (root stack)
+      // Profile is inside a tab navigator, so we need to get the parent
+      const parentNavigation = navigation.getParent();
+      if (parentNavigation) {
+        parentNavigation.reset({
+          index: 0,
+          routes: [{name: 'Login'}],
+        });
+      } else {
+        // Fallback - try resetting current navigator
+        navigation.reset({
+          index: 0,
+          routes: [{name: 'Login'}],
+        });
+      }
     } catch (error: any) {
       Alert.alert(t('common.error'), error.message);
     }

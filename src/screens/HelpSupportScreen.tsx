@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   ScrollView,
   Linking,
-  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {useStore} from '../store';
@@ -19,6 +18,7 @@ import {lightTheme, darkTheme} from '../utils/theme';
 import ragService from '../services/ragService';
 import {OPEN_AI_API_KEY} from '@env';
 import FormattedText from '../components/FormattedText';
+import AlertModal from '../components/AlertModal';
 import useTranslation from '../hooks/useTranslation';
 
 interface ChatMessage {
@@ -41,6 +41,19 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const [indexStats, setIndexStats] = useState<{count: number; lastIndexed?: Date}>({count: 0});
   const flatListRef = useRef<FlatList>(null);
 
+  // Alert modal state
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({title: '', message: '', type: 'info'});
+
+  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+    setAlertConfig({title, message, type});
+    setAlertVisible(true);
+  };
+
   useEffect(() => {
     // Check if API key is configured
     if (!OPEN_AI_API_KEY) {
@@ -48,7 +61,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
         {
           id: '1',
           role: 'assistant',
-          content: t('help.apiKeyNotConfigured'),
+          content: String(t('help.apiKeyNotConfigured')),
           timestamp: new Date(),
         },
       ]);
@@ -60,7 +73,7 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
       {
         id: '1',
         role: 'assistant',
-        content: t('help.greeting'),
+        content: t('help.greeting') as string,
         timestamp: new Date(),
       },
     ]);
@@ -126,18 +139,18 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
         if (supported) {
           return Linking.openURL(mailtoLink);
         } else {
-          Alert.alert(
+          showAlert(
             t('help.emailNotAvailable'),
             t('help.emailNotAvailableMessage', {email: supportEmail}),
-            [{text: t('common.ok')}]
+            'warning'
           );
         }
       })
       .catch(err => {
-        Alert.alert(
+        showAlert(
           t('help.emailNotAvailable'),
           t('help.emailNotAvailableMessage', {email: supportEmail}),
-          [{text: t('common.ok')}]
+          'warning'
         );
       });
   };
@@ -269,11 +282,21 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, {backgroundColor: theme.background}]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-      {/* Header */}
+    <>
+      {/* Custom Alert Modal */}
+      <AlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={() => setAlertVisible(false)}
+      />
+
+      <KeyboardAvoidingView
+        style={[styles.container, {backgroundColor: theme.background}]}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+        {/* Header */}
       <View style={[styles.header, {backgroundColor: theme.card, borderBottomColor: theme.border}]}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -376,9 +399,10 @@ const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
               <Icon name="send" size={20} color="#FFFFFF" />
             )}
           </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </>
   );
 };
 

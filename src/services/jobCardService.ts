@@ -6,11 +6,14 @@
 
 import database from '@react-native-firebase/database';
 import auth from '@react-native-firebase/auth';
+import storage from '@react-native-firebase/storage';
+import RNFS from 'react-native-fs';
 import fcmNotificationService from './fcmNotificationService';
 import {generatePIN} from '../utils/pinGenerator';
 import {jobCardsApi, CreateJobCardData} from './api/jobCardsApi';
 import {providersApi} from './api/providersApi';
 import {usersApi} from './api/usersApi';
+import {PDFService} from './pdfService';
 
 export interface JobCard {
   id?: string;
@@ -525,11 +528,41 @@ export const subscribeToCustomerJobCardStatuses = (
 };
 
 /**
+ * Upload PDF to Firebase Storage and return URL
+ */
+const uploadPDFToStorage = async (pdfPath: string, jobCardId: string): Promise<string> => {
+  try {
+    const filename = `jobCards/${jobCardId}/jobCard_${Date.now()}.pdf`;
+    const reference = storage().ref(filename);
+
+    // Upload file
+    await reference.putFile(pdfPath);
+
+    // Get download URL
+    const url = await reference.getDownloadURL();
+    return url;
+  } catch (error: any) {
+    console.error('Error uploading PDF to storage:', error);
+    throw new Error('Failed to upload job card PDF');
+  }
+};
+
+/**
  * Verify PIN and complete task via API
+ * Generates job card PDF and stores it
  */
 export const verifyPINAndCompleteTask = async (
   jobCardId: string,
   enteredPIN: string,
+  amount?: number,
+  materials?: Array<{
+    description: string;
+    quantity?: number;
+    unitPrice?: number;
+    total?: number;
+  }>,
+  timeStarted?: Date,
+  timeCompleted?: Date,
 ): Promise<void> => {
   try {
     const currentUser = auth().currentUser;
@@ -555,8 +588,58 @@ export const verifyPINAndCompleteTask = async (
       throw new Error('Invalid PIN. Please enter the correct PIN sent to the customer.');
     }
 
-    // PIN is correct, complete the task via API
-    await updateJobCardStatus(jobCardId, 'completed');
+    // PIN is correct, generate job card PDF
+    let pdfUrl: string | undefined;
+    try {
+      const jobCard: JobCard = {
+        id: jobCardData._id || jobCardData.id,
+        _id: jobCardData._id,
+        ...jobCardData,
+        createdAt: jobCardData.createdAt ? new Date(jobCardData.createdAt as string) : new Date(),
+        updatedAt: jobCardData.updatedAt ? new Date(jobCardData.updatedAt as string) : new Date(),
+      } as JobCard;
+
+      const pdfPath = await PDFService.generateJobCardPDF(
+        jobCard,
+        amount,
+        materials,
+        timeStarted,
+        timeCompleted,
+      );
+
+      if (pdfPath) {
+        // Upload PDF to Firebase Storage
+        pdfUrl = await uploadPDFToStorage(pdfPath, jobCardId);
+        
+        // Clean up local PDF file
+        try {
+          await RNFS.unlink(pdfPath);
+        } catch (cleanupError) {
+          console.warn('Failed to cleanup local PDF:', cleanupError);
+        }
+      }
+    } catch (pdfError: any) {
+      console.error('Error generating/uploading PDF:', pdfError);
+      // Don't fail the completion if PDF generation fails
+      // Just log the error and continue
+    }
+
+    // Complete the task via API with PDF URL
+    await jobCardsApi.updateStatus(jobCardId, 'completed', {
+      completedAt: timeCompleted || new Date(),
+      serviceAmount: amount,
+      materialsUsed: materials,
+      jobCardPdfUrl: pdfUrl,
+    });
+
+    // Update in Realtime Database
+    await database()
+      .ref(`jobCards/${jobCardId}`)
+      .update({
+        status: 'completed',
+        updatedAt: Date.now(),
+        completedAt: timeCompleted ? timeCompleted.getTime() : Date.now(),
+      });
 
     // Clear PIN by updating via API (PIN will be cleared by backend)
     // The backend should handle clearing the PIN after successful completion

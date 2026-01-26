@@ -107,33 +107,75 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   }, []);
 
   const checkExistingProfile = async () => {
-    try {
-      const user = auth().currentUser;
-      if (!user) {
-        navigation.goBack();
-        return;
-      }
+    const user = auth().currentUser;
+    if (!user) {
+      navigation.goBack();
+      setChecking(false);
+      return;
+    }
 
-      // Get provider profile via backend API
+    // ALWAYS set phone from Firebase Auth first if user logged in with phone
+    // This ensures phone is set even if API calls fail
+    const authPhoneNumber = user.phoneNumber;
+    if (authPhoneNumber) {
+      setPhone(authPhoneNumber);
+      setPhoneVerified(true);
+    }
+
+    // Set basic defaults from auth user
+    setName(user.displayName || '');
+    setEmail(user.email || '');
+    setEmailVerified(user.emailVerified || false);
+
+    try {
+      // Reload user to get latest data
+      await user.reload();
+      setEmailVerified(user.emailVerified || false);
+
+      // Get provider profile via backend API using /providers/me endpoint
       let profile: any = null;
-      
-      // Try to get by UID first (phone auth)
-      profile = await providersApi.getProviderByUid(user.uid);
-      
-      // If not found by UID, try email (Google auth)
-      if (!profile && user.email) {
-        profile = await providersApi.getProviderByEmail(user.email);
+
+      try {
+        // Use getMyProfile which uses the authenticated /providers/me endpoint
+        profile = await providersApi.getMyProfile();
+        console.log('Provider profile loaded:', profile ? 'found' : 'not found');
+      } catch (e: any) {
+        console.log('Could not fetch provider profile:', e.message);
+        // Try fallback methods
+        try {
+          profile = await providersApi.getProviderByUid(user.uid);
+        } catch (e2) {
+          console.log('No provider found by UID');
+        }
+
+        // If not found by UID, try email (Google auth)
+        if (!profile && user.email) {
+          try {
+            profile = await providersApi.getProviderByEmail(user.email);
+          } catch (e3) {
+            console.log('No provider found by email');
+          }
+        }
       }
 
       if (profile) {
+        console.log('Loading profile data:', {
+          name: profile.name,
+          specialization: profile.specialization,
+          specialty: profile.specialty,
+          serviceType: profile.serviceType,
+          experience: profile.experience,
+          languages: profile.languages,
+        });
+
         setExistingProfile(profile);
-        setName(profile.name || '');
-        
-        // Load service type (specialization)
-        let savedServiceType = (profile.specialization || profile.specialty || '').trim();
-        
+        setName(profile.name || user.displayName || '');
+
+        // Load service type (specialization) - check all possible fields
+        let savedServiceType = (profile.serviceType || profile.specialization || profile.specialty || '').trim();
+
         if (savedServiceType) {
-          const normalized = SERVICE_TYPES.find(type => 
+          const normalized = SERVICE_TYPES.find(type =>
             type.toLowerCase() === savedServiceType.toLowerCase() ||
             type === savedServiceType
           );
@@ -141,50 +183,52 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
             savedServiceType = normalized;
           }
         }
-        
+
         setServiceType(savedServiceType);
         setEmail(profile.email || user.email || '');
-        // Check email verification from Firebase Auth
-        await user.reload();
         setEmailVerified(user.emailVerified || profile.emailVerified || false);
-        setPhone(profile.phone || user.phoneNumber || '');
-        setPhoneVerified(profile.phoneVerified || false);
+
+        // For phone: prioritize Firebase Auth phone number (if logged in with phone)
+        // This ensures the verified phone from auth is always used as primary
+        if (authPhoneNumber) {
+          // User logged in with phone - use auth phone as primary (it's verified)
+          setPhone(authPhoneNumber);
+          setPhoneVerified(true);
+        } else if (profile.phone) {
+          // User logged in with email/google - use profile phone
+          setPhone(profile.phone);
+          setPhoneVerified(profile.phoneVerified || false);
+        }
+
         setSecondaryPhone(profile.secondaryPhone || '');
         setSecondaryPhoneVerified(profile.secondaryPhoneVerified || false);
         setExperience(profile.experience?.toString() || '');
         setLanguages(profile.languages || []);
         const existingImage = profile.profileImage || profile.photo;
-        
+
         // Load existing documents
         if (profile.documents) {
           setIdProof(profile.documents.idProof || null);
           setAddressProof(profile.documents.addressProof || null);
           setCertificate(profile.documents.certificate || null);
         }
-        
+
         // Load existing provider address
         if (profile.address) {
           setProviderAddress(profile.address);
         }
-        if (existingImage && typeof existingImage === 'string' && existingImage.trim() !== '' && 
-            (existingImage.startsWith('http://') || existingImage.startsWith('https://') || 
+        if (existingImage && typeof existingImage === 'string' && existingImage.trim() !== '' &&
+            (existingImage.startsWith('http://') || existingImage.startsWith('https://') ||
              existingImage.startsWith('file://') || existingImage.startsWith('content://'))) {
           setProfileImage(existingImage.trim());
         } else {
           setProfileImage(null);
         }
         setImageError(false);
-      } else {
-        // Set default values from current user
-        setName(user.displayName || '');
-        setEmail(user.email || '');
-        // Check email verification from Firebase Auth
-        await user.reload();
-        setEmailVerified(user.emailVerified || false);
-        setPhone(user.phoneNumber || '');
-        setPhoneVerified(user.phoneNumber ? true : false); // If phone number exists from auth, consider it verified
       }
     } catch (error) {
+      console.error('Error checking existing profile:', error);
+      // Phone is already set from auth at the top, so even if this fails, phone will be populated
     } finally {
       setChecking(false);
     }
@@ -490,63 +534,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     setRemoveDocModal({visible: false, docType: null});
   };
 
-  const generateAvailabilitySlots = async (
-    providerId: string,
-    days: string[],
-    start: string,
-    end: string,
-    duration: number,
-  ) => {
-    try {
-      const today = new Date();
-      const endDate = new Date();
-      endDate.setDate(today.getDate() + 30); // Generate for next 30 days
-
-      const dayMap: {[key: string]: number} = {
-        Monday: 1,
-        Tuesday: 2,
-        Wednesday: 3,
-        Thursday: 4,
-        Friday: 5,
-        Saturday: 6,
-        Sunday: 0,
-      };
-
-      const selectedDayNumbers = days.map(day => dayMap[day]);
-
-      for (let date = new Date(today); date <= endDate; date.setDate(date.getDate() + 1)) {
-        const dayOfWeek = date.getDay();
-        if (selectedDayNumbers.includes(dayOfWeek)) {
-          const [startH, startM] = start.split(':').map(Number);
-          const [endH, endM] = end.split(':').map(Number);
-          const startMinutes = startH * 60 + startM;
-          const endMinutes = endH * 60 + endM;
-
-          for (let slotStart = startMinutes; slotStart + duration <= endMinutes; slotStart += duration) {
-            const slotDate = new Date(date);
-            slotDate.setHours(Math.floor(slotStart / 60), slotStart % 60, 0, 0);
-
-            const slotId = `${providerId}_${slotDate.toISOString()}`;
-            await firestore()
-              .collection('availability')
-              .doc(slotId)
-              .set({
-                providerId,
-                date: firestore.Timestamp.fromDate(slotDate),
-                startTime: firestore.Timestamp.fromDate(slotDate),
-                endTime: firestore.Timestamp.fromDate(
-                  new Date(slotDate.getTime() + duration * 60000),
-                ),
-                available: true,
-                booked: false,
-              });
-          }
-        }
-      }
-    } catch (error) {
-      // Don't throw - availability generation failure shouldn't block profile save
-    }
-  };
+  // Note: Availability slots generation moved to backend API
 
   const handleSubmit = async () => {
     // Validate name
@@ -737,12 +725,12 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         totalConsultations: existingProfile?.totalConsultations || 0,
         verified: false,
         approvalStatus: existingProfile?.approvalStatus || 'pending',
-        updatedAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: new Date().toISOString(),
       };
 
       // Add createdAt only for new profiles
       if (!existingProfile) {
-        providerData.createdAt = firestore.FieldValue.serverTimestamp();
+        providerData.createdAt = new Date().toISOString();
       }
 
       // Save provider profile via backend API (document URLs already uploaded to Firebase Storage)
@@ -1015,21 +1003,15 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
                 <TouchableOpacity
                   onPress={async () => {
                     try {
-                      const user = auth().currentUser;
-                      if (!user) return;
-                      
-                      await firestore()
-                        .collection('providers')
-                        .doc(user.uid)
-                        .update({
-                          secondaryPhone: firestore.FieldValue.delete(),
-                          secondaryPhoneVerified: firestore.FieldValue.delete(),
-                          updatedAt: firestore.FieldValue.serverTimestamp(),
-                        });
-                      
+                      // Use API to remove secondary phone
+                      await providersApi.updateMyProfile({
+                        secondaryPhone: null,
+                        secondaryPhoneVerified: false,
+                      });
+
                       setSecondaryPhone('');
                       setSecondaryPhoneVerified(false);
-                      
+
                       setAlertModal({
                         visible: true,
                         title: 'Success',

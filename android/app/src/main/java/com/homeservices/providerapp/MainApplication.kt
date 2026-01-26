@@ -1,4 +1,4 @@
-package com.homeservices.provider
+package com.homeservices.providerapp
 
 import android.app.Application
 import com.facebook.react.PackageList

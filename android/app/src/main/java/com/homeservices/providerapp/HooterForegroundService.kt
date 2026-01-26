@@ -1,4 +1,4 @@
-package com.homeservices.provider
+package com.homeservices.providerapp
 
 import android.app.*
 import android.content.Context
@@ -179,8 +179,8 @@ class HooterForegroundService : Service() {
     }
 
     companion object {
-        const val ACTION_START_HOOTER = "com.homeservices.provider.START_HOOTER"
-        const val ACTION_STOP_HOOTER = "com.homeservices.provider.STOP_HOOTER"
+        const val ACTION_START_HOOTER = "com.homeservices.providerapp.START_HOOTER"
+        const val ACTION_STOP_HOOTER = "com.homeservices.providerapp.STOP_HOOTER"
     }
 }
 

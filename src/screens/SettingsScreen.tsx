@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Switch,
   ScrollView,
-  Alert,
   Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -18,9 +17,9 @@ import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 import {COPYRIGHT_OWNER} from '@env';
 import authService from '../services/authService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import firestore from '@react-native-firebase/firestore';
-import auth from '@react-native-firebase/auth';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
+import ConfirmationModal from '../components/ConfirmationModal';
+import AlertModal from '../components/AlertModal';
 import useTranslation from '../hooks/useTranslation';
 
 interface SettingsScreenProps {
@@ -32,27 +31,48 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
 
+  // Alert modal state
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({title: '', message: '', type: 'info'});
+
+  // Confirmation modal state
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({title: '', message: '', onConfirm: () => {}});
+
+  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+    setAlertConfig({title, message, type});
+    setAlertVisible(true);
+  };
+
   const handleAbout = () => {
-    Alert.alert(
+    showAlert(
       t('settings.aboutHomeServices'),
       t('settings.aboutMessage', {owner: COPYRIGHT_OWNER || 'SA-PrivateLimited'}),
-      [{text: t('common.ok')}],
+      'info'
     );
   };
 
   const handlePrivacy = () => {
-    Alert.alert(
+    showAlert(
       t('settings.privacy'),
       t('settings.privacyMessage'),
-      [{text: t('common.ok')}],
+      'info'
     );
   };
 
   const handleTerms = () => {
-    Alert.alert(
+    showAlert(
       t('settings.terms'),
       t('settings.termsMessage'),
-      [{text: t('common.ok')}],
+      'info'
     );
   };
 
@@ -67,56 +87,53 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
     try {
       await authService.logout();
       setCurrentUser(null);
-      // Navigate to Login screen
-      navigation.reset({
-        index: 0,
-        routes: [{name: 'Login'}],
-      });
+      // Navigate to Login screen using parent navigator (root stack)
+      // Settings is inside a tab navigator, so we need to get the parent
+      const parentNavigation = navigation.getParent();
+      if (parentNavigation) {
+        parentNavigation.reset({
+          index: 0,
+          routes: [{name: 'Login'}],
+        });
+      } else {
+        // Fallback to CommonActions for root navigation
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{name: 'Login'}],
+          })
+        );
+      }
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message);
+      showAlert(t('common.error'), error.message, 'error');
     }
   };
 
   const handleRestartAppTour = () => {
-    Alert.alert(
-      t('settings.restartAppTour'),
-      t('settings.restartAppTourMessage'),
-      [
-        {text: t('common.cancel'), style: 'cancel'},
-        {
-          text: t('settings.restartTour'),
-          onPress: async () => {
-            try {
-              const currentAuthUser = auth().currentUser;
-              if (!currentAuthUser) return;
+    setConfirmConfig({
+      title: t('settings.restartAppTour'),
+      message: t('settings.restartAppTourMessage'),
+      onConfirm: async () => {
+        setConfirmVisible(false);
+        try {
+          // Clear all guide completion flags from AsyncStorage
+          const keys = await AsyncStorage.getAllKeys();
+          const guideKeys = keys.filter(key => key.startsWith('@homeservices_guide_completed'));
+          if (guideKeys.length > 0) {
+            await AsyncStorage.multiRemove(guideKeys);
+          }
 
-              // Clear all guide completion flags from Firestore
-              await firestore()
-                .collection('users')
-                .doc(currentAuthUser.uid)
-                .update({
-                  hasCompletedGuide: firestore.FieldValue.delete(),
-                });
-
-              // Clear all guide completion flags from AsyncStorage
-              const keys = await AsyncStorage.getAllKeys();
-              const guideKeys = keys.filter(key => key.startsWith('@homeservices_guide_completed'));
-              if (guideKeys.length > 0) {
-                await AsyncStorage.multiRemove(guideKeys);
-              }
-
-              Alert.alert(
-                t('common.success'),
-                t('settings.appTourResetSuccess'),
-                [{text: t('common.ok')}]
-              );
-            } catch (error) {
-              Alert.alert(t('common.error'), t('settings.appTourResetError'));
-            }
-          },
-        },
-      ]
-    );
+          showAlert(
+            t('common.success'),
+            t('settings.appTourResetSuccess'),
+            'success'
+          );
+        } catch (error) {
+          showAlert(t('common.error'), t('settings.appTourResetError'), 'error');
+        }
+      },
+    });
+    setConfirmVisible(true);
   };
 
   const SettingItem = ({
@@ -170,10 +187,30 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
   const [imageError, setImageError] = React.useState(false);
 
   return (
-    <ScrollView
-      style={[styles.container, {backgroundColor: theme.background}]}
-      contentContainerStyle={styles.content}>
-      {/* Profile Header - Similar to Doctor Profile */}
+    <>
+      {/* Custom Alert Modal */}
+      <AlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={() => setAlertVisible(false)}
+      />
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        visible={confirmVisible}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmVisible(false)}
+        confirmText={t('settings.restartTour')}
+      />
+
+      <ScrollView
+        style={[styles.container, {backgroundColor: theme.background}]}
+        contentContainerStyle={styles.content}>
+        {/* Profile Header - Similar to Doctor Profile */}
       {currentUser && (
         <TouchableOpacity 
           style={[styles.profileHeader, {backgroundColor: theme.card}]}
@@ -281,6 +318,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
           {t('settings.support')}
         </Text>
         <SettingItem
+          icon="person-add"
+          title={t('recommendations.shareContact')}
+          subtitle={t('recommendations.shareContactSubtitle')}
+          onPress={() => navigation.navigate('ShareContactRecommendation')}
+        />
+        <SettingItem
           icon="help-circle"
           title={t('settings.help')}
           subtitle={t('settings.helpSubtitle')}
@@ -336,12 +379,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
         </View>
       </View>
       
-      <LogoutConfirmationModal
-        visible={showLogoutModal}
-        onConfirm={handleConfirmLogout}
-        onCancel={() => setShowLogoutModal(false)}
-      />
-    </ScrollView>
+        <LogoutConfirmationModal
+          visible={showLogoutModal}
+          onConfirm={handleConfirmLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </ScrollView>
+    </>
   );
 };
 

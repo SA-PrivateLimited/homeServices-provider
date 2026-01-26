@@ -12,18 +12,18 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import {getJobCardById, updateJobCardStatus, verifyPINAndCompleteTask, cancelTaskWithReason, subscribeToJobCardStatus, JobCard} from '../services/jobCardService';
+import {getServiceCategoryByName} from '../services/api/serviceCategoriesApi';
 import PINVerificationModal from '../components/PINVerificationModal';
 import CancelTaskModal from '../components/CancelTaskModal';
 import StartTaskModal from '../components/StartTaskModal';
+import AlertModal from '../components/AlertModal';
 import Toast from '../components/Toast';
 import useTranslation from '../hooks/useTranslation';
 
@@ -43,6 +43,20 @@ export default function JobDetailsScreen({navigation, route}: any) {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [questionnaireQuestions, setQuestionnaireQuestions] = useState<Record<string, string>>({});
+  const [timeStarted, setTimeStarted] = useState<Date | undefined>(undefined);
+
+  // Alert modal state
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({title: '', message: '', type: 'info'});
+
+  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+    setAlertConfig({title, message, type});
+    setAlertVisible(true);
+  };
 
   useEffect(() => {
     loadJobCard();
@@ -70,7 +84,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
       }
     } catch (error) {
       console.error('Error loading job card:', error);
-      Alert.alert(t('common.error'), t('jobDetails.failedToLoad'));
+      showAlert(t('common.error'), t('jobDetails.failedToLoad'), 'error');
     } finally {
       setLoading(false);
     }
@@ -78,25 +92,18 @@ export default function JobDetailsScreen({navigation, route}: any) {
 
   const loadQuestionnaireQuestions = async (serviceType: string) => {
     try {
-      // Fetch service category to get questionnaire questions
-      const categoriesSnapshot = await firestore()
-        .collection('serviceCategories')
-        .where('name', '==', serviceType)
-        .limit(1)
-        .get();
+      // Fetch service category to get questionnaire questions via API
+      const category = await getServiceCategoryByName(serviceType);
 
-      if (!categoriesSnapshot.empty) {
-        const categoryData = categoriesSnapshot.docs[0].data();
-        const questionnaire = categoryData?.questionnaire || [];
-        
+      if (category && category.questionnaire) {
         // Create a map of questionId -> question text
         const questionsMap: Record<string, string> = {};
-        questionnaire.forEach((q: any) => {
+        category.questionnaire.forEach((q: any) => {
           if (q.id && q.question) {
             questionsMap[q.id] = q.question;
           }
         });
-        
+
         setQuestionnaireQuestions(questionsMap);
       }
     } catch (error) {
@@ -111,6 +118,8 @@ export default function JobDetailsScreen({navigation, route}: any) {
     try {
       setUpdating(true);
       setShowStartModal(false);
+      const startTime = new Date();
+      setTimeStarted(startTime);
       await updateJobCardStatus(jobCardId, 'in-progress');
       // Reload job card to get updated data (including PIN if generated)
       const updatedJob = await getJobCardById(jobCardId);
@@ -127,15 +136,27 @@ export default function JobDetailsScreen({navigation, route}: any) {
     }
   };
 
-  const handleCompleteTask = async (pin: string) => {
+  const handleCompleteTask = async (
+    pin: string,
+    amount?: number,
+    materials?: Array<{
+      description: string;
+      quantity?: number;
+      unitPrice?: number;
+      total?: number;
+    }>,
+    timeStarted?: Date,
+    timeCompleted?: Date,
+  ) => {
     try {
-      await verifyPINAndCompleteTask(jobCardId, pin);
+      await verifyPINAndCompleteTask(jobCardId, pin, amount, materials, timeStarted, timeCompleted);
       // Reload job card
       const updatedJob = await getJobCardById(jobCardId);
       if (updatedJob) {
         setJobCard(updatedJob);
       }
       setShowPINModal(false);
+      setTimeStarted(undefined);
       setToastMessage(t('jobDetails.taskCompleted'));
       setShowToast(true);
     } catch (error: any) {
@@ -163,7 +184,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
     if (jobCard?.customerPhone) {
       Linking.openURL(`tel:${jobCard.customerPhone}`);
     } else {
-      Alert.alert(t('jobDetails.phoneNotAvailable'));
+      showAlert(t('common.error'), t('jobDetails.phoneNotAvailable'), 'warning');
     }
   };
 
@@ -218,10 +239,20 @@ export default function JobDetailsScreen({navigation, route}: any) {
   }
 
   return (
-    <ScrollView
-      style={[styles.container, {backgroundColor: theme.background}]}
-      showsVerticalScrollIndicator={false}>
-      {/* Status Card */}
+    <>
+      {/* Custom Alert Modal */}
+      <AlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={() => setAlertVisible(false)}
+      />
+
+      <ScrollView
+        style={[styles.container, {backgroundColor: theme.background}]}
+        showsVerticalScrollIndicator={false}>
+        {/* Status Card */}
       <View style={[styles.statusCard, {backgroundColor: theme.card}]}>
         <View style={styles.statusHeader}>
           <View
@@ -449,7 +480,11 @@ export default function JobDetailsScreen({navigation, route}: any) {
       <PINVerificationModal
         visible={showPINModal}
         onVerify={handleCompleteTask}
-        onCancel={() => setShowPINModal(false)}
+        onCancel={() => {
+          setShowPINModal(false);
+          setTimeStarted(undefined);
+        }}
+        timeStarted={timeStarted}
       />
 
       {/* Cancel Task Modal */}
@@ -459,15 +494,16 @@ export default function JobDetailsScreen({navigation, route}: any) {
         onClose={() => setShowCancelModal(false)}
       />
 
-      {/* Toast Notification */}
-      <Toast
-        visible={showToast}
-        message={toastMessage}
-        type="success"
-        duration={3000}
-        onHide={() => setShowToast(false)}
-      />
-    </ScrollView>
+        {/* Toast Notification */}
+        <Toast
+          visible={showToast}
+          message={toastMessage}
+          type="success"
+          duration={3000}
+          onHide={() => setShowToast(false)}
+        />
+      </ScrollView>
+    </>
   );
 }
 

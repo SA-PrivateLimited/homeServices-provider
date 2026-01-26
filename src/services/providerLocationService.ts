@@ -4,10 +4,10 @@
  * Similar to Ola/Uber driver location tracking
  */
 
-import firestore from '@react-native-firebase/firestore';
 import database from '@react-native-firebase/database';
 import auth from '@react-native-firebase/auth';
 import GeolocationService from './geolocationService';
+import {getMyProfile, updateMyProfile} from './api/providersApi';
 
 export interface ProviderLocation {
   latitude: number;
@@ -81,15 +81,12 @@ export const setProviderOnline = async (isOnline: boolean): Promise<void> => {
 
     const providerId = currentUser.uid;
 
-    // Update in Firestore
-    await firestore()
-      .collection('providers')
-      .doc(providerId)
-      .update({
-        isOnline,
-        lastSeen: firestore.FieldValue.serverTimestamp(),
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      });
+    // Update via backend API
+    await updateMyProfile({
+      isOnline,
+      lastSeen: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as any);
 
     // Update in Realtime Database for real-time status
     await database()
@@ -118,18 +115,14 @@ export const updateProviderLocation = async (): Promise<void> => {
       throw new Error('User not authenticated');
     }
 
-          // Check if provider is online
-          const providerDoc = await firestore()
-            .collection('providers')
-            .doc(currentUser.uid)
-            .get();
+    // Check if provider is online via API
+    const provider = await getMyProfile();
 
-    if (!providerDoc.exists) {
+    if (!provider) {
       throw new Error('Provider profile not found');
     }
 
-    const providerData = providerDoc.data();
-    if (!providerData?.isOnline) {
+    if (!provider?.isOnline) {
       console.log('Provider is offline, skipping location update');
       return;
     }
@@ -159,18 +152,32 @@ export const updateProviderLocation = async (): Promise<void> => {
       updatedAt: Date.now(),
     };
 
-          // Update in Firestore
-          await firestore()
-            .collection('providers')
-            .doc(currentUser.uid)
-            .update({
+    // Update via backend API
+    // Use updateProviderStatus endpoint for location updates to avoid database connection issues
+    try {
+      await updateMyProfile({
         currentLocation: {
           ...providerLocation,
-          updatedAt: firestore.FieldValue.serverTimestamp(),
+          updatedAt: new Date().toISOString(),
         },
-        lastSeen: firestore.FieldValue.serverTimestamp(),
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      });
+        lastSeen: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as any);
+    } catch (apiError: any) {
+      // If updateMyProfile fails, try using updateProviderStatus endpoint instead
+      if (apiError.message?.includes('Database not connected') || apiError.message?.includes('connectDB')) {
+        console.warn('⚠️ updateMyProfile failed, trying updateProviderStatus endpoint...');
+        const {updateProviderStatus} = require('./api/providersApi');
+        await updateProviderStatus({
+          currentLocation: {
+            latitude: providerLocation.latitude,
+            longitude: providerLocation.longitude,
+          },
+        });
+      } else {
+        throw apiError; // Re-throw if it's a different error
+      }
+    }
 
     // Update in Realtime Database for real-time tracking
     await database()
@@ -179,6 +186,23 @@ export const updateProviderLocation = async (): Promise<void> => {
 
     console.log('Provider location updated:', providerLocation);
   } catch (error: any) {
+    const errorMessage = error?.message || String(error) || '';
+    
+    // Don't throw database connection errors - they're non-critical for location tracking
+    if (errorMessage.includes('Database not connected') || errorMessage.includes('connectDB')) {
+      console.warn('⚠️ Database connection issue when updating location (non-critical):', errorMessage);
+      // Still update Firebase Realtime Database even if backend API fails
+      try {
+        await database()
+          .ref(`providers/${currentUser.uid}/location`)
+          .set(providerLocation);
+        console.log('✅ Location updated in Firebase Realtime Database (backend API failed)');
+      } catch (rtdbError) {
+        console.warn('⚠️ Failed to update Firebase Realtime Database:', rtdbError);
+      }
+      return; // Exit gracefully without throwing
+    }
+    
     console.error('Error updating provider location:', error);
     throw new Error(`Failed to update location: ${error.message}`);
   }
@@ -199,10 +223,14 @@ export const startLocationTracking = (): (() => void) => {
       const errorMessage = error?.message || String(error) || '';
       if (errorMessage.includes('permission') || errorMessage.includes('Permission')) {
         console.warn('Location permission not granted, skipping location update');
+      } else if (errorMessage.includes('Database not connected') || errorMessage.includes('connectDB')) {
+        // Database connection error - log as warning, don't break the app
+        console.warn('⚠️ Database connection issue in location tracking (non-critical):', errorMessage);
       } else {
-        // For other errors (network, etc.), log as error
-        console.error('Error in location tracking:', error);
+        // For other errors (network, etc.), log as error but don't throw
+        console.error('Error in location tracking (non-critical):', error);
       }
+      // Don't throw - location tracking errors should not break the app
     }
   };
 
@@ -226,24 +254,27 @@ export const startLocationTracking = (): (() => void) => {
  */
 export const getProviderStatus = async (providerId: string): Promise<ProviderStatus | null> => {
   try {
-          const providerDoc = await firestore()
-            .collection('providers')
-            .doc(providerId)
-            .get();
+    // Get provider status via API
+    const provider = await getMyProfile();
 
-    if (!providerDoc.exists) {
+    if (!provider) {
       return null;
     }
 
-    const data = providerDoc.data();
+    const location = provider.location;
     return {
-      isOnline: data?.isOnline || false,
-      isAvailable: data?.isAvailable !== false, // Default to true if not set
-      lastSeen: data?.lastSeen?.toMillis() || Date.now(),
-      currentLocation: data?.currentLocation
+      isOnline: provider.isOnline || false,
+      isAvailable: (provider as any).isAvailable !== false, // Default to true if not set
+      lastSeen: (provider as any).lastSeen ? new Date((provider as any).lastSeen).getTime() : Date.now(),
+      currentLocation: location
         ? {
-            ...data.currentLocation,
-            updatedAt: data.currentLocation.updatedAt?.toMillis() || Date.now(),
+            latitude: location.latitude || 0,
+            longitude: location.longitude || 0,
+            address: location.address,
+            city: location.city,
+            state: location.state,
+            pincode: location.pincode,
+            updatedAt: (location as any).updatedAt ? new Date((location as any).updatedAt).getTime() : Date.now(),
           }
         : undefined,
     };

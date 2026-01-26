@@ -8,20 +8,18 @@
  * - Quick stats
  */
 
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import {
@@ -29,10 +27,12 @@ import {
   getProviderStatus,
   startLocationTracking,
 } from '../services/providerLocationService';
+import {getMyProfile} from '../services/api/providersApi';
 import websocketService from '../services/websocketService';
 import soundService from '../services/soundService';
 import {getProviderJobCards} from '../services/jobCardService';
 import BookingAlertModal from '../components/BookingAlertModal';
+import AlertModal from '../components/AlertModal';
 import Toast from '../components/Toast';
 import {createJobCard} from '../services/jobCardService';
 import useTranslation from '../hooks/useTranslation';
@@ -48,35 +48,60 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
   const [completedToday, setCompletedToday] = useState(0);
+  const [totalCompleted, setTotalCompleted] = useState(0);
+  const [pendingJobs, setPendingJobs] = useState(0);
+  const [totalReviews, setTotalReviews] = useState(0);
   const [rating, setRating] = useState(0);
   const [locationTracking, setLocationTracking] = useState<(() => void) | null>(null);
   const [incomingBooking, setIncomingBooking] = useState<any>(null);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
+  // Alert modal state
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({title: '', message: '', type: 'info'});
+
+  // Helper function to show alert
+  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+    setAlertConfig({title, message, type});
+    setAlertVisible(true);
+  };
+
+  // Use ref to track if this is initial mount and prevent unnecessary reloads
+  const isInitialMount = useRef(true);
+  const isTogglingStatus = useRef(false);
+
+  // Load provider status from API
+  const loadProviderStatus = useCallback(async () => {
+    if (!currentUser?.uid) return;
+
+    try {
+      const provider = await getMyProfile();
+      if (provider) {
+        setIsOnline(provider.isOnline || false);
+        setRating(provider.rating || 0);
+        setTotalReviews(provider.totalReviews || 0);
+      }
+    } catch (error) {
+      console.error('Error loading provider status:', error);
+    }
+  }, [currentUser?.uid]);
+
   useEffect(() => {
     if (!currentUser?.uid) {
       return;
     }
 
-    loadDashboardData();
-    
-    // Subscribe to provider status changes
-    const unsubscribe = firestore()
-      .collection('providers')
-      .doc(currentUser.uid)
-      .onSnapshot(
-        doc => {
-          if (doc.exists) {
-            const data = doc.data();
-            setIsOnline(data?.isOnline || false);
-            setRating(data?.rating || 0);
-          }
-        },
-        error => {
-          console.error('Error listening to provider status:', error);
-        }
-      );
+    // Only load dashboard data on initial mount
+    if (isInitialMount.current) {
+      loadDashboardData();
+      loadProviderStatus();
+      isInitialMount.current = false;
+    }
 
     // Subscribe to incoming bookings
     // CRITICAL: Register callback FIRST, before WebSocket connects
@@ -90,17 +115,17 @@ export default function ProviderDashboardScreen({navigation}: any) {
         serviceType: bookingData?.serviceType,
         fullData: bookingData,
       });
-      
+
       // Set incoming booking state - this will trigger modal to show
       setIncomingBooking(bookingData);
-      
+
       console.log('✅ [DASHBOARD] incomingBooking state set, modal should render');
       console.log('📱 [DASHBOARD] ===== END BOOKING CALLBACK =====');
     });
-    
+
     const callbackCount = websocketService.getBookingCallbacksCount?.() || 0;
     console.log('✅ [DASHBOARD] Booking callback registered. Callbacks count:', callbackCount);
-    
+
     // If provider is already online, connect WebSocket now (callback is registered)
     // This handles the case where provider was already online when component mounted
     if (isOnline) {
@@ -110,7 +135,6 @@ export default function ProviderDashboardScreen({navigation}: any) {
     }
 
     return () => {
-      unsubscribe();
       unsubscribeBooking();
       if (locationTracking) {
         locationTracking();
@@ -119,9 +143,21 @@ export default function ProviderDashboardScreen({navigation}: any) {
   }, [currentUser]);
 
   // Start/stop location tracking and WebSocket based on online status
+  // Only run when isOnline changes, not on initial mount if status hasn't changed
   useEffect(() => {
     if (!currentUser?.uid) {
       return;
+    }
+
+    // Skip WebSocket connection on initial mount (handled in first useEffect)
+    if (isInitialMount.current) {
+      return;
+    }
+
+    // Reset toggle flag after handling the toggle
+    const wasToggling = isTogglingStatus.current;
+    if (wasToggling) {
+      isTogglingStatus.current = false;
     }
 
     if (isOnline) {
@@ -223,24 +259,29 @@ export default function ProviderDashboardScreen({navigation}: any) {
       }
 
       const todayJobs = jobCards.filter(job => {
-        const jobDate = job.createdAt instanceof Date 
-          ? job.createdAt 
+        const jobDate = job.createdAt instanceof Date
+          ? job.createdAt
           : new Date(job.createdAt);
         return jobDate >= today && job.status === 'completed';
       });
 
+      // Calculate all stats
+      const completedJobs = jobCards.filter(j => j.status === 'completed');
+      const activeJobs = jobCards.filter(j => j.status === 'accepted' || j.status === 'in-progress');
+      const pending = jobCards.filter(j => j.status === 'pending');
+
       setCompletedToday(todayJobs.length);
-      setActiveJobsCount(jobCards.filter(j => 
-        j.status === 'accepted' || j.status === 'in-progress'
-      ).length);
+      setTotalCompleted(completedJobs.length);
+      setActiveJobsCount(activeJobs.length);
+      setPendingJobs(pending.length);
 
       setLoading(false);
     } catch (error: any) {
       console.error('Error loading dashboard data:', error);
-      Alert.alert(
+      showAlert(
         t('common.error'),
         error.message || t('dashboard.loadDashboardError'),
-        [{text: t('common.ok')}]
+        'error'
       );
       setLoading(false);
     }
@@ -248,29 +289,29 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
   const handleToggleOnline = async () => {
     try {
-      setLoading(true);
+      // Mark that we're toggling status to prevent unnecessary reloads
+      isTogglingStatus.current = true;
+
       const newStatus = !isOnline;
       await setProviderOnline(newStatus);
+
+      // Update state without triggering full reload
       setIsOnline(newStatus);
-      
-      Alert.alert(
-        newStatus ? t('dashboard.youreNowOnline') : t('dashboard.youreNowOffline'),
-        newStatus
-          ? t('dashboard.onlineMessage')
-          : t('dashboard.offlineMessage'),
-        [{text: t('common.ok')}]
-      );
+
+      // Show toast for status change
+      setToastMessage(newStatus ? t('dashboard.youreNowOnline') : t('dashboard.youreNowOffline'));
+      setShowToast(true);
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message || t('dashboard.updateStatusError'));
-    } finally {
-      setLoading(false);
+      showAlert(t('common.error'), error.message || t('dashboard.updateStatusError'), 'error');
+      // Reset toggle flag on error
+      isTogglingStatus.current = false;
     }
   };
 
   const onRefresh = async () => {
     try {
       setRefreshing(true);
-      await loadDashboardData();
+      await Promise.all([loadDashboardData(), loadProviderStatus()]);
     } catch (error) {
       console.error('Error refreshing dashboard:', error);
     } finally {
@@ -283,51 +324,32 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
     // Store booking data before clearing state
     const bookingData = incomingBooking;
-    
+
     // Stop continuous sound immediately
     websocketService.stopSound();
-    
+
     // Close modal immediately - this will unmount the BookingAlertModal component
     setIncomingBooking(null);
-    
+
     console.log('✅ Modal closed, booking accepted');
 
     try {
       setLoading(true);
-      
-      // Get provider profile
-      let provider: any = null;
-      if (currentUser.email) {
-        const emailQuery = await firestore()
-          .collection('providers')
-          .where('email', '==', currentUser.email)
-          .limit(1)
-          .get();
-        if (!emailQuery.empty) {
-          provider = emailQuery.docs[0].data();
-        }
-      }
-      if (!provider) {
-        const uidDoc = await firestore()
-          .collection('providers')
-          .doc(currentUser.uid)
-          .get();
-        if (uidDoc.exists) {
-          provider = uidDoc.data();
-        }
-      }
 
-      if (!provider || !provider.address || !provider.address.pincode) {
-        Alert.alert(t('common.error'), t('dashboard.addressRequired'));
+      // Get provider profile from API
+      const provider = await getMyProfile();
+
+      if (!provider || !(provider as any).address || !(provider as any).address.pincode) {
+        showAlert(t('common.error'), t('dashboard.addressRequired'), 'error');
         return;
       }
 
       // Accept booking with provider profile details
       await websocketService.acceptBooking(bookingData, currentUser.uid, provider);
-      
+
       // Create job card
-      const jobCardId = await createJobCard(bookingData, provider.address);
-      
+      const jobCardId = await createJobCard(bookingData, (provider as any).address);
+
       // Refresh dashboard data
       loadDashboardData();
 
@@ -335,7 +357,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
       setToastMessage(t('dashboard.requestAccepted'));
       setShowToast(true);
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message || t('dashboard.acceptRequestError'));
+      showAlert(t('common.error'), error.message || t('dashboard.acceptRequestError'), 'error');
     } finally {
       setLoading(false);
     }
@@ -350,10 +372,11 @@ export default function ProviderDashboardScreen({navigation}: any) {
     try {
       setLoading(true);
       await websocketService.rejectBooking(incomingBooking);
-      Alert.alert(t('common.success'), t('dashboard.requestRejected'));
+      setToastMessage(t('dashboard.requestRejected'));
+      setShowToast(true);
       setIncomingBooking(null);
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message || t('dashboard.rejectRequestError'));
+      showAlert(t('common.error'), error.message || t('dashboard.rejectRequestError'), 'error');
     } finally {
       setLoading(false);
     }
@@ -378,6 +401,15 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
   return (
     <View style={[styles.container, {backgroundColor: theme.background}]}>
+      {/* Custom Alert Modal */}
+      <AlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={() => setAlertVisible(false)}
+      />
+
       {/* Booking Alert Modal */}
       {incomingBooking && (
         <BookingAlertModal
@@ -398,120 +430,176 @@ export default function ProviderDashboardScreen({navigation}: any) {
         duration={3000}
         onHide={() => setShowToast(false)}
       />
-      
+
       <ScrollView
         style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }>
-      {/* Online/Offline Toggle - Big Button */}
-      <View style={styles.toggleSection}>
-        <TouchableOpacity
-          style={[
-            styles.onlineToggle,
-            {
-              backgroundColor: isOnline ? '#34C759' : '#8E8E93',
-            },
-          ]}
-          onPress={handleToggleOnline}
-          disabled={loading}>
-          <Icon
-            name={isOnline ? 'check-circle' : 'cancel'}
-            size={48}
-            color="#fff"
-          />
-          <Text style={styles.toggleText}>
-            {isOnline ? t('dashboard.online') : t('dashboard.offline')}
-          </Text>
-          <Text style={styles.toggleSubtext}>
-            {isOnline
-              ? t('dashboard.tapToGoOffline')
-              : t('dashboard.tapToGoOnline')}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Stats Cards */}
-      <View style={styles.statsContainer}>
-        {/* Active Jobs */}
-        <TouchableOpacity
-          style={[styles.statCard, {backgroundColor: theme.card}]}
-          onPress={() => navigation.navigate('Jobs')}>
-          <Icon name="work" size={32} color="#007AFF" />
-          <Text style={[styles.statValue, {color: theme.text}]}>
-            {activeJobsCount}
-          </Text>
-          <Text style={[styles.statLabel, {color: theme.textSecondary}]}>
-            {t('dashboard.activeJobs')}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Quick Stats */}
-      <View style={styles.quickStatsContainer}>
-        <View style={[styles.quickStat, {backgroundColor: theme.card}]}>
-          <Icon name="check-circle" size={24} color="#34C759" />
-          <View style={styles.quickStatText}>
-            <Text style={[styles.quickStatValue, {color: theme.text}]}>
-              {completedToday}
+        {/* Online/Offline Toggle - Big Button */}
+        <View style={styles.toggleSection}>
+          <TouchableOpacity
+            style={[
+              styles.onlineToggle,
+              {
+                backgroundColor: isOnline ? '#34C759' : '#8E8E93',
+              },
+            ]}
+            onPress={handleToggleOnline}
+            disabled={loading}>
+            <Icon
+              name={isOnline ? 'check-circle' : 'cancel'}
+              size={48}
+              color="#fff"
+            />
+            <Text style={styles.toggleText}>
+              {isOnline ? t('dashboard.online') : t('dashboard.offline')}
             </Text>
-            <Text style={[styles.quickStatLabel, {color: theme.textSecondary}]}>
-              {t('dashboard.completedToday')}
+            <Text style={styles.toggleSubtext}>
+              {isOnline
+                ? t('dashboard.tapToGoOffline')
+                : t('dashboard.tapToGoOnline')}
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
-        <View style={[styles.quickStat, {backgroundColor: theme.card}]}>
-          <Icon name="star" size={24} color="#FFD700" />
-          <View style={styles.quickStatText}>
-            <Text style={[styles.quickStatValue, {color: theme.text}]}>
+        {/* Main Stats Cards - 2x2 Grid */}
+        <View style={styles.statsGrid}>
+          {/* Active Jobs */}
+          <TouchableOpacity
+            style={[styles.gridStatCard, {backgroundColor: theme.card}]}
+            onPress={() => navigation.navigate('Jobs')}>
+            <View style={[styles.statIconContainer, {backgroundColor: '#007AFF15'}]}>
+              <Icon name="work" size={28} color="#007AFF" />
+            </View>
+            <Text style={[styles.gridStatValue, {color: theme.text}]}>
+              {activeJobsCount}
+            </Text>
+            <Text style={[styles.gridStatLabel, {color: theme.textSecondary}]}>
+              {t('dashboard.activeJobs')}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Total Completed */}
+          <TouchableOpacity
+            style={[styles.gridStatCard, {backgroundColor: theme.card}]}
+            onPress={() => navigation.navigate('History')}>
+            <View style={[styles.statIconContainer, {backgroundColor: '#34C75915'}]}>
+              <Icon name="verified" size={28} color="#34C759" />
+            </View>
+            <Text style={[styles.gridStatValue, {color: theme.text}]}>
+              {totalCompleted}
+            </Text>
+            <Text style={[styles.gridStatLabel, {color: theme.textSecondary}]}>
+              {t('dashboard.totalCompleted') || 'Total Completed'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Pending Jobs */}
+          <TouchableOpacity
+            style={[styles.gridStatCard, {backgroundColor: theme.card}]}
+            onPress={() => navigation.navigate('Jobs')}>
+            <View style={[styles.statIconContainer, {backgroundColor: '#FF950015'}]}>
+              <Icon name="hourglass-empty" size={28} color="#FF9500" />
+            </View>
+            <Text style={[styles.gridStatValue, {color: theme.text}]}>
+              {pendingJobs}
+            </Text>
+            <Text style={[styles.gridStatLabel, {color: theme.textSecondary}]}>
+              {t('dashboard.pendingJobs') || 'Pending'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Rating */}
+          <TouchableOpacity
+            style={[styles.gridStatCard, {backgroundColor: theme.card}]}
+            onPress={() => navigation.navigate('Profile')}>
+            <View style={[styles.statIconContainer, {backgroundColor: '#FFD70015'}]}>
+              <Icon name="star" size={28} color="#FFD700" />
+            </View>
+            <Text style={[styles.gridStatValue, {color: theme.text}]}>
               {rating.toFixed(1)}
             </Text>
-            <Text style={[styles.quickStatLabel, {color: theme.textSecondary}]}>
+            <Text style={[styles.gridStatLabel, {color: theme.textSecondary}]}>
               {t('dashboard.rating')}
             </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Additional Stats Row */}
+        <View style={styles.quickStatsContainer}>
+          <View style={[styles.quickStat, {backgroundColor: theme.card}]}>
+            <Icon name="check-circle" size={24} color="#34C759" />
+            <View style={styles.quickStatText}>
+              <Text style={[styles.quickStatValue, {color: theme.text}]}>
+                {completedToday}
+              </Text>
+              <Text style={[styles.quickStatLabel, {color: theme.textSecondary}]}>
+                {t('dashboard.completedToday')}
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.quickStat, {backgroundColor: theme.card}]}>
+            <Icon name="rate-review" size={24} color="#007AFF" />
+            <View style={styles.quickStatText}>
+              <Text style={[styles.quickStatValue, {color: theme.text}]}>
+                {totalReviews}
+              </Text>
+              <Text style={[styles.quickStatLabel, {color: theme.textSecondary}]}>
+                {t('dashboard.totalReviews') || 'Reviews'}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* Quick Actions */}
-      <View style={styles.quickActionsContainer}>
-        <Text style={[styles.sectionTitle, {color: theme.text}]}>
-          {t('dashboard.quickActions')}
-        </Text>
-
-        <TouchableOpacity
-          style={[styles.actionButton, {backgroundColor: theme.card}]}
-          onPress={() => navigation.navigate('Jobs', {filter: 'all'})}>
-          <Icon name="list" size={24} color={theme.primary} />
-          <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            {t('dashboard.viewActiveJobs')}
+        {/* Quick Actions */}
+        <View style={styles.quickActionsContainer}>
+          <Text style={[styles.sectionTitle, {color: theme.text}]}>
+            {t('dashboard.quickActions')}
           </Text>
-          <Icon name="chevron-right" size={24} color={theme.textSecondary} />
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionButton, {backgroundColor: theme.card}]}
-          onPress={() => navigation.navigate('Profile')}>
-          <Icon name="person" size={24} color={theme.primary} />
-          <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            {t('dashboard.profileAndSettings')}
-          </Text>
-          <Icon name="chevron-right" size={24} color={theme.textSecondary} />
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.actionButton, {backgroundColor: theme.card}]}
+            onPress={() => navigation.navigate('Jobs', {filter: 'all'})}>
+            <Icon name="list" size={24} color={theme.primary} />
+            <Text style={[styles.actionButtonText, {color: theme.text}]}>
+              {t('dashboard.viewActiveJobs')}
+            </Text>
+            <Icon name="chevron-right" size={24} color={theme.textSecondary} />
+          </TouchableOpacity>
 
-      {/* Info Banner */}
-      {!isOnline && (
-        <View style={[styles.infoBanner, {backgroundColor: '#FFF3CD'}]}>
-          <Icon name="info" size={20} color="#856404" />
-          <Text style={[styles.infoText, {color: '#856404'}]}>
-            Go online to start receiving service requests
-          </Text>
+          <TouchableOpacity
+            style={[styles.actionButton, {backgroundColor: theme.card}]}
+            onPress={() => navigation.navigate('History')}>
+            <Icon name="history" size={24} color={theme.primary} />
+            <Text style={[styles.actionButtonText, {color: theme.text}]}>
+              {t('dashboard.viewJobHistory') || 'View Job History'}
+            </Text>
+            <Icon name="chevron-right" size={24} color={theme.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, {backgroundColor: theme.card}]}
+            onPress={() => navigation.navigate('Profile')}>
+            <Icon name="person" size={24} color={theme.primary} />
+            <Text style={[styles.actionButtonText, {color: theme.text}]}>
+              {t('dashboard.profileAndSettings')}
+            </Text>
+            <Icon name="chevron-right" size={24} color={theme.textSecondary} />
+          </TouchableOpacity>
         </View>
-      )}
 
-    </ScrollView>
+        {/* Info Banner */}
+        {!isOnline && (
+          <View style={[styles.infoBanner, {backgroundColor: '#FFF3CD'}]}>
+            <Icon name="info" size={20} color="#856404" />
+            <Text style={[styles.infoText, {color: '#856404'}]}>
+              {t('dashboard.goOnlineMessage') || 'Go online to start receiving service requests'}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -559,6 +647,41 @@ const styles = StyleSheet.create({
     marginTop: 8,
     opacity: 0.9,
   },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    gap: 12,
+    marginBottom: 8,
+  },
+  gridStatCard: {
+    width: '47%',
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  statIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  gridStatValue: {
+    fontSize: 26,
+    fontWeight: 'bold',
+  },
+  gridStatLabel: {
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
+  },
   statsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -589,7 +712,7 @@ const styles = StyleSheet.create({
   quickStatsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 12,
     gap: 12,
   },
   quickStat: {
@@ -599,6 +722,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     gap: 12,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   quickStatText: {
     flex: 1,
@@ -626,6 +754,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     gap: 12,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   actionButtonText: {
     flex: 1,
@@ -636,8 +769,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    margin: 20,
-    borderRadius: 8,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
     gap: 12,
   },
   infoText: {

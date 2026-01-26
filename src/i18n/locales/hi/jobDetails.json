@@ -34,5 +34,18 @@
   "cancelTask": "कार्य रद्द करें",
   "serviceStarted": "सेवा शुरू हुई! ग्राहक को एक पिन भेजा गया है।",
   "taskCompleted": "कार्य सफलतापूर्वक पूर्ण हुआ!",
-  "taskCancelled": "कार्य रद्द किया गया। ग्राहक को सूचित किया गया है।"
+  "taskCancelled": "कार्य रद्द किया गया। ग्राहक को सूचित किया गया है।",
+  "verifyPIN": "PIN सत्यापित करें",
+  "enter4DigitPIN": "ग्राहक को भेजा गया 4-अंकीय PIN दर्ज करें",
+  "pleaseEnter4DigitPIN": "कृपया 4-अंकीय PIN दर्ज करें",
+  "invalidPIN": "अमान्य PIN। कृपया पुनः प्रयास करें।",
+  "verifying": "सत्यापित किया जा रहा है...",
+  "verifyAndComplete": "सत्यापित करें और पूर्ण करें",
+  "addServiceDetails": "सेवा विवरण जोड़ें",
+  "serviceAmount": "सेवा राशि",
+  "optional": "वैकल्पिक",
+  "materialsUsed": "उपयोग की गई सामग्री",
+  "materialDescription": "सामग्री विवरण",
+  "quantity": "मात्रा",
+  "unitPrice": "इकाई मूल्य"
 }

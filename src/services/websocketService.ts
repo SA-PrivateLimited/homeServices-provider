@@ -9,6 +9,8 @@ import hooterForegroundService from './hooterForegroundService';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import fcmNotificationService from './fcmNotificationService';
+import {serviceRequestsApi} from './api/serviceRequestsApi';
+import {providersApi} from './api/providersApi';
 
 // WebSocket URL - Set this to your actual server URL
 // For development: Use your local IP address (e.g., 'http://192.168.1.100:3000')
@@ -397,118 +399,119 @@ class WebSocketService {
   }
 
   /**
-   * Accept a booking/consultation
+   * Accept a booking/service request
    * Updates the status to 'accepted' and assigns provider with provider details
    */
   async acceptBooking(bookingData: any, providerId: string, providerProfile?: any): Promise<void> {
     try {
-      const consultationId = bookingData.consultationId || bookingData.id || bookingData.bookingId;
+      // Support both old (consultationId) and new (serviceRequestId/id) field names
+      const serviceRequestId = bookingData.serviceRequestId || 
+                               bookingData.id || 
+                               bookingData.bookingId ||
+                               bookingData.consultationId; // Backward compatibility
       
-      if (!consultationId) {
-        throw new Error('Consultation ID not found in booking data');
+      if (!serviceRequestId) {
+        console.error('❌ [ACCEPT] Service Request ID not found in booking data. Available keys:', Object.keys(bookingData));
+        console.error('❌ [ACCEPT] Full booking data:', JSON.stringify(bookingData, null, 2));
+        throw new Error('Service Request ID not found in booking data');
       }
+      
+      console.log('📋 [ACCEPT] Extracted serviceRequestId:', serviceRequestId, 'from bookingData keys:', Object.keys(bookingData));
 
       console.log('📋 [ACCEPT] Starting acceptBooking:', {
-        consultationId,
+        serviceRequestId,
         providerId,
         hasProviderProfile: !!providerProfile,
       });
 
-      // Get consultation data first to check current status
-      const consultationDoc = await firestore()
-        .collection('consultations')
-        .doc(consultationId)
-        .get();
-      
-      if (!consultationDoc.exists) {
-        throw new Error('Consultation not found');
-      }
-
-      const consultationData = consultationDoc.data();
-      const currentStatus = consultationData?.status || 'pending';
-      const existingProviderId = consultationData?.providerId || consultationData?.doctorId;
-      
-      console.log('📋 [ACCEPT] Current consultation state:', {
-        status: currentStatus,
-        existingProviderId,
-        consultationId,
-      });
-
-      // Check if already assigned to another provider
-      if (existingProviderId && existingProviderId !== providerId) {
-        throw new Error('This service request has already been assigned to another provider');
-      }
-
-      // Check if already accepted
-      if (currentStatus === 'accepted' && existingProviderId === providerId) {
-        console.log('⚠️ [ACCEPT] Consultation already accepted by this provider');
-        return; // Already accepted, no need to update
-      }
-
-      const customerId = consultationData?.customerId || consultationData?.patientId;
-      const serviceType = consultationData?.serviceType || providerProfile?.specialization || 'service';
-      const providerName = providerProfile?.name || providerProfile?.providerName || 'Provider';
-      const customerPhone = consultationData?.customerPhone || consultationData?.patientPhone || consultationData?.phone;
-      const problem = consultationData?.problem || consultationData?.symptoms || consultationData?.notes || consultationData?.description;
-
-      // Prepare provider details to store
-      const providerDetails: any = {
-        status: 'accepted',
-        doctorId: providerId, // Assign provider
-        providerId: providerId, // Also set providerId for compatibility
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      };
-
-      // Add provider details if available
-      if (providerProfile) {
-        providerDetails.providerName = providerProfile.name || providerProfile.providerName || '';
-        providerDetails.providerPhone = providerProfile.phoneNumber || providerProfile.phone || '';
-        providerDetails.providerEmail = providerProfile.email || '';
-        providerDetails.providerSpecialization = providerProfile.specialization || providerProfile.specialty || '';
-        providerDetails.providerRating = providerProfile.rating || 0;
-        providerDetails.providerImage = providerProfile.profileImage || '';
-        providerDetails.providerAddress = providerProfile.address || null;
-      }
-
-      console.log('📋 [ACCEPT] Updating consultation with provider details:', {
-        consultationId,
-        providerDetails: Object.keys(providerDetails),
-      });
-      
-      console.log('📋 [ACCEPT] Attempting Firestore update:', {
-        consultationId,
-        currentStatus,
-        existingProviderId,
-        newProviderId: providerId,
-        providerDetails: Object.keys(providerDetails),
-      });
-
-      // Update consultation/service request status to accepted with provider details
-      try {
-        await firestore()
-          .collection('consultations')
-          .doc(consultationId)
-          .update(providerDetails);
-        
-        console.log('✅ [ACCEPT] Booking accepted successfully:', consultationId);
-      } catch (updateError: any) {
-        console.error('❌ [ACCEPT] Firestore update error:', {
-          code: updateError.code,
-          message: updateError.message,
-          consultationId,
-          providerId,
-          currentStatus,
-          existingProviderId,
-          currentUserId: auth().currentUser?.uid,
-          currentUserEmail: auth().currentUser?.email,
-        });
-        
-        // Provide more specific error messages
-        if (updateError.code === 'permission-denied') {
-          throw new Error(`Permission denied: Provider may not be approved or consultation may already be assigned. Code: ${updateError.code}`);
+      // Get provider profile if not provided
+      let providerInfo = providerProfile;
+      if (!providerInfo) {
+        try {
+          providerInfo = await providersApi.getMyProfile();
+          if (!providerInfo) {
+            console.warn('⚠️ [ACCEPT] Provider profile not found, using defaults');
+          }
+        } catch (profileError) {
+          console.warn('⚠️ [ACCEPT] Failed to fetch provider profile:', profileError);
         }
-        throw updateError;
       }
+
+      // Prepare provider details for API call
+      const providerDetails: any = {};
+      if (providerInfo) {
+        providerDetails.providerName = providerInfo.name || providerInfo.providerName || 'Provider';
+        providerDetails.providerPhone = providerInfo.phoneNumber || providerInfo.phone || '';
+        providerDetails.providerEmail = providerInfo.email || '';
+        providerDetails.providerSpecialization = providerInfo.specialization || providerInfo.specialty || '';
+        providerDetails.providerRating = providerInfo.rating || 0;
+        providerDetails.providerImage = providerInfo.profileImage || '';
+        providerDetails.providerAddress = providerInfo.address || providerInfo.location || null;
+      }
+
+      console.log('📋 [ACCEPT] Calling backend API to accept service request:', {
+        serviceRequestId,
+        providerId,
+        providerDetails: Object.keys(providerDetails),
+      });
+
+      // Accept service request - try Firestore FIRST (PRIMARY), then MongoDB
+      let acceptedServiceRequest: any = null;
+
+      // STEP 1: Try Firestore first (PRIMARY store for service requests)
+      console.log('📋 [ACCEPT] Trying Firestore (PRIMARY):', serviceRequestId);
+      try {
+        const serviceRequestDoc = await firestore()
+          .collection('serviceRequests')
+          .doc(serviceRequestId)
+          .get();
+
+        if (serviceRequestDoc.exists) {
+          // Update in Firestore
+          await firestore()
+            .collection('serviceRequests')
+            .doc(serviceRequestId)
+            .update({
+              status: 'accepted',
+              providerId: providerId,
+              ...providerDetails,
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+            });
+          acceptedServiceRequest = {
+            ...serviceRequestDoc.data(),
+            _id: serviceRequestId,
+            id: serviceRequestId,
+          };
+          console.log('✅ [ACCEPT] Service request accepted in Firestore:', serviceRequestId);
+        }
+      } catch (firestoreError: any) {
+        console.warn('⚠️ [ACCEPT] Firestore error:', firestoreError.message);
+      }
+
+      // STEP 2: If not in Firestore, try MongoDB API
+      if (!acceptedServiceRequest) {
+        console.log('📋 [ACCEPT] Not found in Firestore, trying MongoDB API:', serviceRequestId);
+        try {
+          acceptedServiceRequest = await serviceRequestsApi.accept(serviceRequestId, providerDetails);
+          console.log('✅ [ACCEPT] Service request accepted via MongoDB API:', serviceRequestId);
+        } catch (apiError: any) {
+          console.warn('⚠️ [ACCEPT] MongoDB API error:', apiError.message);
+        }
+      }
+
+      // If still not found anywhere, throw error
+      if (!acceptedServiceRequest) {
+        console.error('❌ [ACCEPT] Service request not found anywhere:', serviceRequestId);
+        throw new Error(`Service request not found: ${serviceRequestId}. Please try again.`);
+      }
+
+      // Extract data for notifications
+      const serviceRequestData = acceptedServiceRequest || {};
+      const customerId = serviceRequestData.customerId || serviceRequestData.patientId;
+      const serviceType = serviceRequestData.serviceType || providerInfo?.specialization || 'service';
+      const providerName = providerDetails.providerName || providerInfo?.name || 'Provider';
+      const customerPhone = serviceRequestData.customerPhone || serviceRequestData.patientPhone || serviceRequestData.phone;
+      const problem = serviceRequestData.problem || serviceRequestData.symptoms || serviceRequestData.notes || serviceRequestData.description;
       
       // Send notification to customer (immediately after accepting)
       if (customerId) {
@@ -516,7 +519,7 @@ class WebSocketService {
           customerId,
           providerName,
           serviceType,
-          consultationId,
+          serviceRequestId,
           customerPhone: !!customerPhone,
           hasProblem: !!problem,
         });
@@ -526,7 +529,7 @@ class WebSocketService {
             customerId,
             providerName,
             serviceType,
-            consultationId,
+            serviceRequestId,
             customerPhone,
             problem,
           );
@@ -541,14 +544,14 @@ class WebSocketService {
           // createJobCard() will also send a notification as backup
         }
       } else {
-        console.warn('⚠️ [ACCEPT] Cannot send notification - customerId not found in consultation data');
-        console.warn('⚠️ [ACCEPT] Consultation data keys:', Object.keys(consultationData || {}));
+        console.warn('⚠️ [ACCEPT] Cannot send notification - customerId not found in service request data');
+        console.warn('⚠️ [ACCEPT] Service request data keys:', Object.keys(serviceRequestData || {}));
       }
     } catch (error: any) {
       console.error('❌ [ACCEPT] Error accepting booking:', {
         error: error.message,
         code: error.code,
-        consultationId: bookingData.consultationId || bookingData.id || bookingData.bookingId,
+        serviceRequestId: bookingData.serviceRequestId || bookingData.id || bookingData.bookingId || bookingData.consultationId,
         providerId,
       });
       throw new Error(`Failed to accept booking: ${error.message}`);
@@ -556,30 +559,66 @@ class WebSocketService {
   }
 
   /**
-   * Reject a booking/consultation
+   * Reject a booking/service request
    * Updates the status to 'rejected'
+   * Tries Firestore FIRST (PRIMARY), then MongoDB
    */
   async rejectBooking(bookingData: any): Promise<void> {
     try {
-      const consultationId = bookingData.consultationId || bookingData.id || bookingData.bookingId;
-      
-      if (!consultationId) {
-        throw new Error('Consultation ID not found in booking data');
+      const serviceRequestId = bookingData.serviceRequestId ||
+                               bookingData.id ||
+                               bookingData.bookingId ||
+                               bookingData.consultationId;
+
+      if (!serviceRequestId) {
+        throw new Error('Service Request ID not found in booking data');
       }
 
-      // Update consultation/service request status to rejected
-      await firestore()
-        .collection('consultations')
-        .doc(consultationId)
-        .update({
-          status: 'rejected',
-          rejectionReason: 'Provider rejected the service request',
-          updatedAt: firestore.FieldValue.serverTimestamp(),
-        });
-      
-      console.log('Booking rejected:', consultationId);
+      console.log('📋 [REJECT] Starting rejectBooking:', serviceRequestId);
+
+      let rejected = false;
+
+      // STEP 1: Try Firestore first (PRIMARY)
+      console.log('📋 [REJECT] Trying Firestore (PRIMARY):', serviceRequestId);
+      try {
+        const serviceRequestDoc = await firestore()
+          .collection('serviceRequests')
+          .doc(serviceRequestId)
+          .get();
+
+        if (serviceRequestDoc.exists) {
+          await firestore()
+            .collection('serviceRequests')
+            .doc(serviceRequestId)
+            .update({
+              status: 'rejected',
+              rejectionReason: 'Provider rejected the service request',
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+            });
+          console.log('✅ [REJECT] Service request rejected in Firestore:', serviceRequestId);
+          rejected = true;
+        }
+      } catch (firestoreError: any) {
+        console.warn('⚠️ [REJECT] Firestore error:', firestoreError.message);
+      }
+
+      // STEP 2: Also try MongoDB API (for sync)
+      if (!rejected) {
+        console.log('📋 [REJECT] Trying MongoDB API:', serviceRequestId);
+        try {
+          await serviceRequestsApi.reject(serviceRequestId, 'Provider rejected the service request');
+          console.log('✅ [REJECT] Service request rejected via MongoDB API:', serviceRequestId);
+          rejected = true;
+        } catch (apiError: any) {
+          console.warn('⚠️ [REJECT] MongoDB API error:', apiError.message);
+        }
+      }
+
+      if (!rejected) {
+        throw new Error(`Service request not found: ${serviceRequestId}`);
+      }
     } catch (error: any) {
-      console.error('Error rejecting booking:', error);
+      console.error('❌ [REJECT] Error rejecting booking:', error);
       throw new Error(`Failed to reject booking: ${error.message}`);
     }
   }

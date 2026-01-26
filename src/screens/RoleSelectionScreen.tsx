@@ -8,11 +8,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import authService from '../services/authService';
 import useTranslation from '../hooks/useTranslation';
+import {updateMe} from '../services/api/usersApi';
 
 type UserRole = 'patient' | 'doctor' | 'admin';
 
@@ -69,14 +69,10 @@ export default function RoleSelectionScreen({navigation}: RoleSelectionScreenPro
         throw new Error(t('auth.invalidRoleSelection'));
       }
 
-      // Update user document with selected role (only works if role doesn't exist)
-      await firestore().collection('users').doc(user.uid).set(
-        {
-          role: role,
-          updatedAt: firestore.FieldValue.serverTimestamp(),
-        },
-        {merge: true},
-      );
+      // Update user document with selected role via API
+      await updateMe({
+        role: role,
+      });
 
 
       // Refresh user data from Firestore to get updated role

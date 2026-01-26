@@ -11,9 +11,10 @@ import {
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import Icon from 'react-native-vector-icons/Ionicons';
-import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import useTranslation from '../hooks/useTranslation';
+import {updateMe} from '../services/api/usersApi';
+import {getMyProfile} from '../services/api/providersApi';
 
 const {width, height} = Dimensions.get('window');
 
@@ -227,30 +228,31 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({navigation, route}) 
 
   const handleComplete = async () => {
     try {
-      const currentUser = auth().currentUser;
-      if (currentUser) {
-        await firestore()
-          .collection('users')
-          .doc(currentUser.uid)
-          .update({
-            hasCompletedOnboarding: true,
-          });
+      const currentAuthUser = auth().currentUser;
+      if (currentAuthUser) {
+        // Update user via API
+        try {
+          await updateMe({});
+        } catch (updateError) {
+          console.log('User update skipped:', updateError);
+        }
       }
 
       // Navigate to appropriate main screen based on role
       if (userRole === 'patient') {
         navigation.replace('Main');
       } else if (userRole === 'doctor') {
-        // Check if doctor has completed profile setup
-        const doctorProfile = await firestore()
-          .collection('providers')
-          .where('email', '==', currentUser?.email)
-          .get();
-
-        if (doctorProfile.empty) {
+        // Check if doctor has completed profile setup via API
+        try {
+          const doctorProfile = await getMyProfile();
+          if (!doctorProfile) {
+            navigation.replace('ProviderProfileSetup');
+          } else {
+            navigation.replace('ProviderMain');
+          }
+        } catch (profileError) {
+          // If error, assume profile doesn't exist
           navigation.replace('ProviderProfileSetup');
-        } else {
-          navigation.replace('ProviderMain');
         }
       }
     } catch (error) {

@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import {useStore} from '../store';
 import GeolocationService, {LocationData} from '../services/geolocationService';
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import {getMe, updateMe} from '../services/api/usersApi';
 
 /**
  * Hook to detect and update pincode for current user (doctor or patient)
@@ -36,28 +36,27 @@ export const usePincodeDetection = () => {
           }
         }, 20000); // 20 second max timeout
 
-        // First, try to get pincode from user's saved location (with timeout)
-        const userDocPromise = firestore()
-          .collection('users')
-          .doc(currentUser.uid)
-          .get();
-        
-        const userDocTimeout = new Promise((resolve) => 
-          setTimeout(() => resolve(null), 5000)
-        );
-        
-        const userDoc = await Promise.race([userDocPromise, userDocTimeout]) as any;
+        // First, try to get pincode from user's saved location via API (with timeout)
+        try {
+          const userDataPromise = getMe();
+          const userDataTimeout = new Promise((resolve) =>
+            setTimeout(() => resolve(null), 5000)
+          );
 
-        if (userDoc?.exists) {
-          const userData = userDoc.data();
-          const savedPincode = userData?.location?.pincode;
+          const userData = await Promise.race([userDataPromise, userDataTimeout]) as any;
 
-          if (savedPincode && isMounted) {
-            setCurrentPincode(savedPincode);
-            if (timeoutId) clearTimeout(timeoutId);
-            setIsDetecting(false);
-            return;
+          if (userData) {
+            const savedPincode = userData?.location?.pincode;
+
+            if (savedPincode && isMounted) {
+              setCurrentPincode(savedPincode);
+              if (timeoutId) clearTimeout(timeoutId);
+              setIsDetecting(false);
+              return;
+            }
           }
+        } catch (apiError) {
+          console.log('Error fetching user data:', apiError);
         }
 
         // Check permission status first (don't request if already denied)
@@ -106,27 +105,20 @@ export const usePincodeDetection = () => {
           if (location?.pincode && isMounted) {
             setCurrentPincode(location.pincode);
 
-            // Optionally save to user's profile
+            // Optionally save to user's profile via API
             try {
-              await firestore()
-                .collection('users')
-                .doc(currentUser.uid)
-                .set(
-                  {
-                    location: {
-                      latitude: location.latitude,
-                      longitude: location.longitude,
-                      pincode: location.pincode,
-                      address: location.address,
-                      city: location.city,
-                      state: location.state,
-                      country: location.country,
-                    },
-                    updatedAt: firestore.FieldValue.serverTimestamp(),
-                  },
-                  {merge: true},
-                );
+              await updateMe({
+                location: {
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                  pincode: location.pincode,
+                  address: location.address,
+                  city: location.city,
+                  state: location.state,
+                },
+              });
             } catch (saveError) {
+              console.log('Error saving location:', saveError);
             }
           }
         } catch (locationError: any) {
