@@ -17,16 +17,17 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
+import {getUserId} from '../services/session';
 import {fetchJobCardsByProvider, JobCard, subscribeToProviderJobCardStatuses} from '../services/jobCardService';
 import useTranslation from '../hooks/useTranslation';
+import AdSlot from '../components/AdSlot';
 
 export default function JobsScreen({navigation, route}: any) {
-  const {isDarkMode} = useStore();
+  const {isDarkMode, currentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const currentUser = auth().currentUser;
+  const userId = getUserId(currentUser);
   const {t} = useTranslation();
 
   // Get initial filter from route params, default to 'all'
@@ -38,12 +39,12 @@ export default function JobsScreen({navigation, route}: any) {
   const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'in-progress' | 'completed'>(initialFilter);
 
   useEffect(() => {
-    if (currentUser) {
+    if (userId) {
       loadJobCards();
       
       // Subscribe to real-time status updates
       const unsubscribe = subscribeToProviderJobCardStatuses(
-        currentUser.uid,
+        userId,
         (jobCardId, status, updatedAt) => {
           setJobCards(prev => 
             prev.map(job => 
@@ -55,7 +56,7 @@ export default function JobsScreen({navigation, route}: any) {
 
       return () => unsubscribe();
     }
-  }, [currentUser]);
+  }, [userId]);
 
   // Update filter when route params change
   useEffect(() => {
@@ -65,11 +66,11 @@ export default function JobsScreen({navigation, route}: any) {
   }, [route?.params?.filter]);
 
   const loadJobCards = async () => {
-    if (!currentUser) return;
+    if (!userId) return;
 
     try {
       setLoading(true);
-      const jobs = await fetchJobCardsByProvider(currentUser.uid);
+      const jobs = await fetchJobCardsByProvider(userId);
       setJobCards(jobs);
     } catch (error) {
       console.error('Error loading job cards:', error);
@@ -320,6 +321,7 @@ export default function JobsScreen({navigation, route}: any) {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          ListFooterComponent={<AdSlot size="banner" />}
         />
       )}
     </View>

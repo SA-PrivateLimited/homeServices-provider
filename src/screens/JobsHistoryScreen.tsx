@@ -17,34 +17,34 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
+import {getUserId} from '../services/session';
 import {fetchJobCardsByProvider, JobCard} from '../services/jobCardService';
 import useTranslation from '../hooks/useTranslation';
 
 export default function JobsHistoryScreen({navigation}: any) {
   const {t} = useTranslation();
-  const {isDarkMode} = useStore();
+  const {isDarkMode, currentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const currentUser = auth().currentUser;
+  const userId = getUserId(currentUser);
 
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (currentUser) {
+    if (userId) {
       loadJobCards();
     }
-  }, [currentUser]);
+  }, [userId]);
 
   const loadJobCards = async () => {
-    if (!currentUser) return;
+    if (!userId) return;
 
     try {
       setLoading(true);
-      const jobs = await fetchJobCardsByProvider(currentUser.uid);
+      const jobs = await fetchJobCardsByProvider(userId);
       // Filter only completed and cancelled jobs
       const historyJobs = jobs.filter(
         job => job.status === 'completed' || job.status === 'cancelled'

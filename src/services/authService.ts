@@ -286,20 +286,27 @@ export const updateUserRole = async (userId: string, role: 'patient' | 'doctor' 
  */
 export const logout = async (): Promise<void> => {
   try {
-    // Disconnect WebSocket if connected
     try {
       const websocketService = (await import('./websocketService')).default;
       websocketService.disconnect();
     } catch (wsError) {
-      // WebSocket disconnect is non-critical, continue with logout
       console.warn('WebSocket disconnect failed during logout:', wsError);
     }
 
-    // Sign out from Firebase Auth
-    await auth().signOut();
+    const {logoutProvider} = await import('./session');
+    await logoutProvider();
+
+    // Best-effort Firebase sign-out if still present
+    try {
+      const auth = (await import('@react-native-firebase/auth')).default;
+      if (auth().currentUser) {
+        await auth().signOut();
+      }
+    } catch {
+      // Firebase may be unused on JWT path
+    }
   } catch (error: any) {
     console.error('Logout error:', error);
-    // Even if signOut fails, we should still try to clear local state
     throw new Error(error.message || 'Failed to logout. Please try again.');
   }
 };
@@ -601,10 +608,15 @@ export const verifyEmailOTP = async (
 };
 
 /**
- * Check if user is authenticated
+ * Check if user is authenticated (JWT session from phone + PIN).
  */
-export const isAuthenticated = (): boolean => {
-  return auth().currentUser !== null;
+export const isAuthenticated = async (): Promise<boolean> => {
+  try {
+    const {isLoggedIn} = await import('./session');
+    return await isLoggedIn();
+  } catch {
+    return auth().currentUser !== null;
+  }
 };
 
 /**

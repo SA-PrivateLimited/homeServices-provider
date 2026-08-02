@@ -1,11 +1,9 @@
 /**
- * API Client
- * Base client for making HTTP requests to the backend API
- * Handles authentication, error handling, and request formatting
+ * API Client — JWT from provider phone + PIN session (MongoDB).
  */
 
-import auth from '@react-native-firebase/auth';
 import {API_BASE_URL, API_TIMEOUT} from '../../config/api';
+import {getStoredJwt} from '../session';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -22,25 +20,15 @@ export interface RequestOptions {
   skipAuth?: boolean;
 }
 
-/**
- * Get Firebase Auth token for API requests
- */
 async function getAuthToken(): Promise<string | null> {
   try {
-    const user = auth().currentUser;
-    if (!user) {
-      return null;
-    }
-    return await user.getIdToken();
+    return await getStoredJwt();
   } catch (error) {
     console.error('Error getting auth token:', error);
     return null;
   }
 }
 
-/**
- * Make API request with authentication
- */
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestOptions = {},
@@ -53,36 +41,28 @@ export async function apiRequest<T>(
     skipAuth = false,
   } = options;
 
-  // Get auth token unless skipping auth
   let authToken: string | null = null;
   if (!skipAuth) {
     authToken = await getAuthToken();
-    if (!authToken) {
-      throw new Error('User not authenticated. Please login.');
-    }
   }
 
-  // Build headers
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     ...headers,
   };
 
   if (authToken && !skipAuth) {
-    requestHeaders['Authorization'] = `Bearer ${authToken}`;
+    requestHeaders.Authorization = `Bearer ${authToken}`;
   }
 
-  // Build URL
-  const url = endpoint.startsWith('http')
-    ? endpoint
-    : `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const base = API_BASE_URL.replace(/\/+$/, '');
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = endpoint.startsWith('http') ? endpoint : `${base}${path}`;
 
-  // Create timeout promise
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error('Request timeout')), timeout);
   });
 
-  // Create fetch promise
   const fetchPromise = fetch(url, {
     method,
     headers: requestHeaders,
@@ -90,32 +70,23 @@ export async function apiRequest<T>(
   });
 
   try {
-    // Race between fetch and timeout
     const response = await Promise.race([fetchPromise, timeoutPromise]);
 
-    // Check if response is ok
     if (!response.ok) {
       let errorData: any = {};
       try {
         errorData = await response.json();
       } catch {
-        // If JSON parsing fails, use status text
         errorData = {message: response.statusText};
       }
 
-      const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`;
-      console.error('❌ [API] Request failed:', {
-        url,
-        status: response.status,
-        statusText: response.statusText,
-        errorData,
-        errorMessage,
-      });
-      
-      throw new Error(errorMessage);
+      throw new Error(
+        errorData.message ||
+          errorData.error ||
+          `HTTP ${response.status}: ${response.statusText}`,
+      );
     }
 
-    // Parse response
     const data: ApiResponse<T> = await response.json();
 
     if (!data.success) {
@@ -124,30 +95,30 @@ export async function apiRequest<T>(
 
     return data.data as T;
   } catch (error: any) {
-    // Handle network errors
     if (error.message === 'Request timeout') {
-      throw new Error('Request timed out. Please check your connection and try again.');
+      throw new Error(
+        'Request timed out. Please check your connection and try again.',
+      );
     }
 
-    if (error.message?.includes('Failed to fetch') || error.message?.includes('Network request failed')) {
+    if (
+      error.message?.includes('Failed to fetch') ||
+      error.message?.includes('Network request failed')
+    ) {
       throw new Error('Network error. Please check your internet connection.');
     }
 
-    // Re-throw other errors
     throw error;
   }
 }
 
-/**
- * GET request helper
- */
-export async function apiGet<T>(endpoint: string, options?: Omit<RequestOptions, 'method' | 'body'>): Promise<T> {
+export async function apiGet<T>(
+  endpoint: string,
+  options?: Omit<RequestOptions, 'method' | 'body'>,
+): Promise<T> {
   return apiRequest<T>(endpoint, {...options, method: 'GET'});
 }
 
-/**
- * POST request helper
- */
 export async function apiPost<T>(
   endpoint: string,
   body?: any,
@@ -156,9 +127,6 @@ export async function apiPost<T>(
   return apiRequest<T>(endpoint, {...options, method: 'POST', body});
 }
 
-/**
- * PUT request helper
- */
 export async function apiPut<T>(
   endpoint: string,
   body?: any,
@@ -167,9 +135,6 @@ export async function apiPut<T>(
   return apiRequest<T>(endpoint, {...options, method: 'PUT', body});
 }
 
-/**
- * DELETE request helper
- */
 export async function apiDelete<T>(
   endpoint: string,
   options?: Omit<RequestOptions, 'method' | 'body'>,

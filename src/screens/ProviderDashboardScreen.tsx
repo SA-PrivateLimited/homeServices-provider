@@ -19,9 +19,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
+import {getUserId} from '../services/session';
 import {
   setProviderOnline,
   getProviderStatus,
@@ -38,9 +38,9 @@ import {createJobCard} from '../services/jobCardService';
 import useTranslation from '../hooks/useTranslation';
 
 export default function ProviderDashboardScreen({navigation}: any) {
-  const {isDarkMode} = useStore();
+  const {isDarkMode, currentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const currentUser = auth().currentUser;
+  const userId = getUserId(currentUser);
   const {t} = useTranslation();
 
   const [isOnline, setIsOnline] = useState(false);
@@ -77,7 +77,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
   // Load provider status from API
   const loadProviderStatus = useCallback(async () => {
-    if (!currentUser?.uid) return;
+    if (!userId) return;
 
     try {
       const provider = await getMyProfile();
@@ -89,10 +89,10 @@ export default function ProviderDashboardScreen({navigation}: any) {
     } catch (error) {
       console.error('Error loading provider status:', error);
     }
-  }, [currentUser?.uid]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!currentUser?.uid) {
+    if (!userId) {
       return;
     }
 
@@ -131,7 +131,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
     if (isOnline) {
       console.log('🟢 [DASHBOARD] Provider already online, connecting WebSocket after callback registration');
       console.log('📋 [DASHBOARD] Callbacks count before connect:', callbackCount);
-      websocketService.connect(currentUser.uid);
+      websocketService.connect(userId);
     }
 
     return () => {
@@ -140,12 +140,12 @@ export default function ProviderDashboardScreen({navigation}: any) {
         locationTracking();
       }
     };
-  }, [currentUser]);
+  }, [userId]);
 
   // Start/stop location tracking and WebSocket based on online status
   // Only run when isOnline changes, not on initial mount if status hasn't changed
   useEffect(() => {
-    if (!currentUser?.uid) {
+    if (!userId) {
       return;
     }
 
@@ -161,7 +161,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
     }
 
     if (isOnline) {
-      console.log('🟢 [DASHBOARD] Provider going online, connecting WebSocket with UID:', currentUser.uid);
+      console.log('🟢 [DASHBOARD] Provider going online, connecting WebSocket with UID:', userId);
       
       // Verify callback is registered before connecting
       const callbackCount = websocketService.getBookingCallbacksCount?.() || 0;
@@ -174,17 +174,17 @@ export default function ProviderDashboardScreen({navigation}: any) {
           const newCallbackCount = websocketService.getBookingCallbacksCount?.() || 0;
           if (newCallbackCount > 0) {
             console.log('✅ [DASHBOARD] Callback registered, connecting WebSocket now');
-            websocketService.connect(currentUser.uid);
+            websocketService.connect(userId);
           } else {
             console.error('❌ [DASHBOARD] Still no callbacks after wait! WebSocket may not receive bookings!');
             // Connect anyway - callback might register later
-            websocketService.connect(currentUser.uid);
+            websocketService.connect(userId);
           }
         }, 500);
       } else {
         // Callback is registered, safe to connect
         console.log('✅ [DASHBOARD] Callback registered, connecting WebSocket...');
-        websocketService.connect(currentUser.uid);
+        websocketService.connect(userId);
       }
       
       // Start location tracking when going online
@@ -218,7 +218,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
       // Don't disconnect WebSocket on cleanup - let it stay connected while online
       // websocketService.disconnect();
     };
-  }, [isOnline, currentUser?.uid]);
+  }, [isOnline, userId]);
 
   // Debug: Log modal visibility (must be before any conditional returns)
   useEffect(() => {
@@ -235,10 +235,10 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
   const loadDashboardData = async () => {
     try {
-      if (!currentUser?.uid) return;
+      if (!userId) return;
 
       // Load provider status
-      const status = await getProviderStatus(currentUser.uid);
+      const status = await getProviderStatus(userId);
       if (status) {
         setIsOnline(status.isOnline);
       }
@@ -251,7 +251,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
       // Wrap in try-catch to handle gracefully if no job cards exist yet
       let jobCards: any[] = [];
       try {
-        jobCards = await getProviderJobCards(currentUser.uid);
+        jobCards = await getProviderJobCards(userId);
       } catch (error: any) {
         console.warn('Could not fetch job cards (may need index or no cards yet):', error.message);
         // Continue with empty array - provider might not have any job cards yet
@@ -320,7 +320,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
   };
 
   const handleAcceptBooking = async () => {
-    if (!incomingBooking || !currentUser) return;
+    if (!incomingBooking || !userId) return;
 
     // Store booking data before clearing state
     const bookingData = incomingBooking;
@@ -345,7 +345,11 @@ export default function ProviderDashboardScreen({navigation}: any) {
       }
 
       // Accept booking with provider profile details
-      await websocketService.acceptBooking(bookingData, currentUser.uid, provider);
+      await websocketService.acceptBooking(
+        bookingData,
+        provider._id || provider.id || userId,
+        provider,
+      );
 
       // Create job card
       const jobCardId = await createJobCard(bookingData, (provider as any).address);

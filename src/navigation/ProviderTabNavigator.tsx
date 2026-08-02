@@ -2,9 +2,9 @@ import React, {useState, useEffect, useCallback} from 'react';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import auth from '@react-native-firebase/auth';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {getMyProfile} from '../services/api/providersApi';
+import {getUserId} from '../services/session';
 
 import ProviderDashboardScreen from '../screens/ProviderDashboardScreen';
 import JobsScreen from '../screens/JobsScreen';
@@ -103,12 +103,13 @@ const JobsHistoryStack = () => {
 export default function ProviderTabNavigator() {
   const navigation = useNavigation();
   const {t} = useTranslation();
+  const {currentUser} = useStore();
+  const userId = getUserId(currentUser);
   const [showProfileSetupModal, setShowProfileSetupModal] = useState(false);
   const [hasCheckedProfile, setHasCheckedProfile] = useState(false);
-  const currentUser = auth().currentUser;
 
   const checkProviderProfile = useCallback(async () => {
-    if (!currentUser) return;
+    if (!userId) return;
 
     try {
       // Use backend API to check provider profile
@@ -120,7 +121,7 @@ export default function ProviderTabNavigator() {
         setHasCheckedProfile(true);
       } else {
         // Profile exists - connect WebSocket for real-time booking notifications
-        const providerId = provider._id || provider.id || currentUser.uid;
+        const providerId = provider._id || provider.id || userId;
         try {
           websocketService.connect(providerId);
           console.log('WebSocket connected for provider:', providerId);
@@ -137,11 +138,11 @@ export default function ProviderTabNavigator() {
       // This prevents blocking the user if API is temporarily unavailable
       setHasCheckedProfile(true);
     }
-  }, [currentUser]);
+  }, [userId]);
 
   useEffect(() => {
     // Check if provider has set up their profile
-    if (!currentUser || hasCheckedProfile) return;
+    if (!userId || hasCheckedProfile) return;
 
     checkProviderProfile();
 
@@ -149,12 +150,12 @@ export default function ProviderTabNavigator() {
     return () => {
       websocketService.disconnect();
     };
-  }, [currentUser, hasCheckedProfile, checkProviderProfile]);
+  }, [userId, hasCheckedProfile, checkProviderProfile]);
 
   // Re-check profile when screen comes into focus (e.g., after returning from profile setup)
   useFocusEffect(
     useCallback(() => {
-      if (currentUser) {
+      if (userId) {
         // Reset check flag to allow re-checking when screen comes into focus
         setHasCheckedProfile(false);
         // Small delay to ensure state update is processed
@@ -162,7 +163,7 @@ export default function ProviderTabNavigator() {
           checkProviderProfile();
         }, 100);
       }
-    }, [currentUser, checkProviderProfile])
+    }, [userId, checkProviderProfile])
   );
 
   const handleSetupNow = () => {

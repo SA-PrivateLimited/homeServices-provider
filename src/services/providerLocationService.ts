@@ -5,9 +5,9 @@
  */
 
 import database from '@react-native-firebase/database';
-import auth from '@react-native-firebase/auth';
 import GeolocationService from './geolocationService';
 import {getMyProfile, updateMyProfile} from './api/providersApi';
+import {getUserId, requireSessionUser} from './session';
 
 export interface ProviderLocation {
   latitude: number;
@@ -74,12 +74,13 @@ export const calculateETA = (distanceKm: number): number => {
  */
 export const setProviderOnline = async (isOnline: boolean): Promise<void> => {
   try {
-    const currentUser = auth().currentUser;
-    if (!currentUser) {
+    await requireSessionUser();
+
+    const provider = await getMyProfile();
+    const providerId = getUserId(provider) || getUserId(await requireSessionUser());
+    if (!providerId) {
       throw new Error('User not authenticated');
     }
-
-    const providerId = currentUser.uid;
 
     // Update via backend API
     await updateMyProfile({
@@ -89,13 +90,17 @@ export const setProviderOnline = async (isOnline: boolean): Promise<void> => {
     } as any);
 
     // Update in Realtime Database for real-time status
-    await database()
-      .ref(`providers/${providerId}/status`)
-      .set({
-        isOnline,
-        isAvailable: isOnline, // When going online, also set as available
-        lastSeen: Date.now(),
-      });
+    try {
+      await database()
+        .ref(`providers/${providerId}/status`)
+        .set({
+          isOnline,
+          isAvailable: isOnline, // When going online, also set as available
+          lastSeen: Date.now(),
+        });
+    } catch (rtError) {
+      console.warn('Realtime DB status update failed (JWT path may skip Firebase):', rtError);
+    }
 
     console.log(`Provider ${isOnline ? 'online' : 'offline'}`);
   } catch (error: any) {
@@ -110,10 +115,7 @@ export const setProviderOnline = async (isOnline: boolean): Promise<void> => {
  */
 export const updateProviderLocation = async (): Promise<void> => {
   try {
-    const currentUser = auth().currentUser;
-    if (!currentUser) {
-      throw new Error('User not authenticated');
-    }
+    await requireSessionUser();
 
     // Check if provider is online via API
     const provider = await getMyProfile();
@@ -154,6 +156,7 @@ export const updateProviderLocation = async (): Promise<void> => {
 
     // Update via backend API
     // Use updateProviderStatus endpoint for location updates to avoid database connection issues
+    const providerId = getUserId(provider);
     try {
       await updateMyProfile({
         currentLocation: {
@@ -180,9 +183,15 @@ export const updateProviderLocation = async (): Promise<void> => {
     }
 
     // Update in Realtime Database for real-time tracking
-    await database()
-      .ref(`providers/${currentUser.uid}/location`)
-      .set(providerLocation);
+    if (providerId) {
+      try {
+        await database()
+          .ref(`providers/${providerId}/location`)
+          .set(providerLocation);
+      } catch (rtError) {
+        console.warn('Realtime DB location update failed:', rtError);
+      }
+    }
 
     console.log('Provider location updated:', providerLocation);
   } catch (error: any) {
@@ -191,15 +200,6 @@ export const updateProviderLocation = async (): Promise<void> => {
     // Don't throw database connection errors - they're non-critical for location tracking
     if (errorMessage.includes('Database not connected') || errorMessage.includes('connectDB')) {
       console.warn('⚠️ Database connection issue when updating location (non-critical):', errorMessage);
-      // Still update Firebase Realtime Database even if backend API fails
-      try {
-        await database()
-          .ref(`providers/${currentUser.uid}/location`)
-          .set(providerLocation);
-        console.log('✅ Location updated in Firebase Realtime Database (backend API failed)');
-      } catch (rtdbError) {
-        console.warn('⚠️ Failed to update Firebase Realtime Database:', rtdbError);
-      }
       return; // Exit gracefully without throwing
     }
     

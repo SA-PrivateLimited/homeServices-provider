@@ -1,4 +1,9 @@
-import React, {useState} from 'react';
+/**
+ * Provider login — phone + OTP (new) / PIN (returning), same pattern as customer.
+ * New providers start as approvalStatus=pending until admin approves.
+ */
+
+import React, {useEffect, useState} from 'react';
 import {
   View,
   Text,
@@ -12,28 +17,69 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {useStore} from '../store';
-import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
-import authService from '../services/authService';
+import {lightTheme, darkTheme} from '../utils/theme';
+import {
+  lookupPhone,
+  loginPin,
+  registerWithOtp,
+  resetPin,
+  sendPhoneOtp,
+} from '../services/api/phoneAuthApi';
+import {
+  getRememberedPhone,
+  normalizeUser,
+  rememberPhone,
+  setSession,
+  clearAllCredentials,
+} from '../services/session';
 import CountryCodePicker from '../components/CountryCodePicker';
+import PinBoxesInput from '../components/PinBoxesInput';
 import {DEFAULT_COUNTRY_CODE, CountryCode} from '../utils/countryCodes';
 import AlertModal from '../components/AlertModal';
 import useTranslation from '../hooks/useTranslation';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import {Banner} from 'sapvt-ltd-app-packages';
 
 interface LoginScreenProps {
   navigation: any;
 }
 
+type Step = 'phone' | 'pin' | 'otp' | 'showPin';
+type OtpMode = 'signup' | 'forgot';
+
+type OtpBanner = {
+  otp: string;
+  phone: string;
+  expiresAt: number;
+};
+
+function formatMmSs(totalSeconds: number): string {
+  const s = Math.max(0, totalSeconds);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, '0')}`;
+}
+
 const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
-  const {t} = useTranslation();
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [confirmResult, setConfirmResult] = useState<any>(null);
+  const [pin, setPin] = useState('');
+  const [otp, setOtp] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [createdPin, setCreatedPin] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>('phone');
+  const [otpMode, setOtpMode] = useState<OtpMode>('signup');
   const [loading, setLoading] = useState(false);
-  const [selectedCountry, setSelectedCountry] = useState<CountryCode>(DEFAULT_COUNTRY_CODE);
+  const [booting, setBooting] = useState(true);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [selectedCountry, setSelectedCountry] =
+    useState<CountryCode>(DEFAULT_COUNTRY_CODE);
+  const [otpBanner, setOtpBanner] = useState<OtpBanner | null>(null);
+  const [otpSecondsLeft, setOtpSecondsLeft] = useState(0);
+  const [approvalNote, setApprovalNote] = useState<string | null>(null);
 
   const {isDarkMode, setCurrentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const {t} = useTranslation();
 
   const [alertModal, setAlertModal] = useState<{
     visible: boolean;
@@ -47,45 +93,201 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     type: 'info',
   });
 
-  const handleSendPhoneCode = async () => {
-    if (!phoneNumber.trim()) {
-      setAlertModal({
-        visible: true,
-        title: t('common.error'),
-        message: t('auth.pleaseEnterPhoneNumber'),
-        type: 'error',
-      });
+  const fullPhone = () =>
+    selectedCountry.dialCode + phoneNumber.replace(/\D/g, '');
+
+  const applyOtpFromResponse = (result: {
+    otp?: string;
+    expiresAt?: string;
+    expiresInSeconds?: number;
+    phoneNumber?: string;
+  }) => {
+    if (!result?.otp) {
+      setOtpBanner(null);
+      setOtpSecondsLeft(0);
       return;
     }
+    const expiresAt = result.expiresAt
+      ? Date.parse(result.expiresAt)
+      : Date.now() + (result.expiresInSeconds || 300) * 1000;
+    setOtpBanner({
+      otp: result.otp,
+      phone: result.phoneNumber || fullPhone(),
+      expiresAt,
+    });
+    setOtpSecondsLeft(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
+    setOtp(result.otp);
+  };
 
-    // Validate phone number length (minimum 10 digits for India)
+  useEffect(() => {
+    if (!otpBanner) {
+      setOtpSecondsLeft(0);
+      return;
+    }
+    const tick = () => {
+      const left = Math.max(
+        0,
+        Math.ceil((otpBanner.expiresAt - Date.now()) / 1000),
+      );
+      setOtpSecondsLeft(left);
+      if (left <= 0) setOtpBanner(null);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [otpBanner]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadRemembered = async () => {
+      try {
+        const remembered = await getRememberedPhone();
+        if (!mounted || !remembered) return;
+        setPhoneNumber(remembered.phoneLocal);
+        setSelectedCountry(prev => ({
+          ...prev,
+          dialCode: remembered.dialCode || prev.dialCode,
+        }));
+        setStep('pin');
+      } finally {
+        if (mounted) setBooting(false);
+      }
+    };
+    void loadRemembered();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const goMain = () => {
+    navigation.reset({
+      index: 0,
+      routes: [{name: 'ProviderMain'}],
+    });
+  };
+
+  const applySession = async (token: string, userRaw: any) => {
+    const user = normalizeUser({
+      ...userRaw,
+      role: 'provider',
+      phoneVerified: true,
+    });
+    await setSession(token, user);
+    await rememberPhone(
+      phoneNumber.replace(/\D/g, '').slice(-10),
+      selectedCountry.dialCode,
+    );
+    await setCurrentUser(user);
+    if (user.approvalStatus && user.approvalStatus !== 'approved') {
+      setApprovalNote(
+        t('auth.pendingApprovalHint') ||
+          'Your profile is pending admin approval. Customers will see you after approval.',
+      );
+    } else {
+      setApprovalNote(null);
+    }
+  };
+
+  const handleContinuePhone = async () => {
     const numericPhone = phoneNumber.replace(/\D/g, '');
-    if (numericPhone.length < 10) {
+    if (numericPhone.length !== 10) {
       setAlertModal({
         visible: true,
         title: t('common.error'),
-        message: t('auth.pleaseEnterValid10DigitPhone'),
+        message:
+          t('auth.pleaseEnterValid10DigitPhone') ||
+          t('auth.pleaseEnterValidPhone'),
         type: 'error',
       });
       return;
     }
-
-    // Combine country code with phone number (E.164 format)
-    const fullPhoneNumber = selectedCountry.dialCode + numericPhone;
 
     setLoading(true);
+    setInlineError(null);
     try {
-      console.log('Attempting to send code to:', fullPhoneNumber);
-      const result = await authService.sendPhoneVerificationCode(fullPhoneNumber);
-      setConfirmResult(result);
+      const lookup = await lookupPhone(fullPhone());
+      await rememberPhone(numericPhone, selectedCountry.dialCode);
+      setPin('');
+      setOtp('');
+      setNewPin('');
+
+      if (lookup.exists && lookup.roleMatch === false) {
+        setAlertModal({
+          visible: true,
+          title: t('common.error'),
+          message:
+            t('auth.numberRegisteredAsCustomer') ||
+            'This number is registered as a customer. Use a different number for the provider app.',
+          type: 'error',
+        });
+        return;
+      }
+
+      if (lookup.exists && lookup.hasPin && lookup.roleMatch !== false) {
+        setStep('pin');
+        return;
+      }
+
+      const result = await sendPhoneOtp(fullPhone());
+      setOtpMode('signup');
+      setStep('otp');
+      applyOtpFromResponse(result);
+    } catch (error: any) {
       setAlertModal({
         visible: true,
-        title: t('common.success'),
-        message: t('auth.verificationCodeSent'),
-        type: 'success',
+        title: t('common.error'),
+        message: error.message || t('auth.loginError'),
+        type: 'error',
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const finishWithPinReveal = async (
+    token: string,
+    user: any,
+    revealedPin?: string,
+  ) => {
+    await applySession(token, user);
+    if (revealedPin) {
+      setCreatedPin(revealedPin);
+      setStep('showPin');
+    } else {
+      goMain();
+    }
+  };
+
+  const handleLoginWithPin = async () => {
+    if (!/^\d{6}$/.test(pin.trim())) {
+      setInlineError(t('auth.pinMustBeSixDigits') || 'PIN must be 6 digits');
+      return;
+    }
+    setLoading(true);
+    setInlineError(null);
+    try {
+      const result = await loginPin(fullPhone(), pin.trim());
+      await applySession(result.token, result.user);
+      goMain();
     } catch (error: any) {
-      console.error('Error sending verification code:', error);
+      setInlineError(error.message || t('auth.incorrectPin') || 'Incorrect PIN');
+      setPin('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPin = async () => {
+    setLoading(true);
+    setInlineError(null);
+    setOtp('');
+    setNewPin('');
+    try {
+      const result = await sendPhoneOtp(fullPhone());
+      setOtpMode('forgot');
+      setStep('otp');
+      applyOtpFromResponse(result);
+    } catch (error: any) {
       setAlertModal({
         visible: true,
         title: t('common.error'),
@@ -97,146 +299,101 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     }
   };
 
-  const handleVerifyPhoneCode = async () => {
-    if (!verificationCode.trim()) {
-      setAlertModal({
-        visible: true,
-        title: t('common.error'),
-        message: t('auth.pleaseEnterVerificationCode'),
-        type: 'error',
-      });
-      return;
-    }
-
-    if (!confirmResult) {
-      setAlertModal({
-        visible: true,
-        title: t('common.error'),
-        message: t('auth.pleaseRequestCodeFirst'),
-        type: 'error',
-      });
-      return;
-    }
-
+  const handleResendOtp = async () => {
     setLoading(true);
+    setInlineError(null);
     try {
-      console.log('🔐 [LOGIN] Verifying code for provider login...');
-      const user = await authService.verifyPhoneCode(
-        confirmResult,
-        verificationCode,
-        'Provider', // Default name for phone login
+      const result = await sendPhoneOtp(fullPhone());
+      applyOtpFromResponse(result);
+    } catch (error: any) {
+      setInlineError(error.message || t('auth.failedToSendCode'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtpAndSetPin = async () => {
+    if (!otp.trim()) {
+      setInlineError(t('auth.pleaseEnterCode') || 'Enter OTP');
+      return;
+    }
+    if (!/^\d{6}$/.test(newPin.trim())) {
+      setInlineError(t('auth.pinMustBeSixDigits') || 'PIN must be 6 digits');
+      return;
+    }
+    setLoading(true);
+    setInlineError(null);
+    try {
+      const result =
+        otpMode === 'signup'
+          ? await registerWithOtp(fullPhone(), otp.trim(), newPin.trim())
+          : await resetPin(fullPhone(), otp.trim(), newPin.trim());
+      await finishWithPinReveal(
+        result.token,
+        result.user,
+        result.pin || newPin.trim(),
       );
-
-      console.log('✅ [LOGIN] Code verified, setting up provider user...');
-      // Set role as 'provider' for HomeServicesProvider app
-      const userWithRole = {
-        ...user,
-        role: 'provider' as const,
-      };
-
-      // Update user role in Firestore if needed
-      if (user.role !== 'provider') {
-        try {
-          console.log('📝 [LOGIN] Updating user role to provider...');
-          await authService.updateUserRole(user.id, 'provider');
-          userWithRole.role = 'provider';
-        } catch (error) {
-          // Role update failed, but continue with login
-          console.warn('⚠️ [LOGIN] Failed to update user role:', error);
-        }
-      }
-
-      console.log('✅ [LOGIN] Setting current user and navigating...');
-      setCurrentUser(userWithRole);
-      
-      // Check if phone is verified
-      if (userWithRole.phoneVerified !== true) {
-        console.log('⚠️ [LOGIN] Phone not verified, redirecting to PhoneVerification...');
-        navigation.reset({
-          index: 0,
-          routes: [{name: 'PhoneVerification'}],
-        });
-      } else {
-        console.log('✅ [LOGIN] Phone verified, navigating to ProviderMain...');
-        navigation.reset({
-          index: 0,
-          routes: [{name: 'ProviderMain'}],
-        });
-      }
+      setOtpBanner(null);
     } catch (error: any) {
-      console.error('❌ [LOGIN] Verification failed:', error);
-
-      // Provide more helpful error messages
-      let errorMessage = error.message || t('auth.failedToVerifyCode');
-
-      if (error.message?.includes('Connection reset') || error.message?.includes('Connection error')) {
-        errorMessage = t('auth.networkConnectionError');
-      } else if (error.message?.includes('timeout')) {
-        errorMessage = t('auth.requestTimeout');
-      }
-
-      setAlertModal({
-        visible: true,
-        title: t('common.error'),
-        message: errorMessage,
-        type: 'error',
-      });
+      setInlineError(error.message || t('auth.failedToVerifyCode'));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setLoading(true);
-    try {
-      const user = await authService.signInWithGoogle();
+  const handleUseAnotherNumber = async () => {
+    await clearAllCredentials();
+    setCurrentUser(null);
+    setPhoneNumber('');
+    setPin('');
+    setOtp('');
+    setNewPin('');
+    setCreatedPin(null);
+    setInlineError(null);
+    setOtpBanner(null);
+    setApprovalNote(null);
+    setOtpMode('signup');
+    setStep('phone');
+  };
 
-      // Set role as 'provider' for HomeServicesProvider app
-      const userWithRole = {
-        ...user,
-        role: 'provider' as const,
-      };
-
-      // Update user role in Firestore if needed
-      if (user.role !== 'provider') {
-        try {
-          await authService.updateUserRole(user.id, 'provider');
-          userWithRole.role = 'provider';
-        } catch (error) {
-          // Role update failed, but continue with login
-          console.warn('Failed to update user role:', error);
-        }
-      }
-
-      setCurrentUser(userWithRole);
-      
-      // Check if phone is verified
-      if (userWithRole.phoneVerified !== true) {
-        navigation.reset({
-          index: 0,
-          routes: [{name: 'PhoneVerification'}],
-        });
-      } else {
-        navigation.reset({
-          index: 0,
-          routes: [{name: 'ProviderMain'}],
-        });
-      }
-    } catch (error: any) {
-      if (error.message?.includes('cancelled')) {
-        // User cancelled, don't show error
-        return;
-      }
-      setAlertModal({
-        visible: true,
-        title: t('common.error'),
-        message: error.message || t('auth.failedToSignInWithGoogle'),
-        type: 'error',
-      });
-    } finally {
-      setLoading(false);
+  const subtitleForStep = () => {
+    switch (step) {
+      case 'showPin':
+        return (
+          t('auth.saveYourPinLead') ||
+          'Save this 6-digit PIN. You will use it with this number.'
+        );
+      case 'pin':
+        return (
+          t('auth.enterPinLead') ||
+          'Enter your 6-digit PIN to sign in as a provider.'
+        );
+      case 'otp':
+        return otpMode === 'signup'
+          ? t('auth.signupOtpLead') ||
+              'Verify this number with OTP, then set your own 6-digit PIN.'
+          : t('auth.enterOtpLead') ||
+              'Enter the OTP, then choose your new 6-digit PIN.';
+      default:
+        return (
+          t('auth.providerLoginLead') ||
+          'Enter your mobile number. New providers need OTP + PIN. You appear to customers only after admin approval.'
+        );
     }
   };
+
+  if (booting) {
+    return (
+      <View
+        style={[
+          styles.container,
+          styles.boot,
+          {backgroundColor: theme.background},
+        ]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -245,311 +402,386 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled">
-        {/* Language Switcher */}
-        <View style={styles.languageSwitcherContainer}>
+        <View style={styles.topRow}>
+          <View style={styles.backButton} />
           <LanguageSwitcher compact />
         </View>
-        
-        {/* Header */}
+
+        {otpBanner && otpSecondsLeft > 0 ? (
+          <Banner
+            variant="info"
+            title={
+              t('auth.otpBannerTitle', {phone: otpBanner.phone}) ||
+              `OTP for ${otpBanner.phone}`
+            }
+            detail={
+              t('auth.otpExpiresIn', {
+                time: formatMmSs(otpSecondsLeft),
+              }) || `Expires in ${formatMmSs(otpSecondsLeft)}`
+            }
+            meta={otpBanner.otp}
+            onDismiss={() => setOtpBanner(null)}
+          />
+        ) : null}
+
         <View style={styles.header}>
-          <Icon name="construct" size={60} color={theme.primary} />
-          <Text style={[styles.title, {color: theme.text}]}>{t('auth.appTitle')}</Text>
+          <Icon name="construct-outline" size={56} color={theme.primary} />
+          <Text style={[styles.title, {color: theme.text}]}>
+            HomeServices Provider
+          </Text>
           <Text style={[styles.subtitle, {color: theme.textSecondary}]}>
-            {t('auth.loginSubtitle')}
+            {subtitleForStep()}
           </Text>
         </View>
 
-        {/* Phone Login Form */}
+        {step === 'phone' ? (
           <View style={styles.form}>
-            {!confirmResult ? (
-              <>
-                <View style={styles.phoneInputRow}>
-                  <CountryCodePicker
-                    selectedCountry={selectedCountry}
-                    onSelect={setSelectedCountry}
-                  />
-                  <View
-                    style={[
-                      styles.inputContainer,
-                      {
-                        backgroundColor: theme.card,
-                        borderColor: theme.border,
-                        flex: 1,
-                      },
-                    ]}>
-                    <TextInput
-                      style={[styles.input, {color: theme.text}]}
-                      placeholder={t('auth.phonePlaceholder')}
-                      placeholderTextColor={theme.textSecondary}
-                      value={phoneNumber}
-                      onChangeText={(text) => {
-                        // Remove non-numeric characters
-                        const numericText = text.replace(/\D/g, '');
-                        setPhoneNumber(numericText);
-                      }}
-                      keyboardType="phone-pad"
-                      editable={!loading}
-                    />
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.button,
-                    {backgroundColor: theme.primary},
-                    loading && styles.buttonDisabled,
-                  ]}
-                  onPress={handleSendPhoneCode}
-                  disabled={loading}>
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.buttonText}>{t('auth.sendCode')}</Text>
-                  )}
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <View style={styles.phoneNumberDisplay}>
-                  <Text style={[styles.phoneNumberText, {color: theme.textSecondary}]}>
-                    {t('auth.codeSentTo', {dialCode: selectedCountry.dialCode, phone: phoneNumber})}
-                  </Text>
-                </View>
-
-                <View
-                  style={[
-                    styles.inputContainer,
-                    {
-                      backgroundColor: theme.card,
-                      borderColor: theme.border,
-                    },
-                  ]}>
-                  <Icon
-                    name="keypad-outline"
-                    size={20}
-                    color={theme.textSecondary}
-                  />
-                  <TextInput
-                    style={[styles.input, {color: theme.text}]}
-                    placeholder={t('auth.enterVerificationCode')}
-                    placeholderTextColor={theme.textSecondary}
-                    value={verificationCode}
-                    onChangeText={(text) => {
-                      // Only allow numeric input, max 6 digits
-                      const numericText = text.replace(/\D/g, '').slice(0, 6);
-                      setVerificationCode(numericText);
-                    }}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    editable={!loading}
-                    autoFocus
-                  />
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.button,
-                    {
-                      backgroundColor: theme.primary,
-                      opacity: verificationCode.length === 6 && !loading ? 1 : 0.6,
-                    },
-                    loading && styles.buttonDisabled,
-                  ]}
-                  onPress={handleVerifyPhoneCode}
-                  disabled={loading || verificationCode.length !== 6}>
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.buttonText}>{t('auth.verifyCode')}</Text>
-                  )}
-                </TouchableOpacity>
-
-                <View style={styles.actionButtonsRow}>
-                  <TouchableOpacity
-                    style={styles.changeNumberButton}
-                    onPress={() => {
-                      setConfirmResult(null);
-                      setVerificationCode('');
-                      setPhoneNumber('');
-                    }}
-                    disabled={loading}>
-                    <Icon name="arrow-back" size={16} color={theme.primary} />
-                    <Text style={[styles.changeNumberText, {color: theme.primary}]}>
-                      {t('auth.changeNumber')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.resendButton}
-                  onPress={handleSendPhoneCode}
-                  disabled={loading}>
-                  <Text style={[styles.resendText, {color: theme.primary}]}>
-                    {t('auth.resendCode')}
-                  </Text>
-                </TouchableOpacity>
-                </View>
-              </>
-            )}
+            <View style={styles.phoneInputRow}>
+              <CountryCodePicker
+                selectedCountry={selectedCountry}
+                onSelect={setSelectedCountry}
+              />
+              <View
+                style={[
+                  styles.phoneInputContainer,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.border,
+                    flex: 1,
+                  },
+                ]}>
+                <TextInput
+                  style={[styles.input, {color: theme.text}]}
+                  placeholder={t('auth.phonePlaceholder') || '9876543210'}
+                  placeholderTextColor={theme.textSecondary}
+                  value={phoneNumber}
+                  onChangeText={text =>
+                    setPhoneNumber(text.replace(/\D/g, '').slice(0, 10))
+                  }
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  editable={!loading}
+                />
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.button,
+                {backgroundColor: theme.primary},
+                loading && styles.buttonDisabled,
+              ]}
+              onPress={() => void handleContinuePhone()}
+              disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {t('auth.continue') || 'Continue'}
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
+        ) : null}
 
-        {/* Divider */}
-          <View style={styles.dividerContainer}>
-            <View style={[styles.divider, {backgroundColor: theme.border}]} />
-            <Text style={[styles.dividerText, {color: theme.textSecondary}]}>
-              {t('auth.or')}
+        {step === 'pin' ? (
+          <View style={styles.form}>
+            <Text style={[styles.codeHint, {color: theme.textSecondary}]}>
+              {t('auth.enterPinFor', {phone: fullPhone()}) ||
+                `Enter PIN for ${fullPhone()}`}
             </Text>
-            <View style={[styles.divider, {backgroundColor: theme.border}]} />
+            <PinBoxesInput
+              value={pin}
+              onChange={text => {
+                setPin(text);
+                setInlineError(null);
+              }}
+              editable={!loading}
+              autoFocus
+              secure={false}
+              cellBackground={theme.card}
+              cellBorder={theme.border}
+              textColor={theme.text}
+              focusedBorder={theme.primary}
+            />
+            {inlineError ? (
+              <Text style={styles.inlineError}>{inlineError}</Text>
+            ) : null}
+            <TouchableOpacity
+              style={[
+                styles.button,
+                {backgroundColor: theme.primary},
+                loading && styles.buttonDisabled,
+              ]}
+              onPress={() => void handleLoginWithPin()}
+              disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>{t('auth.login') || 'Login'}</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.linkBtn}
+              onPress={() => void handleForgotPin()}
+              disabled={loading}>
+              <Text style={[styles.linkText, {color: theme.primary}]}>
+                {t('auth.forgotPin') || 'Forgot PIN?'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.linkBtn}
+              onPress={() => void handleUseAnotherNumber()}
+              disabled={loading}>
+              <Text style={[styles.linkText, {color: theme.textSecondary}]}>
+                {t('auth.useAnotherNumber') || 'Use another number'}
+              </Text>
+            </TouchableOpacity>
           </View>
+        ) : null}
 
-        {/* Google Sign-In */}
-          <TouchableOpacity
-            style={[
-              styles.googleButton,
-              {backgroundColor: theme.card, borderColor: theme.border},
-              loading && styles.buttonDisabled,
-            ]}
-            onPress={handleGoogleSignIn}
-            disabled={loading}>
-            <Icon name="logo-google" size={20} color="#DB4437" />
-            <Text style={[styles.googleButtonText, {color: theme.text}]}>
-              {t('auth.continueWithGoogle')}
-          </Text>
-        </TouchableOpacity>
+        {step === 'otp' ? (
+          <View style={styles.form}>
+            <Text style={[styles.codeHint, {color: theme.textSecondary}]}>
+              {t('auth.codeSentHint', {phone: fullPhone()}) ||
+                `Enter OTP for ${fullPhone()}`}
+            </Text>
+            <View
+              style={[
+                styles.inputContainer,
+                {backgroundColor: theme.card, borderColor: theme.border},
+              ]}>
+              <Icon
+                name="chatbubble-ellipses-outline"
+                size={20}
+                color={theme.textSecondary}
+              />
+              <TextInput
+                style={[styles.input, {color: theme.text, letterSpacing: 4}]}
+                placeholder={t('auth.verificationCode') || 'OTP'}
+                placeholderTextColor={theme.textSecondary}
+                value={otp}
+                onChangeText={text => {
+                  setOtp(text.replace(/\D/g, '').slice(0, 8));
+                  setInlineError(null);
+                }}
+                keyboardType="number-pad"
+                maxLength={8}
+                editable={!loading}
+                autoFocus
+              />
+            </View>
+            <Text style={[styles.pinLabel, {color: theme.textSecondary}]}>
+              {t('auth.chooseSixDigitPin') || 'Choose your 6-digit PIN'}
+            </Text>
+            <PinBoxesInput
+              value={newPin}
+              onChange={text => {
+                setNewPin(text);
+                setInlineError(null);
+              }}
+              editable={!loading}
+              secure={false}
+              cellBackground={theme.card}
+              cellBorder={theme.border}
+              textColor={theme.text}
+              focusedBorder={theme.primary}
+            />
+            {inlineError ? (
+              <Text style={styles.inlineError}>{inlineError}</Text>
+            ) : null}
+            <TouchableOpacity
+              style={[
+                styles.button,
+                {backgroundColor: theme.primary},
+                loading && styles.buttonDisabled,
+              ]}
+              onPress={() => void handleVerifyOtpAndSetPin()}
+              disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {otpMode === 'signup'
+                    ? t('auth.verifyAndCreateAccount') ||
+                      'Verify & create account'
+                    : t('auth.verifyOtpAndSetPin') || 'Verify & set PIN'}
+                </Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.linkBtn}
+              onPress={() => void handleResendOtp()}
+              disabled={loading}>
+              <Text style={[styles.linkText, {color: theme.primary}]}>
+                {t('auth.resendOtp') || 'Resend OTP'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.linkBtn}
+              onPress={() => {
+                if (otpMode === 'forgot') {
+                  setStep('pin');
+                  setInlineError(null);
+                  setOtp('');
+                  setNewPin('');
+                  setOtpBanner(null);
+                } else {
+                  void handleUseAnotherNumber();
+                }
+              }}
+              disabled={loading}>
+              <Text style={[styles.linkText, {color: theme.textSecondary}]}>
+                {otpMode === 'forgot'
+                  ? t('auth.backToPin') || 'Back to PIN'
+                  : t('auth.useAnotherNumber') || 'Use another number'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {step === 'showPin' && createdPin ? (
+          <View style={styles.form}>
+            <View
+              style={[
+                styles.pinReveal,
+                {backgroundColor: theme.card, borderColor: theme.primary},
+              ]}>
+              <Text style={[styles.pinLabel, {color: theme.textSecondary}]}>
+                {t('auth.yourPin') || 'Your PIN'}
+              </Text>
+              <Text style={[styles.pinValue, {color: theme.text}]}>
+                {createdPin}
+              </Text>
+            </View>
+            {approvalNote ? (
+              <Text style={[styles.approvalNote, {color: theme.textSecondary}]}>
+                {approvalNote}
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.button, {backgroundColor: theme.primary}]}
+              onPress={goMain}>
+              <Text style={styles.buttonText}>
+                {t('auth.continue') || 'Continue'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </ScrollView>
 
-      {/* Alert Modal */}
       <AlertModal
         visible={alertModal.visible}
         title={alertModal.title}
         message={alertModal.message}
         type={alertModal.type}
-        onClose={() => setAlertModal({...alertModal, visible: false})}
+        onClose={() =>
+          setAlertModal({visible: false, title: '', message: '', type: 'info'})
+        }
       />
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    padding: 20,
-    justifyContent: 'center',
-  },
-  languageSwitcherContainer: {
-    alignItems: 'flex-end',
-    marginBottom: 20,
-    marginTop: 20,
-  },
-  header: {
+  container: {flex: 1},
+  boot: {justifyContent: 'center', alignItems: 'center'},
+  scrollContent: {flexGrow: 1, padding: 24, paddingBottom: 40},
+  topRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 40,
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    marginTop: 8,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginTop: 20,
-    marginBottom: 8,
+  backButton: {width: 40, height: 40},
+  otpBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#1B6B4A',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+    gap: 10,
   },
+  otpBannerTitle: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  otpBannerCode: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: 6,
+    marginBottom: 4,
+  },
+  otpBannerExpiry: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  header: {alignItems: 'center', marginBottom: 28},
+  title: {fontSize: 26, fontWeight: 'bold', marginTop: 16, marginBottom: 8},
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 8,
   },
-  form: {
-    marginBottom: 20,
-  },
+  form: {marginBottom: 8},
   phoneInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+    gap: 8,
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 56,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
+    paddingHorizontal: 12,
+    height: 56,
+    marginBottom: 12,
   },
-  input: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
+  input: {flex: 1, marginLeft: 8, fontSize: 16, paddingVertical: 0},
+  codeHint: {fontSize: 14, marginBottom: 12, textAlign: 'center'},
+  pinLabel: {fontSize: 13, marginBottom: 8, fontWeight: '600'},
+  inlineError: {
+    color: '#E53E3E',
+    fontSize: 14,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   button: {
+    height: 52,
     borderRadius: 12,
-    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  phoneNumberDisplay: {
     marginBottom: 12,
+  },
+  buttonDisabled: {opacity: 0.6},
+  buttonText: {color: '#fff', fontSize: 16, fontWeight: '700'},
+  linkBtn: {alignItems: 'center', paddingVertical: 10},
+  linkText: {fontSize: 14, fontWeight: '600'},
+  pinReveal: {
+    borderWidth: 2,
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
+    marginBottom: 16,
   },
-  phoneNumberText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  actionButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  changeNumberButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  changeNumberText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  resendButton: {
-    alignItems: 'center',
-  },
-  resendText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: 14,
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 16,
-    marginBottom: 20,
-  },
-  googleButtonText: {
-    marginLeft: 12,
-    fontSize: 16,
-    fontWeight: '500',
-  },
+  pinValue: {fontSize: 32, fontWeight: '800', letterSpacing: 8, marginTop: 8},
+  approvalNote: {fontSize: 13, textAlign: 'center', marginBottom: 16, lineHeight: 18},
 });
 
 export default LoginScreen;

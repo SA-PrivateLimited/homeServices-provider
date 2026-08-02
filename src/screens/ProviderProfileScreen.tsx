@@ -13,9 +13,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {getMyProfile, updateMyProfile} from '../services/api/providersApi';
+import {getUserId} from '../services/session';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 import ProviderHelpSupportModal from '../components/ProviderHelpSupportModal';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
@@ -53,13 +53,13 @@ export default function ProviderProfileScreen({navigation}: any) {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [providerAddress, setProviderAddress] = useState<any>(null);
   const [savingAddress, setSavingAddress] = useState(false);
-  const currentUser = auth().currentUser;
-  const {currentUser: storeUser, isDarkMode, toggleTheme, language} = useStore();
+  const {currentUser, isDarkMode, toggleTheme, language} = useStore();
+  const userId = getUserId(currentUser);
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
 
   const loadProviderProfile = useCallback(async () => {
-    if (!currentUser) {
+    if (!userId) {
       setLoading(false);
       return;
     }
@@ -128,7 +128,10 @@ export default function ProviderProfileScreen({navigation}: any) {
   const handleConfirmLogout = async () => {
     setShowLogoutModal(false);
     try {
-      await auth().signOut();
+      const {logout} = await import('../services/authService');
+      const {useStore: storeApi} = await import('../store');
+      await logout();
+      await storeApi.getState().setCurrentUser(null);
       // Navigate to Login screen using parent navigator (root stack)
       const parentNavigation = navigation.getParent();
       if (parentNavigation) {
@@ -477,7 +480,7 @@ export default function ProviderProfileScreen({navigation}: any) {
         <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
           {String(t('profile.reviews'))}
         </Text>
-          <ReviewsList providerId={currentUser.uid} showHeader={false} />
+          <ReviewsList providerId={userId || ''} showHeader={false} />
         </View>
       )}
 

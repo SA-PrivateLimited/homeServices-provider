@@ -5,7 +5,6 @@
  */
 
 import database from '@react-native-firebase/database';
-import auth from '@react-native-firebase/auth';
 import storage from '@react-native-firebase/storage';
 import RNFS from 'react-native-fs';
 import fcmNotificationService from './fcmNotificationService';
@@ -71,30 +70,12 @@ export const createJobCard = async (
   },
 ): Promise<string> => {
   try {
-    const currentUser = auth().currentUser;
-    if (!currentUser) {
-      throw new Error('User not authenticated');
-    }
+    const {requireSessionUser, getUserId} = await import('./session');
+    const sessionUser = await requireSessionUser();
 
-    // Get provider details via API - support both phone auth (UID) and Google auth (email)
-    let provider: any = null;
-    let providerId: string = '';
-
-    // Try to find by email first (Google auth)
-    if (currentUser.email) {
-      provider = await providersApi.getByEmail(currentUser.email);
-      if (provider) {
-        providerId = provider._id || provider.id || '';
-      }
-    }
-
-    // If not found by email, try by UID (phone auth)
-    if (!provider) {
-      provider = await providersApi.getByUid(currentUser.uid);
-      if (provider) {
-        providerId = provider._id || provider.id || currentUser.uid;
-      }
-    }
+    // Get provider details via JWT-backed API
+    const provider = await providersApi.getMyProfile();
+    const providerId = getUserId(provider) || '';
 
     if (!provider || !providerId) {
       throw new Error('Provider profile not found. Please complete your profile setup.');
@@ -161,7 +142,7 @@ export const createJobCard = async (
     // Create job card via API
     const jobCardData: CreateJobCardData = {
       providerId,
-      providerName: provider.name || currentUser.displayName || 'Provider',
+      providerName: provider.name || sessionUser.displayName || sessionUser.name || 'Provider',
       providerAddress,
       customerId,
       customerName,
@@ -295,10 +276,8 @@ export const updateJobCardStatus = async (
   status: JobCard['status'],
 ): Promise<void> => {
   try {
-    const currentUser = auth().currentUser;
-    if (!currentUser) {
-      throw new Error('User not authenticated');
-    }
+    const {requireSessionUser, getUserId} = await import('./session');
+    const sessionUser = await requireSessionUser();
 
     // Get job card data via API to get customer info
     const jobCardData = await jobCardsApi.getById(jobCardId);
@@ -313,7 +292,7 @@ export const updateJobCardStatus = async (
     const serviceType = jobCardData.serviceType || 'service';
     const customerPhone = jobCardData.customerPhone;
     const problem = jobCardData.problem;
-    const providerId = jobCardData.providerId || currentUser.uid;
+    const providerId = jobCardData.providerId || getUserId(sessionUser) || '';
 
     // Note: Consultation-related code removed - consultationId is kept for backward compatibility only
 
@@ -565,10 +544,8 @@ export const verifyPINAndCompleteTask = async (
   timeCompleted?: Date,
 ): Promise<void> => {
   try {
-    const currentUser = auth().currentUser;
-    if (!currentUser) {
-      throw new Error('User not authenticated');
-    }
+    const {requireSessionUser} = await import('./session');
+    await requireSessionUser();
 
     // Get job card to verify PIN via API
     const jobCardData = await jobCardsApi.getById(jobCardId);
@@ -657,10 +634,8 @@ export const cancelTaskWithReason = async (
   cancellationReason: string,
 ): Promise<void> => {
   try {
-    const currentUser = auth().currentUser;
-    if (!currentUser) {
-      throw new Error('User not authenticated');
-    }
+    const {requireSessionUser} = await import('./session');
+    await requireSessionUser();
 
     // Get job card data via API
     const jobCardData = await jobCardsApi.getById(jobCardId);
