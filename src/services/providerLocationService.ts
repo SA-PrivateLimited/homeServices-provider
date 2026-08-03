@@ -1,12 +1,15 @@
 /**
  * Provider Location Service
  * Manages provider's online/offline status and real-time location updates
- * Similar to Ola/Uber driver location tracking
+ * Uses backend API (JWT). Firebase RTDB writes are optional and never block the UI.
  */
 
-import database from '@react-native-firebase/database';
 import GeolocationService from './geolocationService';
-import {getMyProfile, updateMyProfile} from './api/providersApi';
+import {
+  getMyProfile,
+  updateMyProfile,
+  updateProviderStatus,
+} from './api/providersApi';
 import {getUserId, requireSessionUser} from './session';
 
 export interface ProviderLocation {
@@ -21,7 +24,7 @@ export interface ProviderLocation {
 
 export interface ProviderStatus {
   isOnline: boolean;
-  isAvailable: boolean; // Available for new requests
+  isAvailable: boolean;
   lastSeen: number;
   currentLocation?: ProviderLocation;
 }
@@ -36,7 +39,7 @@ export const calculateDistance = (
   lat2: number,
   lon2: number,
 ): number => {
-  const R = 6371; // Radius of the Earth in kilometers
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -49,9 +52,6 @@ export const calculateDistance = (
   return R * c;
 };
 
-/**
- * Format distance for display
- */
 export const formatDistance = (distanceKm: number): string => {
   if (distanceKm < 1) {
     return `${Math.round(distanceKm * 1000)}m`;
@@ -59,47 +59,52 @@ export const formatDistance = (distanceKm: number): string => {
   return `${distanceKm.toFixed(1)}km`;
 };
 
-/**
- * Calculate estimated time of arrival (ETA) in minutes
- * Assumes average speed of 30 km/h for local travel
- */
 export const calculateETA = (distanceKm: number): number => {
-  const averageSpeedKmh = 30; // 30 km/h average speed
+  const averageSpeedKmh = 30;
   const timeHours = distanceKm / averageSpeedKmh;
-  return Math.ceil(timeHours * 60); // Convert to minutes
+  return Math.ceil(timeHours * 60);
 };
 
 /**
- * Set provider online status
+ * Set provider online status via backend API (no Firebase auth required).
  */
 export const setProviderOnline = async (isOnline: boolean): Promise<void> => {
   try {
     await requireSessionUser();
 
-    const provider = await getMyProfile();
-    const providerId = getUserId(provider) || getUserId(await requireSessionUser());
-    if (!providerId) {
-      throw new Error('User not authenticated');
+    // Preferred status endpoint
+    try {
+      await updateProviderStatus({
+        isOnline,
+        isAvailable: isOnline,
+      });
+    } catch (statusErr) {
+      // Fallback for older backends
+      await updateMyProfile({
+        isOnline,
+        isAvailable: isOnline,
+        lastSeen: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as any);
     }
 
-    // Update via backend API
-    await updateMyProfile({
-      isOnline,
-      lastSeen: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    } as any);
-
-    // Update in Realtime Database for real-time status
+    // Optional Firebase RTDB mirror — JWT sessions usually lack Firebase auth,
+    // so permission-denied is expected and must not fail the toggle.
     try {
-      await database()
-        .ref(`providers/${providerId}/status`)
-        .set({
-          isOnline,
-          isAvailable: isOnline, // When going online, also set as available
-          lastSeen: Date.now(),
-        });
-    } catch (rtError) {
-      console.warn('Realtime DB status update failed (JWT path may skip Firebase):', rtError);
+      const provider = await getMyProfile();
+      const providerId = getUserId(provider);
+      if (providerId) {
+        const database = require('@react-native-firebase/database').default;
+        await database()
+          .ref(`providers/${providerId}/status`)
+          .set({
+            isOnline,
+            isAvailable: isOnline,
+            lastSeen: Date.now(),
+          });
+      }
+    } catch {
+      // ignore RTDB failures
     }
 
     console.log(`Provider ${isOnline ? 'online' : 'offline'}`);
@@ -110,16 +115,13 @@ export const setProviderOnline = async (isOnline: boolean): Promise<void> => {
 };
 
 /**
- * Update provider's current location
- * Should be called periodically when provider is online
+ * Update provider's current location when online.
  */
 export const updateProviderLocation = async (): Promise<void> => {
   try {
     await requireSessionUser();
 
-    // Check if provider is online via API
     const provider = await getMyProfile();
-
     if (!provider) {
       throw new Error('Provider profile not found');
     }
@@ -129,16 +131,12 @@ export const updateProviderLocation = async (): Promise<void> => {
       return;
     }
 
-    // Check location permission before attempting to get location
     const permissionStatus = await GeolocationService.checkLocationPermission();
     if (permissionStatus !== 'granted') {
-      // Permission not granted - skip location update silently
-      // This is not an error, just a normal case when permission hasn't been granted yet
       console.log('Location permission not granted, skipping location update');
       return;
     }
 
-    // Get current location
     const location = await GeolocationService.getCurrentLocation();
     if (!location) {
       throw new Error('Failed to get current location');
@@ -154,10 +152,14 @@ export const updateProviderLocation = async (): Promise<void> => {
       updatedAt: Date.now(),
     };
 
-    // Update via backend API
-    // Use updateProviderStatus endpoint for location updates to avoid database connection issues
-    const providerId = getUserId(provider);
     try {
+      await updateProviderStatus({
+        currentLocation: {
+          latitude: providerLocation.latitude,
+          longitude: providerLocation.longitude,
+        },
+      });
+    } catch {
       await updateMyProfile({
         currentLocation: {
           ...providerLocation,
@@ -166,52 +168,41 @@ export const updateProviderLocation = async (): Promise<void> => {
         lastSeen: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       } as any);
-    } catch (apiError: any) {
-      // If updateMyProfile fails, try using updateProviderStatus endpoint instead
-      if (apiError.message?.includes('Database not connected') || apiError.message?.includes('connectDB')) {
-        console.warn('⚠️ updateMyProfile failed, trying updateProviderStatus endpoint...');
-        const {updateProviderStatus} = require('./api/providersApi');
-        await updateProviderStatus({
-          currentLocation: {
-            latitude: providerLocation.latitude,
-            longitude: providerLocation.longitude,
-          },
-        });
-      } else {
-        throw apiError; // Re-throw if it's a different error
-      }
     }
 
-    // Update in Realtime Database for real-time tracking
-    if (providerId) {
-      try {
+    // Optional RTDB mirror — never fail the call
+    try {
+      const providerId = getUserId(provider);
+      if (providerId) {
+        const database = require('@react-native-firebase/database').default;
         await database()
           .ref(`providers/${providerId}/location`)
           .set(providerLocation);
-      } catch (rtError) {
-        console.warn('Realtime DB location update failed:', rtError);
       }
+    } catch {
+      // ignore RTDB permission errors under JWT auth
     }
 
     console.log('Provider location updated:', providerLocation);
   } catch (error: any) {
     const errorMessage = error?.message || String(error) || '';
-    
-    // Don't throw database connection errors - they're non-critical for location tracking
-    if (errorMessage.includes('Database not connected') || errorMessage.includes('connectDB')) {
-      console.warn('⚠️ Database connection issue when updating location (non-critical):', errorMessage);
-      return; // Exit gracefully without throwing
+
+    if (
+      errorMessage.includes('Database not connected') ||
+      errorMessage.includes('connectDB')
+    ) {
+      console.warn(
+        '⚠️ Database connection issue when updating location (non-critical):',
+        errorMessage,
+      );
+      return;
     }
-    
+
     console.error('Error updating provider location:', error);
     throw new Error(`Failed to update location: ${error.message}`);
   }
 };
 
-/**
- * Start real-time location tracking
- * Updates location every 30 seconds when provider is online
- */
 export const startLocationTracking = (): (() => void) => {
   let intervalId: NodeJS.Timeout | null = null;
 
@@ -219,28 +210,31 @@ export const startLocationTracking = (): (() => void) => {
     try {
       await updateProviderLocation();
     } catch (error: any) {
-      // Check if it's a permission error - if so, log as warning instead of error
       const errorMessage = error?.message || String(error) || '';
-      if (errorMessage.includes('permission') || errorMessage.includes('Permission')) {
-        console.warn('Location permission not granted, skipping location update');
-      } else if (errorMessage.includes('Database not connected') || errorMessage.includes('connectDB')) {
-        // Database connection error - log as warning, don't break the app
-        console.warn('⚠️ Database connection issue in location tracking (non-critical):', errorMessage);
+      if (
+        errorMessage.includes('permission') ||
+        errorMessage.includes('Permission')
+      ) {
+        console.warn(
+          'Location permission not granted, skipping location update',
+        );
+      } else if (
+        errorMessage.includes('Database not connected') ||
+        errorMessage.includes('connectDB')
+      ) {
+        console.warn(
+          '⚠️ Database connection issue in location tracking (non-critical):',
+          errorMessage,
+        );
       } else {
-        // For other errors (network, etc.), log as error but don't throw
         console.error('Error in location tracking (non-critical):', error);
       }
-      // Don't throw - location tracking errors should not break the app
     }
   };
 
-  // Update immediately
   updateLocation();
+  intervalId = setInterval(updateLocation, 30000);
 
-  // Then update every 30 seconds
-  intervalId = setInterval(updateLocation, 30000); // 30 seconds
-
-  // Return stop function
   return () => {
     if (intervalId) {
       clearInterval(intervalId);
@@ -249,23 +243,22 @@ export const startLocationTracking = (): (() => void) => {
   };
 };
 
-/**
- * Get provider's current status
- */
-export const getProviderStatus = async (providerId: string): Promise<ProviderStatus | null> => {
+export const getProviderStatus = async (
+  _providerId: string,
+): Promise<ProviderStatus | null> => {
   try {
-    // Get provider status via API
     const provider = await getMyProfile();
-
     if (!provider) {
       return null;
     }
 
-    const location = provider.location;
+    const location = provider.location || (provider as any).currentLocation;
     return {
       isOnline: provider.isOnline || false,
-      isAvailable: (provider as any).isAvailable !== false, // Default to true if not set
-      lastSeen: (provider as any).lastSeen ? new Date((provider as any).lastSeen).getTime() : Date.now(),
+      isAvailable: (provider as any).isAvailable !== false,
+      lastSeen: (provider as any).lastSeen
+        ? new Date((provider as any).lastSeen).getTime()
+        : Date.now(),
       currentLocation: location
         ? {
             latitude: location.latitude || 0,
@@ -274,7 +267,9 @@ export const getProviderStatus = async (providerId: string): Promise<ProviderSta
             city: location.city,
             state: location.state,
             pincode: location.pincode,
-            updatedAt: (location as any).updatedAt ? new Date((location as any).updatedAt).getTime() : Date.now(),
+            updatedAt: (location as any).updatedAt
+              ? new Date((location as any).updatedAt).getTime()
+              : Date.now(),
           }
         : undefined,
     };
@@ -284,9 +279,6 @@ export const getProviderStatus = async (providerId: string): Promise<ProviderSta
   }
 };
 
-/**
- * Calculate distance from provider to customer
- */
 export const getDistanceToCustomer = (
   providerLocation: ProviderLocation,
   customerLocation: {latitude: number; longitude: number},
@@ -304,4 +296,3 @@ export const getDistanceToCustomer = (
     etaMinutes: calculateETA(distanceKm),
   };
 };
-

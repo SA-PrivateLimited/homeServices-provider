@@ -52,6 +52,7 @@ const en = {
   help: enHelp,
   dashboard: enDashboard,
   onboarding: enOnboarding,
+  recommendations: enRecommendations,
 };
 
 const hi = {

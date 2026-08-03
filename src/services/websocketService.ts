@@ -11,12 +11,7 @@ import auth from '@react-native-firebase/auth';
 import fcmNotificationService from './fcmNotificationService';
 import {serviceRequestsApi} from './api/serviceRequestsApi';
 import {providersApi} from './api/providersApi';
-
-// WebSocket URL - Set this to your actual server URL
-// For development: Use your local IP address (e.g., 'http://192.168.1.100:3000')
-// For production: Use your production server URL
-// Using production URL for both dev and prod since it's deployed to Cloud Run
-const SOCKET_URL = 'https://websocket-server-425944993130.us-central1.run.app'; // GCP Cloud Run (Free Tier)
+import {SOCKET_URL} from '../config/api';
 
 class WebSocketService {
   private socket: Socket | null = null;
@@ -84,20 +79,20 @@ class WebSocketService {
       return; // Don't connect yet
     }
 
-    // Disconnect existing connection if connecting to different provider
-    if (this.socket?.connected) {
+    // Reuse existing socket if already connected or still connecting for same provider
+    if (this.socket) {
       if (this.currentProviderId === providerId) {
-        console.log('✅ [WEBSOCKET] Already connected for this provider:', providerId);
-        console.log('📋 [WEBSOCKET] Current callbacks count:', this.bookingCallbacks.length);
-        // Re-setup event listener in case it was lost (only if socket exists)
-        if (this.socket) {
+        console.log('✅ [WEBSOCKET] Socket already active for this provider:', providerId, {
+          connected: this.socket.connected,
+        });
+        if (this.socket.connected) {
           this.setupBookingListener();
+          this.socket.emit('join-provider-room', providerId);
         }
         return;
-      } else {
-        console.log('🔄 [WEBSOCKET] Disconnecting existing WebSocket connection');
-        this.disconnect();
       }
+      console.log('🔄 [WEBSOCKET] Switching provider — disconnecting existing socket');
+      this.disconnect();
     }
 
     // Store provider ID before connecting
@@ -113,7 +108,7 @@ class WebSocketService {
 
     try {
       // Initialize socket connection
-      this.socket = io(SOCKET_URL, {
+      const socket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
         reconnection: true,
         reconnectionDelay: 1000,
@@ -122,50 +117,40 @@ class WebSocketService {
         timeout: 20000,
         forceNew: true,
         autoConnect: true,
-        // Add path if your server uses a custom path (default is '/socket.io/')
         path: '/socket.io/',
-        // Additional options for better compatibility
         upgrade: true,
         rememberUpgrade: false,
-        // Add query parameters for debugging
         query: {
           providerId: providerIdToConnect,
           clientType: 'provider-app',
         },
       });
+      this.socket = socket;
 
-      // Connection events
-      this.socket.on('connect', () => {
-        // Ensure socket is not null before proceeding
-        if (!this.socket) {
-          console.error('❌ [WEBSOCKET] Socket is null in connect handler - this should not happen');
+      // Use local `socket` so a later disconnect/replace doesn't hit a null this.socket
+      socket.on('connect', () => {
+        if (this.socket !== socket) {
+          // Stale connect from a replaced/disconnected instance — ignore
           return;
         }
 
-        const transport = (this.socket as any)?.io?.engine?.transport?.name || 'unknown';
+        const transport = (socket as any)?.io?.engine?.transport?.name || 'unknown';
         console.log('✅ WebSocket connected successfully:', {
-          socketId: this.socket?.id,
+          socketId: socket.id,
           providerId: providerIdToConnect,
           url: SOCKET_URL,
           transport: transport,
         });
         this.isConnected = true;
 
-        // Setup booking listener immediately after connection (socket is guaranteed to exist here)
         console.log('📋 [WEBSOCKET] Setting up booking listener after connect...');
-        if (this.socket) {
-          this.setupBookingListener();
-        } else {
-          console.error('❌ [WEBSOCKET] Socket became null during connect handler');
-        }
+        this.setupBookingListener();
 
-        // Join provider-specific room - use the stored providerId
         const providerIdForRoom = providerIdToConnect || this.currentProviderId;
         if (providerIdForRoom) {
           console.log(`📤 Emitting join-provider-room for provider: ${providerIdForRoom}`);
-          this.socket?.emit('join-provider-room', providerIdForRoom);
+          socket.emit('join-provider-room', providerIdForRoom);
           console.log(`✅ Join request sent for provider room: provider-${providerIdForRoom}`);
-          console.log(`📋 Provider ID for notifications: ${providerIdForRoom}`);
         } else {
           console.warn('WebSocket connected but no provider ID available');
         }
@@ -228,28 +213,18 @@ class WebSocketService {
         }
       });
 
-      this.socket.on('reconnect', (attemptNumber) => {
+      socket.on('reconnect', (attemptNumber) => {
+        if (this.socket !== socket) return;
         console.log(`✅ [WEBSOCKET] WebSocket reconnected after ${attemptNumber} attempts`);
         console.log('📋 [WEBSOCKET] Callbacks count after reconnect:', this.bookingCallbacks.length);
-        // Re-setup booking listener after reconnection (ensure socket exists)
-        if (this.socket) {
-          this.setupBookingListener();
-          // Rejoin room after reconnection
-          if (this.currentProviderId) {
-            console.log(`📤 [WEBSOCKET] Rejoining room after reconnect: provider-${this.currentProviderId}`);
-            this.socket.emit('join-provider-room', this.currentProviderId);
-          }
-        } else {
-          console.error('❌ [WEBSOCKET] Socket is null during reconnect handler');
+        this.setupBookingListener();
+        if (this.currentProviderId) {
+          console.log(`📤 [WEBSOCKET] Rejoining room after reconnect: provider-${this.currentProviderId}`);
+          socket.emit('join-provider-room', this.currentProviderId);
         }
       });
 
-      // Don't setup listener here - wait for 'connect' event
-      // The listener will be set up in the 'connect' event handler (line 141)
-      // and 'reconnect' event handler (line 216)
-
-      // Add error handler for socket errors
-      this.socket.on('error', (error: any) => {
+      socket.on('error', (error: any) => {
         console.error('❌ WebSocket error:', error);
       });
     } catch (error) {

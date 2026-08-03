@@ -13,6 +13,7 @@ import {jobCardsApi, CreateJobCardData} from './api/jobCardsApi';
 import {providersApi} from './api/providersApi';
 import {usersApi} from './api/usersApi';
 import {PDFService} from './pdfService';
+import {SOCKET_URL} from '../config/api';
 
 export interface JobCard {
   id?: string;
@@ -359,10 +360,6 @@ export const updateJobCardStatus = async (
 
           // Emit WebSocket event to customer room for real-time review prompt
           try {
-            const SOCKET_URL = __DEV__
-              ? 'http://10.0.2.2:3001'
-              : process.env.SOCKET_URL || 'https://your-production-server.com';
-
             const payload = {
               customerId,
               jobCardId,

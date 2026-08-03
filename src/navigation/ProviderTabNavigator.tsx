@@ -12,7 +12,6 @@ import JobsHistoryScreen from '../screens/JobsHistoryScreen';
 import ProviderProfileScreen from '../screens/ProviderProfileScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import NotificationIcon from '../components/NotificationIcon';
-import PincodeHeader from '../components/PincodeHeader';
 import ProfileSetupModal from '../components/ProfileSetupModal';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
@@ -44,7 +43,6 @@ const JobsStack = () => {
         component={JobsScreen}
         options={({navigation}) => ({
           title: 'Jobs',
-          headerLeft: () => <PincodeHeader />,
           headerRight: () => (
             <NotificationIcon
               onPress={() => navigation.navigate('Notifications')}
@@ -83,7 +81,6 @@ const JobsHistoryStack = () => {
         component={JobsHistoryScreen}
         options={({navigation}) => ({
           title: 'Job History',
-          headerLeft: () => <PincodeHeader />,
           headerRight: () => (
             <NotificationIcon
               onPress={() => navigation.navigate('Notifications')}
@@ -141,29 +138,26 @@ export default function ProviderTabNavigator() {
   }, [userId]);
 
   useEffect(() => {
-    // Check if provider has set up their profile
     if (!userId || hasCheckedProfile) return;
-
     checkProviderProfile();
+  }, [userId, hasCheckedProfile, checkProviderProfile]);
 
-    // Cleanup: Disconnect WebSocket when component unmounts
+  // Disconnect only when leaving the provider tabs (not when profile-check state flips)
+  useEffect(() => {
     return () => {
       websocketService.disconnect();
     };
-  }, [userId, hasCheckedProfile, checkProviderProfile]);
+  }, []);
 
   // Re-check profile when screen comes into focus (e.g., after returning from profile setup)
   useFocusEffect(
     useCallback(() => {
-      if (userId) {
-        // Reset check flag to allow re-checking when screen comes into focus
-        setHasCheckedProfile(false);
-        // Small delay to ensure state update is processed
-        setTimeout(() => {
-          checkProviderProfile();
-        }, 100);
+      if (!userId) return;
+      // Only re-check if we haven't confirmed a profile yet — avoid reconnect churn
+      if (!hasCheckedProfile) {
+        checkProviderProfile();
       }
-    }, [userId, checkProviderProfile])
+    }, [userId, hasCheckedProfile, checkProviderProfile])
   );
 
   const handleSetupNow = () => {
