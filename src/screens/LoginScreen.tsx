@@ -32,13 +32,13 @@ import {
   setSession,
   clearAllCredentials,
 } from '../services/session';
-import CountryCodePicker from '../components/CountryCodePicker';
 import PinBoxesInput from '../components/PinBoxesInput';
-import {DEFAULT_COUNTRY_CODE, CountryCode} from '../utils/countryCodes';
 import AlertModal from '../components/AlertModal';
 import useTranslation from '../hooks/useTranslation';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import {Banner} from 'sapvt-ltd-app-packages';
+import PhoneNumberInput from '../components/PhoneNumberInput';
+import {INDIA_DIAL_CODE, localTenDigits} from '../utils/phone';
 
 interface LoginScreenProps {
   navigation: any;
@@ -71,8 +71,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   const [loading, setLoading] = useState(false);
   const [booting, setBooting] = useState(true);
   const [inlineError, setInlineError] = useState<string | null>(null);
-  const [selectedCountry, setSelectedCountry] =
-    useState<CountryCode>(DEFAULT_COUNTRY_CODE);
   const [otpBanner, setOtpBanner] = useState<OtpBanner | null>(null);
   const [otpSecondsLeft, setOtpSecondsLeft] = useState(0);
   const [approvalNote, setApprovalNote] = useState<string | null>(null);
@@ -94,7 +92,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   });
 
   const fullPhone = () =>
-    selectedCountry.dialCode + phoneNumber.replace(/\D/g, '');
+    INDIA_DIAL_CODE + localTenDigits(phoneNumber);
 
   const applyOtpFromResponse = (result: {
     otp?: string;
@@ -143,11 +141,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       try {
         const remembered = await getRememberedPhone();
         if (!mounted || !remembered) return;
-        setPhoneNumber(remembered.phoneLocal);
-        setSelectedCountry(prev => ({
-          ...prev,
-          dialCode: remembered.dialCode || prev.dialCode,
-        }));
+        setPhoneNumber(localTenDigits(remembered.phoneLocal));
         setStep('pin');
       } finally {
         if (mounted) setBooting(false);
@@ -174,8 +168,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     });
     await setSession(token, user);
     await rememberPhone(
-      phoneNumber.replace(/\D/g, '').slice(-10),
-      selectedCountry.dialCode,
+      localTenDigits(phoneNumber),
+      INDIA_DIAL_CODE,
     );
     await setCurrentUser(user);
     if (user.approvalStatus && user.approvalStatus !== 'approved') {
@@ -206,7 +200,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     setInlineError(null);
     try {
       const lookup = await lookupPhone(fullPhone());
-      await rememberPhone(numericPhone, selectedCountry.dialCode);
+      await rememberPhone(numericPhone, INDIA_DIAL_CODE);
       setPin('');
       setOtp('');
       setNewPin('');
@@ -436,34 +430,25 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
 
         {step === 'phone' ? (
           <View style={styles.form}>
-            <View style={styles.phoneInputRow}>
-              <CountryCodePicker
-                selectedCountry={selectedCountry}
-                onSelect={setSelectedCountry}
-              />
-              <View
-                style={[
-                  styles.phoneInputContainer,
-                  {
-                    backgroundColor: theme.card,
-                    borderColor: theme.border,
-                    flex: 1,
-                  },
-                ]}>
-                <TextInput
-                  style={[styles.input, {color: theme.text}]}
-                  placeholder={t('auth.phonePlaceholder') || '9876543210'}
-                  placeholderTextColor={theme.textSecondary}
-                  value={phoneNumber}
-                  onChangeText={text =>
-                    setPhoneNumber(text.replace(/\D/g, '').slice(0, 10))
-                  }
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  editable={!loading}
-                />
-              </View>
-            </View>
+            <Text style={[styles.phoneLabel, {color: theme.textSecondary}]}>
+              {t('auth.phone') || 'Phone'}
+            </Text>
+            <PhoneNumberInput
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              placeholder={
+                t('auth.phoneTenDigitsHint') ||
+                t('auth.phonePlaceholder') ||
+                '10-digit mobile'
+              }
+              editable={!loading}
+              borderColor={theme.border}
+              backgroundColor={theme.card}
+              prefixBackgroundColor={isDarkMode ? theme.border : '#F5F5F5'}
+              textColor={theme.text}
+              placeholderTextColor={theme.textSecondary}
+              style={{marginBottom: 16}}
+            />
             <TouchableOpacity
               style={[
                 styles.button,
@@ -735,6 +720,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     gap: 8,
+  },
+  phoneLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   phoneInputContainer: {
     flexDirection: 'row',

@@ -8,12 +8,11 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
-  Modal,
-  FlatList,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import auth from '@react-native-firebase/auth';
 import storage from '@react-native-firebase/storage';
+import {Select} from 'sapvt-ltd-app-packages';
 import {providersApi} from '../services/api/providersApi';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {useStore} from '../store';
@@ -49,9 +48,6 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const [name, setName] = useState('');
   const [serviceType, setServiceType] = useState('');
-  const [email, setEmail] = useState('');
-  const [emailVerified, setEmailVerified] = useState(false);
-  const [sendingEmailVerification, setSendingEmailVerification] = useState(false);
   const [phone, setPhone] = useState('');
   const [secondaryPhone, setSecondaryPhone] = useState('');
   const [phoneVerified, setPhoneVerified] = useState(false);
@@ -63,7 +59,6 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [existingProfile, setExistingProfile] = useState<any>(null);
-  const [showServiceTypeDropdown, setShowServiceTypeDropdown] = useState(false);
   
   // Document upload states
   const [idProof, setIdProof] = useState<string | null>(null);
@@ -124,13 +119,10 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
 
     // Set basic defaults from auth user
     setName(user.displayName || '');
-    setEmail(user.email || '');
-    setEmailVerified(user.emailVerified || false);
 
     try {
       // Reload user to get latest data
       await user.reload();
-      setEmailVerified(user.emailVerified || false);
 
       // Get provider profile via backend API using /providers/me endpoint
       let profile: any = null;
@@ -146,15 +138,6 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           profile = await providersApi.getProviderByUid(user.uid);
         } catch (e2) {
           console.log('No provider found by UID');
-        }
-
-        // If not found by UID, try email (Google auth)
-        if (!profile && user.email) {
-          try {
-            profile = await providersApi.getProviderByEmail(user.email);
-          } catch (e3) {
-            console.log('No provider found by email');
-          }
         }
       }
 
@@ -185,8 +168,6 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         }
 
         setServiceType(savedServiceType);
-        setEmail(profile.email || user.email || '');
-        setEmailVerified(user.emailVerified || profile.emailVerified || false);
 
         // For phone: prioritize Firebase Auth phone number (if logged in with phone)
         // This ensures the verified phone from auth is always used as primary
@@ -195,7 +176,6 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           setPhone(authPhoneNumber);
           setPhoneVerified(true);
         } else if (profile.phone) {
-          // User logged in with email/google - use profile phone
           setPhone(profile.phone);
           setPhoneVerified(profile.phoneVerified || false);
         }
@@ -345,149 +325,6 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     );
   };
 
-  const handleSendEmailVerification = async () => {
-    const authUser = auth().currentUser;
-    if (!authUser) {
-      setAlertModal({
-        visible: true,
-        title: t('common.error'),
-        message: 'You must be logged in to verify your email',
-        type: 'error',
-      });
-      return;
-    }
-
-    if (!email.trim()) {
-      setAlertModal({
-        visible: true,
-        title: t('common.error'),
-        message: t('providerProfile.pleaseEnterValidEmail'),
-        type: 'error',
-      });
-      return;
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      setAlertModal({
-        visible: true,
-        title: t('common.error'),
-        message: t('providerProfile.pleaseEnterValidEmail'),
-        type: 'error',
-      });
-      return;
-    }
-
-    setSendingEmailVerification(true);
-    try {
-      const emailToVerify = email.trim();
-      const currentEmail = authUser.email;
-      
-      // Only update email if it's different from current email
-      if (currentEmail && emailToVerify !== currentEmail) {
-        try {
-          await authUser.updateEmail(emailToVerify);
-          // Email update in provider profile will be saved via backend API when profile is saved
-        } catch (updateError: any) {
-          if (updateError.code === 'auth/requires-recent-login') {
-            setAlertModal({
-              visible: true,
-              title: t('providerProfile.reauthRequired'),
-              message: t('providerProfile.reauthRequiredMessage'),
-              type: 'error',
-            });
-            setSendingEmailVerification(false);
-            return;
-          } else if (updateError.code === 'auth/email-already-in-use') {
-            setAlertModal({
-              visible: true,
-              title: t('common.error'),
-              message: 'This email is already in use by another account',
-              type: 'error',
-            });
-            setSendingEmailVerification(false);
-            return;
-          }
-          throw updateError;
-        }
-      }
-      
-      // Reload user to get latest email
-      await authUser.reload();
-      
-      // Check if user has email in Firebase Auth (required for sendEmailVerification)
-      if (!authUser.email) {
-        setAlertModal({
-          visible: true,
-          title: t('providerProfile.emailVerificationUnavailable'),
-          message: t('providerProfile.emailVerificationUnavailableMessage'),
-          type: 'error',
-        });
-        setSendingEmailVerification(false);
-        return;
-      }
-      
-      // Send verification email (only if email/password provider is enabled)
-      try {
-        await authUser.sendEmailVerification();
-      } catch (verifyError: any) {
-        // If operation-not-allowed, it means email verification is disabled in Firebase
-        if (verifyError.code === 'auth/operation-not-allowed') {
-          setAlertModal({
-            visible: true,
-            title: t('providerProfile.emailVerificationUnavailable'),
-            message: t('providerProfile.emailVerificationUnavailableMessage'),
-            type: 'error',
-          });
-          setSendingEmailVerification(false);
-          return;
-        } else if (verifyError.code === 'auth/missing-email') {
-          setAlertModal({
-            visible: true,
-            title: t('providerProfile.emailVerificationUnavailable'),
-            message: t('providerProfile.emailVerificationUnavailableMessage'),
-            type: 'error',
-          });
-          setSendingEmailVerification(false);
-          return;
-        }
-        throw verifyError;
-      }
-
-      setAlertModal({
-        visible: true,
-        title: t('providerProfile.verificationEmailSent'),
-        message: t('providerProfile.verificationEmailSentMessage'),
-        type: 'success',
-      });
-    } catch (error: any) {
-      console.error('Error sending email verification:', error);
-      let errorMessage = 'Failed to send verification email. Please try again.';
-      
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'This email is already in use by another account';
-      } else if (error.code === 'auth/requires-recent-login') {
-        errorMessage = 'Please logout and login again to change your email';
-      } else if (error.code === 'auth/operation-not-allowed') {
-        errorMessage = 'Email verification is currently disabled. Please enable Email/Password provider in Firebase Console > Authentication > Sign-in method.';
-      } else if (error.code === 'auth/missing-email') {
-        errorMessage = 'Email address is not set in your account. Please logout and login with email/password to enable email verification, or contact support for assistance.';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setAlertModal({
-        visible: true,
-        title: t('common.error'),
-        message: errorMessage,
-        type: 'error',
-      });
-    } finally {
-      setSendingEmailVerification(false);
-    }
-  };
-
   const removeDocument = (docType: 'idProof' | 'addressProof' | 'certificate') => {
     // Check if document is verified - prevent deletion if verified (unless profile is rejected)
     const isVerified = existingProfile?.documents?.[`${docType}Verified` as keyof typeof existingProfile.documents] as boolean;
@@ -566,20 +403,6 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         type: 'error',
       });
       return;
-    }
-
-    // Validate email (optional, but if provided, must be valid format)
-    if (email && email.trim().length > 0) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email.trim())) {
-        setAlertModal({
-          visible: true,
-          title: t('common.error'),
-          message: t('providerProfile.pleaseEnterValidEmail'),
-          type: 'error',
-        });
-        return;
-      }
     }
 
     // Validate phone
@@ -683,31 +506,10 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
       // Use user UID as document ID for consistency
       const providerId = user.uid;
 
-      // Determine email verification status
-      // If email is provided, check if it's different from existing email
-      const trimmedEmail = email && email.trim() ? email.trim() : null;
-      const existingEmail = existingProfile?.email || null;
-      const emailChanged = trimmedEmail !== existingEmail;
-      
-      // If email is provided and changed (or new), mark as unverified
-      // Otherwise, preserve existing verification status
-      let finalEmailVerified = false;
-      if (trimmedEmail) {
-        if (emailChanged || !existingProfile) {
-          // New email or changed email - mark as unverified
-          finalEmailVerified = false;
-        } else {
-          // Same email - preserve existing verification status
-          finalEmailVerified = existingProfile?.emailVerified || emailVerified || false;
-        }
-      }
-
       const providerData: any = {
         name,
         specialization: serviceType,
         specialty: serviceType, // Legacy field
-        email: trimmedEmail,
-        emailVerified: finalEmailVerified,
         phone,
         phoneVerified: phoneVerified || existingProfile?.phoneVerified || false,
         secondaryPhone: secondaryPhone || null,
@@ -819,102 +621,14 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           placeholder={t('providerProfile.namePlaceholder')}
         />
 
-        <Text style={styles.label}>{t('providerProfile.serviceTypeRequired')}</Text>
-        <TouchableOpacity
-          style={styles.dropdownButton}
-          onPress={() => setShowServiceTypeDropdown(true)}>
-          <Text style={[styles.dropdownButtonText, !serviceType && styles.dropdownPlaceholder]}>
-            {serviceType || t('providerProfile.selectServiceType')}
-          </Text>
-          <Icon name="arrow-drop-down" size={24} color="#666" />
-        </TouchableOpacity>
-
-        <Modal
-          visible={showServiceTypeDropdown}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setShowServiceTypeDropdown(false)}>
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowServiceTypeDropdown(false)}>
-            <View style={styles.dropdownModal}>
-              <View style={styles.dropdownHeader}>
-                <Text style={styles.dropdownTitle}>{t('providerProfile.selectServiceType')}</Text>
-                <TouchableOpacity onPress={() => setShowServiceTypeDropdown(false)}>
-                  <Icon name="close" size={24} color="#666" />
-                </TouchableOpacity>
-              </View>
-              <FlatList
-                data={SERVICE_TYPES}
-                keyExtractor={item => item}
-                renderItem={({item}) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.dropdownItem,
-                      serviceType === item && styles.dropdownItemSelected,
-                    ]}
-                    onPress={() => {
-                      setServiceType(item);
-                      setShowServiceTypeDropdown(false);
-                    }}>
-                    <Text
-                      style={[
-                        styles.dropdownItemText,
-                        serviceType === item && styles.dropdownItemTextSelected,
-                      ]}>
-                      {item}
-                    </Text>
-                    {serviceType === item && (
-                      <Icon name="check" size={20} color="#007AFF" />
-                    )}
-                  </TouchableOpacity>
-                )}
-              />
-            </View>
-          </TouchableOpacity>
-        </Modal>
-
-        {/* Email */}
-        <View style={styles.phoneSection}>
-          <View style={styles.phoneHeader}>
-            <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
-              <Text style={styles.label}>{t('providerProfile.emailLabel')}</Text>
-              {emailVerified && (
-                <Icon name="checkmark-circle" size={16} color="#4CAF50" />
-              )}
-            </View>
-          </View>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder={t('providerProfile.emailPlaceholder')}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            editable={!loading}
-          />
-          {!emailVerified && email && (
-            <TouchableOpacity
-              onPress={handleSendEmailVerification}
-              disabled={sendingEmailVerification || loading}
-              style={styles.verifyEmailButton}>
-              {sendingEmailVerification ? (
-                <ActivityIndicator size="small" color="#007AFF" />
-              ) : (
-                <>
-                  <Icon name="mail-outline" size={16} color="#007AFF" />
-                  <Text style={styles.verifyEmailText}>Verify Email</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-          {emailVerified ? (
-            <Text style={styles.verifiedText}>Verified</Text>
-          ) : email ? (
-            <Text style={styles.notVerifiedText}>Not Verified</Text>
-          ) : null}
-        </View>
+        <Select
+          label={String(t('providerProfile.serviceTypeRequired'))}
+          options={SERVICE_TYPES.map(s => ({value: s, label: s}))}
+          value={serviceType}
+          onChange={setServiceType}
+          placeholder={String(t('providerProfile.selectServiceType'))}
+          title={String(t('providerProfile.selectServiceType'))}
+        />
 
         {/* Primary Phone */}
         <View style={styles.phoneSection}>
@@ -1681,22 +1395,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     marginTop: 4,
-  },
-  verifyEmailButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#E3F2FD',
-    borderRadius: 8,
-    gap: 6,
-  },
-  verifyEmailText: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
   },
 });
 

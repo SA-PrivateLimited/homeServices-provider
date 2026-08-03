@@ -50,7 +50,7 @@
     "react-native-sound": "^0.13.0",
     "react-native-svg": "^14.1.0",
     "react-native-vector-icons": "^10.0.3",
-    "sapvt-ltd-app-packages": "^0.1.0",
+    "sapvt-ltd-app-packages": "file:../packages/saPvtLtdAppPackages",
     "socket.io-client": "^4.8.3",
     "zustand": "^4.4.7"
   },

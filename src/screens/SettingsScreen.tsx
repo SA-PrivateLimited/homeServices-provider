@@ -256,7 +256,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
             {currentUser.name}
           </Text>
           <Text style={[styles.profileHeaderEmail, {color: theme.textSecondary}]}>
-            {currentUser.email}
+            {currentUser.phone || currentUser.phoneNumber || ''}
           </Text>
         </TouchableOpacity>
       )}

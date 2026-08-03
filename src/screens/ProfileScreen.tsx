@@ -29,7 +29,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(currentUser?.name || '');
-  const [email, setEmail] = useState(currentUser?.email || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [secondaryPhone, setSecondaryPhone] = useState(currentUser?.secondaryPhone || '');
   const [dateOfBirth, setDateOfBirth] = useState('');
@@ -39,7 +38,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
   useEffect(() => {
     if (currentUser) {
       setName(currentUser.name || '');
-      setEmail(currentUser.email || '');
       setPhone(currentUser.phone || '');
       setSecondaryPhone(currentUser.secondaryPhone || '');
       setDateOfBirth(
@@ -65,7 +63,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
       
       const updates: any = {
         name,
-        email,
         gender,
         bloodGroup,
       };
@@ -175,7 +172,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
         </View>
         <Text style={[styles.userName, {color: theme.text}]}>{name}</Text>
         <Text style={[styles.userEmail, {color: theme.textSecondary}]}>
-          {email}
+          {phone || currentUser.phoneNumber || ''}
         </Text>
       </View>
 
@@ -221,19 +218,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
           ) : (
             <Text style={[styles.infoValue, {color: theme.text}]}>{name}</Text>
           )}
-        </View>
-
-        {/* Email */}
-        <View style={styles.infoRow}>
-          <View style={styles.infoLabel}>
-            <Icon name="mail-outline" size={20} color={theme.textSecondary} />
-            <Text style={[styles.labelText, {color: theme.textSecondary}]}>
-              {t('profile.email')}
-            </Text>
-          </View>
-          <Text style={[styles.infoValue, {color: theme.textSecondary}]}>
-            {email}
-          </Text>
         </View>
 
         {/* Primary Phone */}

@@ -10,6 +10,7 @@ react {
 
 def enableProguardInReleaseBuilds = true
 def jscFlavor = 'org.webkit:android-jsc:+'
+def flipperVersion = findProperty("FLIPPER_VERSION") ?: "0.273.0"
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -65,6 +66,7 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs += ["-Xskip-metadata-version-check"]
     }
 
     packagingOptions {
@@ -100,11 +102,21 @@ android {
 dependencies {
     implementation("com.facebook.react:react-android")
 
+    // Force modern Material/AppCompat resources (fixes missing m3_* and material_* drawables during merge)
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
     }
+
+    // Flipper (debug only) — registers the app with Flipper Desktop
+    debugImplementation("com.facebook.flipper:flipper:${flipperVersion}") {
+        exclude group: 'com.facebook.fbjni'
+    }
+    debugImplementation "com.facebook.flipper:flipper-network-plugin:${flipperVersion}"
     
     // OneSignal SDK
     implementation 'com.onesignal:OneSignal:[5.0.0, 5.99.99]'

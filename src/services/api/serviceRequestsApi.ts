@@ -21,7 +21,7 @@ export interface ServiceRequest {
   };
   serviceType: string;
   problem?: string;
-  status: 'pending' | 'accepted' | 'in-progress' | 'completed' | 'cancelled';
+  status: 'pending' | 'accepted' | 'in-progress' | 'completed' | 'cancelled' | 'rejected';
   urgency?: 'immediate' | 'scheduled';
   scheduledTime?: string | Date;
   providerId?: string;
@@ -36,6 +36,8 @@ export interface ServiceRequest {
   questionnaireAnswers?: any;
   photos?: string[];
   cancellationReason?: string;
+  rejectionReason?: string;
+  rejectedAt?: string | Date;
   createdAt: string | Date;
   updatedAt: string | Date;
 }
@@ -105,8 +107,22 @@ export async function rejectServiceRequest(
   });
 }
 
+/**
+ * Get pending service requests assigned specifically to this provider
+ */
+export async function getMyPendingServiceRequests(): Promise<ServiceRequest[]> {
+  try {
+    const response = await apiGet<ServiceRequest[]>('/provider/serviceRequests/pending');
+    return Array.isArray(response) ? response : [];
+  } catch (error: any) {
+    console.warn('Failed to fetch pending service requests:', error?.message);
+    return [];
+  }
+}
+
 export const serviceRequestsApi = {
   getById: getServiceRequestById,
+  getMyPending: getMyPendingServiceRequests,
   accept: acceptServiceRequest,
   reject: rejectServiceRequest,
 };

@@ -20,8 +20,8 @@ import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import authService from '../services/authService';
 import auth from '@react-native-firebase/auth';
-import CountryCodePicker from '../components/CountryCodePicker';
-import {DEFAULT_COUNTRY_CODE, CountryCode, COUNTRY_CODES} from '../utils/countryCodes';
+import PhoneNumberInput from '../components/PhoneNumberInput';
+import {INDIA_DIAL_CODE, localTenDigits} from '../utils/phone';
 import AlertModal from '../components/AlertModal';
 import SuccessModal from '../components/SuccessModal';
 import useTranslation from '../hooks/useTranslation';
@@ -45,33 +45,11 @@ export default function PhoneVerificationScreen({
   const [confirmResult, setConfirmResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'phone' | 'code'>('phone');
-  const [selectedCountry, setSelectedCountry] = useState<CountryCode>(DEFAULT_COUNTRY_CODE);
   const [retryAfter, setRetryAfter] = useState<number | null>(null); // Seconds until retry allowed
 
-  // Extract country code and phone number from initial phone if provided
   useEffect(() => {
     if (initialPhoneNumber) {
-      // Try to extract country code (assuming +91 format)
-      if (initialPhoneNumber.startsWith('+')) {
-        // Try to match dial codes from longest to shortest
-        let matched = false;
-        for (const country of COUNTRY_CODES.sort((a, b) => b.dialCode.length - a.dialCode.length)) {
-          if (initialPhoneNumber.startsWith(country.dialCode)) {
-            const phone = initialPhoneNumber.substring(country.dialCode.length).replace(/\D/g, '');
-            setSelectedCountry(country);
-            setPhoneNumber(phone);
-            matched = true;
-            break;
-          }
-        }
-        if (!matched) {
-          // If no match, just extract digits
-          setPhoneNumber(initialPhoneNumber.replace(/\D/g, ''));
-        }
-      } else {
-        // Just digits, use default country
-        setPhoneNumber(initialPhoneNumber.replace(/\D/g, ''));
-      }
+      setPhoneNumber(localTenDigits(initialPhoneNumber));
     }
   }, [initialPhoneNumber]);
 
@@ -141,7 +119,7 @@ export default function PhoneVerificationScreen({
     }
 
     // Combine country code with phone number (E.164 format)
-    const fullPhoneNumber = selectedCountry.dialCode + numericPhone;
+    const fullPhoneNumber = INDIA_DIAL_CODE + localTenDigits(numericPhone);
 
     setLoading(true);
     try {
@@ -209,7 +187,7 @@ export default function PhoneVerificationScreen({
 
       // Combine country code with phone number (E.164 format)
       const numericPhone = phoneNumber.replace(/\D/g, '');
-      const fullPhoneNumber = selectedCountry.dialCode + numericPhone;
+      const fullPhoneNumber = INDIA_DIAL_CODE + localTenDigits(numericPhone);
 
       if (mode === 'change') {
         // For change mode, verify the code and update provider's phone via API
@@ -375,35 +353,25 @@ export default function PhoneVerificationScreen({
         {step === 'phone' ? (
           <>
             <View style={styles.phoneInputWrapper}>
-              <Text style={[styles.inputLabel, {color: theme.text}]}>{t('auth.phoneNumberRequired')}</Text>
-            <View style={styles.phoneInputContainer}>
-              <CountryCodePicker
-                selectedCountry={selectedCountry}
-                onSelect={setSelectedCountry}
+              <Text style={[styles.inputLabel, {color: theme.text}]}>
+                {t('auth.phoneNumberRequired')}
+              </Text>
+              <PhoneNumberInput
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                placeholder={
+                  t('auth.phoneTenDigitsHint') ||
+                  t('auth.phonePlaceholder') ||
+                  '10-digit mobile'
+                }
+                autoFocus
+                editable={!loading}
+                borderColor={theme.border}
+                backgroundColor={theme.card}
+                prefixBackgroundColor={isDarkMode ? theme.border : '#F5F5F5'}
+                textColor={theme.text}
+                placeholderTextColor={theme.textSecondary}
               />
-              <View style={[styles.inputContainer, {flex: 1}]}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.card,
-                      color: theme.text,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  value={phoneNumber}
-                  onChangeText={(text) => {
-                    // Remove non-numeric characters
-                    const numericText = text.replace(/\D/g, '');
-                    setPhoneNumber(numericText);
-                  }}
-                  placeholder={t('auth.phonePlaceholder')}
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="phone-pad"
-                  autoFocus
-                />
-                </View>
-              </View>
             </View>
 
             <TouchableOpacity

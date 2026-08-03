@@ -19,18 +19,41 @@ if (typeof window !== 'undefined') {
   }
 }
 
-import React, {useEffect} from 'react';
+import React, {useEffect, useState, useMemo} from 'react';
 import {StatusBar, Platform, PermissionsAndroid} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
+import {AppThemeProvider} from 'sapvt-ltd-app-packages';
 import AppNavigator from './src/navigation/AppNavigator';
 import {useStore} from './src/store';
 import NotificationService from './src/services/notificationService';
 import GeolocationService from './src/services/geolocationService';
 import WebSocketService from './src/services/websocketService';
+import {loadAndApplyBranding} from './src/services/brandingService';
+import {lightTheme, darkTheme} from './src/utils/theme';
 import './src/i18n'; // Initialize i18n
 
 const App = () => {
   const {isDarkMode, hydrate, currentUser} = useStore();
+  const [bootReady, setBootReady] = useState(false);
+  const theme = isDarkMode ? darkTheme : lightTheme;
+  const appThemeColors = useMemo(
+    () => ({
+      primary: theme.primary,
+      background: theme.background,
+      card: theme.card,
+      text: theme.text,
+      textSecondary: theme.textSecondary,
+      border: theme.border,
+    }),
+    [
+      theme.primary,
+      theme.background,
+      theme.card,
+      theme.text,
+      theme.textSecondary,
+      theme.border,
+    ],
+  );
 
   useEffect(() => {
     // Handle unhandled promise rejections for geolocation errors
@@ -103,8 +126,15 @@ const App = () => {
     // Request location permission
     requestLocationPermission();
 
-    // Hydrate store from AsyncStorage on app start
-    hydrate();
+    // Hydrate store + remote themeColors as colorPalette before first UI paint
+    (async () => {
+      try {
+        await hydrate();
+        await loadAndApplyBranding();
+      } finally {
+        setBootReady(true);
+      }
+    })();
     
     // Initialize notification service and save FCM token (for local notifications)
     NotificationService.initializeAndSaveToken().catch(error => {
@@ -145,15 +175,22 @@ const App = () => {
     };
   }, [currentUser?.id]);
 
+  if (!bootReady) {
+    return null;
+  }
+
   return (
     <SafeAreaProvider>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={isDarkMode ? '#1A202C' : '#F5F7FA'}
-      />
-      <AppNavigator />
+      <AppThemeProvider colors={appThemeColors}>
+        <StatusBar
+          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+          backgroundColor={theme.background}
+        />
+        <AppNavigator />
+      </AppThemeProvider>
     </SafeAreaProvider>
   );
 };
 
 export default App;
+

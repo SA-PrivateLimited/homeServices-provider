@@ -11,17 +11,27 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import {Select} from 'sapvt-ltd-app-packages';
 import GeolocationService from '../services/geolocationService';
-import firestore from '@react-native-firebase/firestore';
-import auth from '@react-native-firebase/auth';
+import {
+  getGeographyMeta,
+  hasWarmGeographyMeta,
+  peekGeographyMeta,
+  type GeographyDistrict,
+  type GeographyState,
+} from '../services/api/geographyApi';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 
 interface ProviderAddress {
   type: 'home' | 'office';
   address: string;
+  landmark?: string;
   city?: string;
+  district?: string;
   state?: string;
+  stateId?: string;
+  districtId?: string;
   pincode: string;
   latitude?: number;
   longitude?: number;
@@ -42,20 +52,52 @@ const ProviderAddressInput: React.FC<ProviderAddressInputProps> = ({
   const [addressType, setAddressType] = useState<'home' | 'office'>('home');
   const [pincode, setPincode] = useState('');
   const [address, setAddress] = useState('');
+  const [landmark, setLandmark] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [stateId, setStateId] = useState('');
+  const [districtId, setDistrictId] = useState('');
+  const warmGeo = peekGeographyMeta();
+  const [geoStates, setGeoStates] = useState<GeographyState[]>(
+    () => warmGeo?.states || [],
+  );
+  const [geoDistricts, setGeoDistricts] = useState<GeographyDistrict[]>(
+    () => warmGeo?.districts || [],
+  );
   const [showModal, setShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
   const [isFetchingAddress, setIsFetchingAddress] = useState(false);
+  const [loadingMeta, setLoadingMeta] = useState(() => !hasWarmGeographyMeta());
+
+  useEffect(() => {
+    let cancelled = false;
+    const showSpinner = !hasWarmGeographyMeta();
+    if (showSpinner) {
+      setLoadingMeta(true);
+    }
+    void getGeographyMeta().then((meta) => {
+      if (!cancelled) {
+        setGeoStates(meta.states);
+        setGeoDistricts(meta.districts);
+        setLoadingMeta(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (value) {
       setAddressType(value.type);
       setPincode(value.pincode || '');
       setAddress(value.address || '');
-      setCity(value.city || '');
+      setLandmark(value.landmark || '');
+      setCity(value.district || value.city || '');
       setState(value.state || '');
+      setStateId(value.stateId || '');
+      setDistrictId(value.districtId || '');
     }
   }, [value]);
 
@@ -129,8 +171,12 @@ const ProviderAddressInput: React.FC<ProviderAddressInputProps> = ({
     const addressData: ProviderAddress = {
       type: addressType,
       address: address.trim(),
+      landmark: landmark.trim() || undefined,
       city: city.trim() || undefined,
+      district: city.trim() || undefined,
       state: state.trim() || undefined,
+      stateId: stateId || undefined,
+      districtId: districtId || undefined,
       pincode: pincode.trim(),
     };
 
@@ -257,13 +303,76 @@ const ProviderAddressInput: React.FC<ProviderAddressInputProps> = ({
                 </TouchableOpacity>
               </View>
 
+              <Text style={[styles.label, {color: theme.text}]}>Address *</Text>
+              <TextInput
+                style={[styles.addressInput, {backgroundColor: theme.card, color: theme.text}]}
+                value={address}
+                onChangeText={setAddress}
+                placeholder="House / street / area"
+                multiline
+                numberOfLines={3}
+              />
+
+              <Text style={[styles.label, {color: theme.text}]}>
+                Landmark (optional)
+              </Text>
+              <TextInput
+                style={[styles.input, {backgroundColor: theme.card, color: theme.text}]}
+                value={landmark}
+                onChangeText={setLandmark}
+                placeholder="Near park, temple, etc."
+              />
+
+              <Text style={[styles.label, {color: theme.text}]}>State</Text>
+              {loadingMeta ? (
+                <ActivityIndicator color={theme.primary} style={{marginVertical: 8}} />
+              ) : (
+                <Select
+                  options={geoStates.map((s) => ({value: s._id, label: s.name}))}
+                  value={stateId}
+                  placeholder="Select state"
+                  onChange={(id) => {
+                    const st = geoStates.find((s) => s._id === id);
+                    setStateId(id);
+                    setState(st?.name || '');
+                    setDistrictId('');
+                    setCity('');
+                    setPincode('');
+                  }}
+                />
+              )}
+
+              <Text style={[styles.label, {color: theme.text}]}>District</Text>
+              {loadingMeta ? (
+                <ActivityIndicator color={theme.primary} style={{marginVertical: 8}} />
+              ) : (
+                <Select
+                  options={geoDistricts
+                    .filter((d) => !stateId || d.stateId === stateId)
+                    .map((d) => ({value: d._id, label: d.name}))}
+                  value={districtId}
+                  placeholder="Select district"
+                  disabled={!stateId}
+                  onChange={(id) => {
+                    const d = geoDistricts.find((x) => x._id === id);
+                    setDistrictId(id);
+                    setCity(d?.name || '');
+                    if (d?.pincode) setPincode(d.pincode);
+                    if (d?.stateId) {
+                      setStateId(d.stateId);
+                      setState(d.stateName || '');
+                    }
+                  }}
+                />
+              )}
+
               <Text style={[styles.label, {color: theme.text}]}>Pincode *</Text>
               <View style={styles.pincodeContainer}>
                 <TextInput
                   style={[styles.pincodeInput, {backgroundColor: theme.card, color: theme.text}]}
                   value={pincode}
                   onChangeText={setPincode}
-                  placeholder="Enter 6-digit pincode"
+                  placeholder="Auto from district"
                   keyboardType="numeric"
                   maxLength={6}
                 />
@@ -278,43 +387,6 @@ const ProviderAddressInput: React.FC<ProviderAddressInputProps> = ({
                   )}
                 </TouchableOpacity>
               </View>
-
-              {isFetchingAddress && (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={theme.primary} />
-                  <Text style={[styles.loadingText, {color: theme.textSecondary}]}>
-                    Fetching address...
-                  </Text>
-                </View>
-              )}
-
-              <Text style={[styles.label, {color: theme.text}]}>Address *</Text>
-              <TextInput
-                style={[styles.addressInput, {backgroundColor: theme.card, color: theme.text}]}
-                value={address}
-                onChangeText={setAddress}
-                placeholder="Street address, area, landmark"
-                multiline
-                numberOfLines={3}
-              />
-
-              <Text style={[styles.label, {color: theme.text}]}>City</Text>
-              <TextInput
-                style={[styles.input, {backgroundColor: theme.card, color: theme.text}]}
-                value={city}
-                onChangeText={setCity}
-                placeholder="City"
-                editable={!isFetchingAddress}
-              />
-
-              <Text style={[styles.label, {color: theme.text}]}>State</Text>
-              <TextInput
-                style={[styles.input, {backgroundColor: theme.card, color: theme.text}]}
-                value={state}
-                onChangeText={setState}
-                placeholder="State"
-                editable={!isFetchingAddress}
-              />
             </ScrollView>
 
             <View style={styles.modalFooter}>

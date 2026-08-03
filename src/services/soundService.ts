@@ -2,30 +2,40 @@
  * Sound Service for HomeServicesProvider
  * Handles playing notification sounds (hooter sound)
  * Independent of WebSocket service
+ * Gracefully degrades when react-native-sound is not linked (e.g. after fresh install).
  */
 
-import Sound from 'react-native-sound';
 import { Platform, Vibration } from 'react-native';
 
+// Lazy-load react-native-sound so we can catch "not linked" errors and run without sound
+let SoundModule: typeof import('react-native-sound') | null = null;
+try {
+  SoundModule = require('react-native-sound').default;
+} catch (e) {
+  console.warn(
+    '⚠️ react-native-sound not linked; sound features disabled. Rebuild the app after installing the package.',
+  );
+}
+
 class SoundService {
-  private hooterSound: Sound | null = null;
+  private hooterSound: any = null;
   private hooterSoundLoaded: boolean = false;
-  private continuousPlayInterval: NodeJS.Timeout | null = null;
+  private continuousPlayInterval: ReturnType<typeof setInterval> | null = null;
   private isPlayingContinuously: boolean = false;
 
   constructor() {
+    if (!SoundModule) return;
     // Enable playback in silence mode (iOS) and use speaker for Android
     try {
-        Sound.setCategory('Playback', true);
+      SoundModule.setCategory('Playback', true);
       console.log('✅ Sound category set to Playback');
     } catch (error) {
       console.warn('⚠️ Failed to set sound category:', error);
     }
 
     // Load hooter sound on initialization
-    // Use setTimeout to ensure Sound is fully initialized
     setTimeout(() => {
-    this.loadHooterSound();
+      this.loadHooterSound();
     }, 100);
   }
 
@@ -33,6 +43,7 @@ class SoundService {
    * Load the hooter sound file
    */
   private loadHooterSound(): void {
+    if (!SoundModule) return;
     // Only load sound if not already loaded
     if (this.hooterSoundLoaded && this.hooterSound) {
       console.log('✅ Hooter sound already loaded');
@@ -74,7 +85,7 @@ class SoundService {
       
       // For Android: Use undefined for res/raw files
       // For iOS: Use Sound.MAIN_BUNDLE
-      const basePath = Platform.OS === 'android' ? undefined : Sound.MAIN_BUNDLE;
+      const basePath = Platform.OS === 'android' ? undefined : SoundModule.MAIN_BUNDLE;
       
       console.log('📦 Creating Sound instance with:', {
         file: 'hooter.wav',
@@ -82,7 +93,7 @@ class SoundService {
         platform: Platform.OS,
       });
       
-      const soundInstance = new Sound(
+      const soundInstance = new SoundModule(
         'hooter.wav',
         basePath,
         (error) => {
@@ -134,6 +145,7 @@ class SoundService {
    * Play hooter sound (single play)
    */
   playHooterSound(): void {
+    if (!SoundModule) return;
     console.log('🔊 [PLAY] Attempting to play hooter sound...');
 
     // Ensure sound is loaded first
@@ -230,6 +242,7 @@ class SoundService {
    * Start playing hooter sound continuously (every 2 seconds)
    */
   startContinuousPlay(): void {
+    if (!SoundModule) return;
     if (this.isPlayingContinuously) {
       console.log('🔊 Continuous play already running');
       return;

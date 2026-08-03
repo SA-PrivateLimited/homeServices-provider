@@ -5,7 +5,8 @@ buildscript {
         compileSdkVersion = 35
         targetSdkVersion = 35
         ndkVersion = "25.1.8937393"
-        kotlinVersion = "1.8.0"
+        // Keep 1.8.x line: RN 0.73 gradle-plugin ships kotlin-gradle-plugin 1.8.0; newer KGP breaks apply plugin.
+        kotlinVersion = "1.8.22"
     }
     repositories {
         google()
@@ -16,6 +17,32 @@ buildscript {
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
         classpath("com.google.gms:google-services:4.4.0")
+    }
+}
+
+// OneSignal 5 pulls OkHttp 5 / kotlin-stdlib 2.2 (metadata incompatible with Kotlin 1.8 compiler).
+subprojects { sub ->
+    sub.configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            def req = details.requested
+            if (req.group == 'org.jetbrains.kotlin' &&
+                    (req.name == 'kotlin-stdlib' || req.name == 'kotlin-stdlib-jdk7' || req.name == 'kotlin-stdlib-jdk8')) {
+                details.useVersion rootProject.ext.kotlinVersion
+                details.because 'Match Kotlin compiler; avoid stdlib 2.2 metadata on compile classpath'
+            }
+            if (req.group == 'com.squareup.okhttp3' && req.name == 'okhttp') {
+                details.useVersion '4.12.0'
+                details.because 'OkHttp 5 ships Kotlin 2.2 module metadata; Kotlin 1.8 cannot read it'
+            }
+            if (req.group == 'com.squareup.okio' && req.name == 'okio') {
+                details.useVersion '3.6.0'
+                details.because 'Align with OkHttp 4.12'
+            }
+            if (req.group == 'com.squareup.okio' && req.name == 'okio-jvm') {
+                details.useVersion '3.6.0'
+                details.because 'Align with OkHttp 4.12'
+            }
+        }
     }
 }
 

@@ -28,7 +28,6 @@ interface ProviderProfile {
   name: string;
   specialization?: string; // New field name
   specialty?: string; // Legacy field name (for backward compatibility)
-  email: string;
   phone: string;
   experience: number;
   qualification?: string; // Legacy field (string)
@@ -73,7 +72,6 @@ export default function ProviderProfileScreen({navigation}: any) {
           name: provider.name || '',
           specialization: provider.specialization,
           specialty: provider.specialty,
-          email: provider.email || '',
           phone: provider.phone || provider.phoneNumber || '',
           experience: provider.experience || 0,
           consultationFee: provider.serviceFee || 0,
@@ -406,13 +404,6 @@ export default function ProviderProfileScreen({navigation}: any) {
 
       <View style={[styles.section, styles.professionalSection, {backgroundColor: theme.card}]}>
         <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>{String(t('profile.contactInformation'))}</Text>
-        <View style={styles.infoRow}>
-          <Icon name="email" size={20} color={theme.primary} />
-          <View style={styles.infoContent}>
-            <Text style={[styles.infoLabel, {color: theme.textSecondary}]}>{String(t('profile.email'))}</Text>
-            <Text style={[styles.infoValue, {color: theme.text}]}>{profile.email}</Text>
-          </View>
-        </View>
         <View style={styles.infoRow}>
           <Icon name="phone" size={20} color={theme.primary} />
           <View style={styles.infoContent}>

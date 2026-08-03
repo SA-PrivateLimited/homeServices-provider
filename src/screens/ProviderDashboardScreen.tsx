@@ -36,6 +36,7 @@ import AlertModal from '../components/AlertModal';
 import Toast from '../components/Toast';
 import {createJobCard} from '../services/jobCardService';
 import useTranslation from '../hooks/useTranslation';
+import {serviceRequestsApi} from '../services/api/serviceRequestsApi';
 
 export default function ProviderDashboardScreen({navigation}: any) {
   const {isDarkMode, currentUser} = useStore();
@@ -190,6 +191,42 @@ export default function ProviderDashboardScreen({navigation}: any) {
       // Start location tracking when going online
       const stopTracking = startLocationTracking();
       setLocationTracking(() => stopTracking);
+
+      // Pick up specific-provider requests that arrived while offline
+      (async () => {
+        try {
+          const pending = await serviceRequestsApi.getMyPending();
+          if (pending.length === 0) {
+            return;
+          }
+          const latest = pending[0];
+          setIncomingBooking(prev => {
+            if (prev) {
+              return prev;
+            }
+            return {
+              consultationId: latest._id || latest.id || latest.consultationId,
+              id: latest._id || latest.id || latest.consultationId,
+              bookingId: latest._id || latest.id || latest.consultationId,
+              customerName: latest.customerName,
+              patientName: latest.customerName,
+              customerPhone: latest.customerPhone,
+              patientPhone: latest.customerPhone,
+              customerAddress: latest.customerAddress,
+              patientAddress: latest.customerAddress,
+              serviceType: latest.serviceType,
+              problem: latest.problem,
+              questionnaireAnswers: latest.questionnaireAnswers,
+              providerId: latest.providerId,
+              isTargeted: true,
+              status: latest.status,
+              createdAt: latest.createdAt,
+            };
+          });
+        } catch (e) {
+          console.warn('Could not load pending assigned requests:', e);
+        }
+      })();
       
       // Verify callback is still registered after connection
       setTimeout(() => {

@@ -560,8 +560,8 @@ class WebSocketService {
 
   /**
    * Reject a booking/service request
-   * Updates the status to 'rejected'
-   * Tries Firestore FIRST (PRIMARY), then MongoDB
+   * Specific-provider: marks request rejected so customer sees provider is not ready.
+   * Open (broadcast): API dismisses without cancelling for other providers.
    */
   async rejectBooking(bookingData: any): Promise<void> {
     try {
@@ -576,10 +576,19 @@ class WebSocketService {
 
       console.log('📋 [REJECT] Starting rejectBooking:', serviceRequestId);
 
-      let rejected = false;
+      // Prefer MongoDB API (source of truth)
+      try {
+        await serviceRequestsApi.reject(
+          serviceRequestId,
+          'Provider is not ready to take this request',
+        );
+        console.log('✅ [REJECT] Service request rejected via MongoDB API:', serviceRequestId);
+        return;
+      } catch (apiError: any) {
+        console.warn('⚠️ [REJECT] MongoDB API error:', apiError.message);
+      }
 
-      // STEP 1: Try Firestore first (PRIMARY)
-      console.log('📋 [REJECT] Trying Firestore (PRIMARY):', serviceRequestId);
+      // Fallback: Firestore (legacy)
       try {
         const serviceRequestDoc = await firestore()
           .collection('serviceRequests')
@@ -592,31 +601,17 @@ class WebSocketService {
             .doc(serviceRequestId)
             .update({
               status: 'rejected',
-              rejectionReason: 'Provider rejected the service request',
+              rejectionReason: 'Provider is not ready to take this request',
               updatedAt: firestore.FieldValue.serverTimestamp(),
             });
           console.log('✅ [REJECT] Service request rejected in Firestore:', serviceRequestId);
-          rejected = true;
+          return;
         }
       } catch (firestoreError: any) {
         console.warn('⚠️ [REJECT] Firestore error:', firestoreError.message);
       }
 
-      // STEP 2: Also try MongoDB API (for sync)
-      if (!rejected) {
-        console.log('📋 [REJECT] Trying MongoDB API:', serviceRequestId);
-        try {
-          await serviceRequestsApi.reject(serviceRequestId, 'Provider rejected the service request');
-          console.log('✅ [REJECT] Service request rejected via MongoDB API:', serviceRequestId);
-          rejected = true;
-        } catch (apiError: any) {
-          console.warn('⚠️ [REJECT] MongoDB API error:', apiError.message);
-        }
-      }
-
-      if (!rejected) {
-        throw new Error(`Service request not found: ${serviceRequestId}`);
-      }
+      throw new Error(`Service request not found: ${serviceRequestId}`);
     } catch (error: any) {
       console.error('❌ [REJECT] Error rejecting booking:', error);
       throw new Error(`Failed to reject booking: ${error.message}`);
