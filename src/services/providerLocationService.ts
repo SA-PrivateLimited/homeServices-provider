@@ -29,6 +29,32 @@ export interface ProviderStatus {
   currentLocation?: ProviderLocation;
 }
 
+/** Backend/DB blips — location tracking must not red-screen the app */
+const isTransientLocationError = (error: unknown): boolean => {
+  const msg = (
+    (error as any)?.message ||
+    String(error) ||
+    ''
+  ).toLowerCase();
+  return (
+    msg.includes('timed out') ||
+    msg.includes('timeout') ||
+    msg.includes('etimedout') ||
+    msg.includes('econnrefused') ||
+    msg.includes('econnreset') ||
+    msg.includes('network') ||
+    msg.includes('database not connected') ||
+    msg.includes('connectdb') ||
+    msg.includes('mongo') ||
+    msg.includes('27017') ||
+    msg.includes('server selection') ||
+    msg.includes('failed to update location') ||
+    msg.includes('503') ||
+    msg.includes('502') ||
+    msg.includes('504')
+  );
+};
+
 /**
  * Calculate distance between two coordinates (Haversine formula)
  * Returns distance in kilometers
@@ -159,7 +185,15 @@ export const updateProviderLocation = async (): Promise<void> => {
           longitude: providerLocation.longitude,
         },
       });
-    } catch {
+    } catch (statusErr) {
+      // Avoid a second Mongo hit when the API is already timing out
+      if (isTransientLocationError(statusErr)) {
+        console.warn(
+          '⚠️ Location status update skipped (transient backend/DB issue):',
+          (statusErr as any)?.message || statusErr,
+        );
+        return;
+      }
       await updateMyProfile({
         currentLocation: {
           ...providerLocation,
@@ -185,21 +219,16 @@ export const updateProviderLocation = async (): Promise<void> => {
 
     console.log('Provider location updated:', providerLocation);
   } catch (error: any) {
-    const errorMessage = error?.message || String(error) || '';
-
-    if (
-      errorMessage.includes('Database not connected') ||
-      errorMessage.includes('connectDB')
-    ) {
+    if (isTransientLocationError(error)) {
       console.warn(
-        '⚠️ Database connection issue when updating location (non-critical):',
-        errorMessage,
+        '⚠️ Location update skipped (transient backend/DB issue):',
+        error?.message || error,
       );
       return;
     }
 
-    console.error('Error updating provider location:', error);
-    throw new Error(`Failed to update location: ${error.message}`);
+    // Non-critical for callers that swallow; still don't throw for tracking UX
+    console.warn('Error updating provider location (non-critical):', error?.message || error);
   }
 };
 
@@ -210,24 +239,18 @@ export const startLocationTracking = (): (() => void) => {
     try {
       await updateProviderLocation();
     } catch (error: any) {
+      // Never console.error here — LogBox turns it into a red screen
       const errorMessage = error?.message || String(error) || '';
       if (
-        errorMessage.includes('permission') ||
-        errorMessage.includes('Permission')
+        errorMessage.toLowerCase().includes('permission') ||
+        isTransientLocationError(error)
       ) {
         console.warn(
-          'Location permission not granted, skipping location update',
-        );
-      } else if (
-        errorMessage.includes('Database not connected') ||
-        errorMessage.includes('connectDB')
-      ) {
-        console.warn(
-          '⚠️ Database connection issue in location tracking (non-critical):',
+          '⚠️ Location tracking skipped (non-critical):',
           errorMessage,
         );
       } else {
-        console.error('Error in location tracking (non-critical):', error);
+        console.warn('Location tracking issue (non-critical):', errorMessage);
       }
     }
   };
@@ -274,7 +297,7 @@ export const getProviderStatus = async (
         : undefined,
     };
   } catch (error) {
-    console.error('Error getting provider status:', error);
+    console.warn('Error getting provider status:', (error as any)?.message || error);
     return null;
   }
 };
