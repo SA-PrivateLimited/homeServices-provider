@@ -47,5 +47,9 @@
   "materialsUsed": "उपयोग की गई सामग्री",
   "materialDescription": "सामग्री विवरण",
   "quantity": "मात्रा",
-  "unitPrice": "इकाई मूल्य"
+  "unitPrice": "इकाई मूल्य",
+  "comments": "टिप्पणियाँ",
+  "commentPlaceholder": "टिप्पणी लिखें…",
+  "noComments": "अभी कोई टिप्पणी नहीं",
+  "postComment": "पोस्ट करें"
 }

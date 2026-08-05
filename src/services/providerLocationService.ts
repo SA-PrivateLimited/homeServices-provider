@@ -10,7 +10,7 @@ import {
   updateMyProfile,
   updateProviderStatus,
 } from './api/providersApi';
-import {getUserId, requireSessionUser} from './session';
+import {getUserId, isLoggedIn, requireSessionUser} from './session';
 
 export interface ProviderLocation {
   latitude: number;
@@ -54,6 +54,9 @@ const isTransientLocationError = (error: unknown): boolean => {
     msg.includes('504')
   );
 };
+
+/** Single active GPS interval — survives screen remounts; stopped on logout */
+let trackingIntervalId: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Calculate distance between two coordinates (Haversine formula)
@@ -145,11 +148,15 @@ export const setProviderOnline = async (isOnline: boolean): Promise<void> => {
  */
 export const updateProviderLocation = async (): Promise<void> => {
   try {
+    if (!(await isLoggedIn())) {
+      return;
+    }
+
     await requireSessionUser();
 
     const provider = await getMyProfile();
     if (!provider) {
-      throw new Error('Provider profile not found');
+      return;
     }
 
     if (!provider?.isOnline) {
@@ -165,7 +172,8 @@ export const updateProviderLocation = async (): Promise<void> => {
 
     const location = await GeolocationService.getCurrentLocation();
     if (!location) {
-      throw new Error('Failed to get current location');
+      console.warn('Failed to get current location, skipping update');
+      return;
     }
 
     const providerLocation: ProviderLocation = {
@@ -219,51 +227,63 @@ export const updateProviderLocation = async (): Promise<void> => {
 
     console.log('Provider location updated:', providerLocation);
   } catch (error: any) {
+    const msg = error?.message || String(error) || '';
+    if (
+      msg.toLowerCase().includes('not authenticated') ||
+      !(await isLoggedIn())
+    ) {
+      return;
+    }
     if (isTransientLocationError(error)) {
       console.warn(
         '⚠️ Location update skipped (transient backend/DB issue):',
-        error?.message || error,
+        msg,
       );
       return;
     }
 
-    // Non-critical for callers that swallow; still don't throw for tracking UX
-    console.warn('Error updating provider location (non-critical):', error?.message || error);
+    console.warn('Error updating provider location (non-critical):', msg);
   }
 };
 
 export const startLocationTracking = (): (() => void) => {
-  let intervalId: NodeJS.Timeout | null = null;
+  // Replace any previous tracker (e.g. remount / re-toggle)
+  stopLocationTracking();
 
   const updateLocation = async () => {
     try {
+      // Logged out — do not hit the API
+      if (!(await isLoggedIn())) {
+        stopLocationTracking();
+        return;
+      }
       await updateProviderLocation();
     } catch (error: any) {
       // Never console.error here — LogBox turns it into a red screen
       const errorMessage = error?.message || String(error) || '';
       if (
+        errorMessage.toLowerCase().includes('not authenticated') ||
         errorMessage.toLowerCase().includes('permission') ||
         isTransientLocationError(error)
       ) {
-        console.warn(
-          '⚠️ Location tracking skipped (non-critical):',
-          errorMessage,
-        );
-      } else {
-        console.warn('Location tracking issue (non-critical):', errorMessage);
+        return;
       }
+      console.warn('Location tracking issue (non-critical):', errorMessage);
     }
   };
 
   updateLocation();
-  intervalId = setInterval(updateLocation, 30000);
+  trackingIntervalId = setInterval(updateLocation, 30000);
 
-  return () => {
-    if (intervalId) {
-      clearInterval(intervalId);
-      intervalId = null;
-    }
-  };
+  return stopLocationTracking;
+};
+
+/** Stop GPS pings — call on logout / going offline */
+export const stopLocationTracking = (): void => {
+  if (trackingIntervalId) {
+    clearInterval(trackingIntervalId);
+    trackingIntervalId = null;
+  }
 };
 
 export const getProviderStatus = async (

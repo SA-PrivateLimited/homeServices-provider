@@ -287,6 +287,13 @@ export const updateUserRole = async (userId: string, role: 'patient' | 'doctor' 
 export const logout = async (): Promise<void> => {
   try {
     try {
+      const {stopLocationTracking} = await import('./providerLocationService');
+      stopLocationTracking();
+    } catch {
+      // ignore
+    }
+
+    try {
       const websocketService = (await import('./websocketService')).default;
       websocketService.disconnect();
     } catch (wsError) {

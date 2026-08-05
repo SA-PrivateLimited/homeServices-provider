@@ -4,6 +4,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {notifySessionExpired} from './sessionExpiry';
 
 export const JWT_STORAGE_KEY = 'hs_provider_jwt';
 export const USER_STORAGE_KEY = 'hs_provider_user';
@@ -21,17 +22,62 @@ export interface RememberedPhone {
   expiresAt: number;
 }
 
+/** Decode JWT payload (no signature verify — server is source of truth). */
+export function getJwtExpiryMs(token: string): number | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const padded = part.replace(/-/g, '+').replace(/_/g, '/');
+    const pad =
+      padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
+    const b64 = padded + pad;
+    let json: string;
+    if (typeof globalThis.atob === 'function') {
+      json = globalThis.atob(b64);
+    } else if (typeof Buffer !== 'undefined') {
+      json = Buffer.from(b64, 'base64').toString('utf8');
+    } else {
+      return null;
+    }
+    const payload = JSON.parse(json);
+    if (payload?.exp != null && Number.isFinite(Number(payload.exp))) {
+      return Number(payload.exp) * 1000;
+    }
+  } catch {
+    // ignore malformed tokens
+  }
+  return null;
+}
+
+async function expireLocalSession(): Promise<void> {
+  await clearSession();
+  try {
+    await AsyncStorage.removeItem('currentUser');
+  } catch {
+    // ignore
+  }
+  notifySessionExpired();
+}
+
 export async function getStoredJwt(): Promise<string | null> {
   try {
     const expiresRaw = await AsyncStorage.getItem(SESSION_EXPIRES_KEY);
     if (expiresRaw) {
       const expiresAt = Number(expiresRaw);
       if (Number.isFinite(expiresAt) && Date.now() > expiresAt) {
-        await clearSession();
+        await expireLocalSession();
         return null;
       }
     }
-    return await AsyncStorage.getItem(JWT_STORAGE_KEY);
+    const token = await AsyncStorage.getItem(JWT_STORAGE_KEY);
+    if (!token) return null;
+
+    const jwtExpMs = getJwtExpiryMs(token);
+    if (jwtExpMs != null && Date.now() > jwtExpMs) {
+      await expireLocalSession();
+      return null;
+    }
+    return token;
   } catch {
     return null;
   }
@@ -42,7 +88,9 @@ export async function setSession(
   user: any,
   ttlMs: number = SESSION_TTL_MS,
 ): Promise<void> {
-  const expiresAt = Date.now() + ttlMs;
+  const jwtExpMs = getJwtExpiryMs(token);
+  const expiresAt =
+    jwtExpMs != null ? jwtExpMs : Date.now() + ttlMs;
   await AsyncStorage.multiSet([
     [JWT_STORAGE_KEY, token],
     [USER_STORAGE_KEY, JSON.stringify(user)],
@@ -176,4 +224,19 @@ export async function requireSessionUser(): Promise<any> {
     throw new Error('User not authenticated');
   }
   return normalizeUser(user);
+}
+
+/**
+ * Clear session + store when JWT is expired/invalid (401 or local exp).
+ * Keeps remembered phone for PIN-only return.
+ */
+export async function forceLogoutExpiredSession(): Promise<void> {
+  await logoutProvider();
+  try {
+    const {useStore} = await import('../store');
+    await useStore.getState().setCurrentUser(null);
+  } catch (e) {
+    console.warn('[session] failed to clear store on expiry', e);
+  }
+  notifySessionExpired();
 }

@@ -50,6 +50,14 @@ export interface JobCard {
   pinGeneratedAt?: Date | string;
   scheduledTime?: Date | string;
   cancellationReason?: string;
+  comments?: Array<{
+    _id: string;
+    role: 'admin' | 'provider' | 'customer';
+    authorId?: string;
+    authorName?: string;
+    text: string;
+    createdAt?: string | Date;
+  }>;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -164,57 +172,29 @@ export const createJobCard = async (
     const createdJobCard = await jobCardsApi.create(jobCardData);
     const jobCardId = createdJobCard._id || createdJobCard.id || '';
 
-    // Also create status entry in Realtime Database for real-time updates
-    await database()
-      .ref(`jobCards/${jobCardId}`)
-      .set({
-        providerId: providerId,
-        customerId: customerId,
-        status: 'accepted',
-        updatedAt: Date.now(),
-      });
-
-    // Send notification to customer
-    try {
-      console.log('Sending acceptance notification to customer:', {
-        customerId,
-        providerName: jobCardData.providerName,
-        serviceType: jobCardData.serviceType,
-        consultationId: jobCardData.consultationId || 'N/A',
-      });
-
-      await fcmNotificationService.notifyCustomerServiceAccepted(
-        customerId,
-        jobCardData.providerName,
-        jobCardData.serviceType,
-        jobCardData.consultationId || '',
-        customerPhone,
-        problem,
-      );
-      console.log('Notification sent to customer from createJobCard');
-    } catch (notificationError: any) {
-      console.error('Failed to send notification from createJobCard:', {
-        error: notificationError.message,
-        customerId,
-      });
+    if (!jobCardId) {
+      throw new Error('Job card created but no id returned');
     }
 
-    // Send notification to admins
-    try {
-      await fcmNotificationService.sendToAdmins({
-        title: 'Service Request Accepted',
-        body: `${jobCardData.providerName} has accepted a ${jobCardData.serviceType} service request from ${customerName}`,
-        type: 'service',
-        jobCardId: jobCardId,
-        consultationId: jobCardData.consultationId || '',
-        status: 'accepted',
-      });
-      console.log('Notification sent to admins from createJobCard');
-    } catch (adminNotificationError: any) {
-      console.error('Failed to send admin notification from createJobCard:', {
-        error: adminNotificationError.message,
-      });
-    }
+    // Side effects must not fail accept — API is source of truth.
+    // Customer/admin push is sent by the backend accept endpoint (Mongo FCM tokens).
+    void (async () => {
+      try {
+        await database()
+          .ref(`jobCards/${jobCardId}`)
+          .set({
+            providerId: providerId,
+            customerId: customerId,
+            status: 'accepted',
+            updatedAt: Date.now(),
+          });
+      } catch (rtdbError: any) {
+        console.warn(
+          'RTDB jobCards mirror skipped:',
+          rtdbError?.message || rtdbError,
+        );
+      }
+    })();
 
     return jobCardId;
   } catch (error: any) {
@@ -276,45 +256,44 @@ export const updateJobCardStatus = async (
   jobCardId: string,
   status: JobCard['status'],
 ): Promise<void> => {
+  const {requireSessionUser, getUserId} = await import('./session');
+  const sessionUser = await requireSessionUser();
+
+  const jobCardData = await jobCardsApi.getById(jobCardId);
+  if (!jobCardData) {
+    throw new Error('Job card not found');
+  }
+
+  const customerId = jobCardData.customerId;
+  const consultationId = jobCardData.consultationId || jobCardData.bookingId;
+  const providerName = jobCardData.providerName || 'Provider';
+  const serviceType = jobCardData.serviceType || 'service';
+  const customerPhone = jobCardData.customerPhone;
+  const problem = jobCardData.problem;
+  const providerId = jobCardData.providerId || getUserId(sessionUser) || '';
+
+  let taskPIN: string | undefined;
+  if (status === 'in-progress') {
+    taskPIN = generatePIN();
+  }
+
+  // API first — this is the source of truth
   try {
-    const {requireSessionUser, getUserId} = await import('./session');
-    const sessionUser = await requireSessionUser();
-
-    // Get job card data via API to get customer info
-    const jobCardData = await jobCardsApi.getById(jobCardId);
-
-    if (!jobCardData) {
-      throw new Error('Job card not found');
-    }
-
-    let customerId = jobCardData.customerId;
-    const consultationId = jobCardData.consultationId || jobCardData.bookingId;
-    const providerName = jobCardData.providerName || 'Provider';
-    const serviceType = jobCardData.serviceType || 'service';
-    const customerPhone = jobCardData.customerPhone;
-    const problem = jobCardData.problem;
-    const providerId = jobCardData.providerId || getUserId(sessionUser) || '';
-
-    // Note: Consultation-related code removed - consultationId is kept for backward compatibility only
-
-    // Generate PIN when starting task (status changes to 'in-progress')
-    let taskPIN: string | undefined;
-    if (status === 'in-progress') {
-      taskPIN = generatePIN();
-      console.log('Generated PIN for task:', taskPIN);
-    }
-
-    // Update via API
     const updateData: any = {status};
     if (taskPIN) {
       updateData.taskPIN = taskPIN;
+      updateData.pinGeneratedAt = new Date();
     }
-
     await jobCardsApi.updateStatus(jobCardId, status, updateData);
+  } catch (apiError: any) {
+    console.error('Error updating job card status via API:', apiError);
+    throw new Error(
+      apiError?.message || 'Failed to update job card status',
+    );
+  }
 
-    // Note: Consultation status updates removed - consultations are no longer used
-
-    // Update in Realtime Database for real-time synchronization
+  // Best-effort RTDB mirror (Firebase rules often deny provider writes)
+  try {
     await database()
       .ref(`jobCards/${jobCardId}`)
       .update({
@@ -322,85 +301,65 @@ export const updateJobCardStatus = async (
         updatedAt: Date.now(),
         providerId: providerId,
       });
+  } catch (rtdbError: any) {
+    console.warn(
+      'RTDB jobCards status mirror skipped:',
+      rtdbError?.message || rtdbError,
+    );
+  }
 
-    // Send notification to customer based on status
-    console.log('updateJobCardStatus - Status update:', {
-      status,
-      customerId,
-      consultationId,
-      jobCardId,
-      providerName,
-      serviceType,
-    });
-
-    if (customerId) {
-      try {
-        if (status === 'in-progress') {
-          console.log('Status is in-progress, sending FCM notification with PIN');
-          await fcmNotificationService.notifyCustomerServiceStarted(
+  // Best-effort customer notification
+  if (customerId) {
+    try {
+      if (status === 'in-progress') {
+        await fcmNotificationService.notifyCustomerServiceStarted(
+          customerId,
+          providerName,
+          serviceType,
+          consultationId || '',
+          jobCardId,
+          taskPIN,
+          customerPhone,
+          problem,
+        );
+      } else if (status === 'completed') {
+        await fcmNotificationService.notifyCustomerServiceCompleted(
+          customerId,
+          providerName,
+          serviceType,
+          consultationId || '',
+          customerPhone,
+          problem,
+        );
+        try {
+          const payload = {
             customerId,
-            providerName,
-            serviceType,
-            consultationId || '',
             jobCardId,
-            taskPIN,
-            customerPhone,
-            problem,
-          );
-        } else if (status === 'completed') {
-          console.log('Status is completed, sending FCM notification');
-          await fcmNotificationService.notifyCustomerServiceCompleted(
-            customerId,
+            consultationId,
             providerName,
             serviceType,
-            consultationId || '',
-            customerPhone,
-            problem,
-          );
-
-          // Emit WebSocket event to customer room for real-time review prompt
-          try {
-            const payload = {
-              customerId,
-              jobCardId,
-              consultationId,
-              providerName,
-              serviceType,
-            };
-
-            console.log('[PROVIDER] Emitting WebSocket service-completed event:', {
-              ...payload,
-              socketUrl: SOCKET_URL,
-            });
-
-            const response = await fetch(`${SOCKET_URL}/emit-service-completed`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(payload),
-            });
-
-            const result = await response.json();
-
-            if (response.ok && result.success) {
-              console.log('[PROVIDER] WebSocket service-completed event emitted successfully');
-            } else {
-              console.error('[PROVIDER] Failed to emit WebSocket event:', result.error);
-            }
-          } catch (websocketError: any) {
-            console.error('[PROVIDER] Error emitting WebSocket event:', websocketError.message);
+          };
+          const response = await fetch(`${SOCKET_URL}/emit-service-completed`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) {
+            console.warn('[PROVIDER] emit-service-completed non-OK');
           }
+        } catch (websocketError: any) {
+          console.warn(
+            '[PROVIDER] emit-service-completed skipped:',
+            websocketError?.message,
+          );
         }
-      } catch (notificationError: any) {
-        console.error('[PROVIDER] Error sending status notification:', notificationError.message);
       }
-    } else {
-      console.warn('[PROVIDER] Cannot send notification - missing customerId');
+    } catch (notificationError: any) {
+      console.warn(
+        '[PROVIDER] Status notification skipped:',
+        notificationError?.message || notificationError,
+      );
     }
-  } catch (error) {
-    console.error('Error updating job card status:', error);
-    throw new Error('Failed to update job card status');
   }
 };
 
@@ -606,14 +565,21 @@ export const verifyPINAndCompleteTask = async (
       jobCardPdfUrl: pdfUrl,
     });
 
-    // Update in Realtime Database
-    await database()
-      .ref(`jobCards/${jobCardId}`)
-      .update({
-        status: 'completed',
-        updatedAt: Date.now(),
-        completedAt: timeCompleted ? timeCompleted.getTime() : Date.now(),
-      });
+    // Best-effort RTDB mirror
+    try {
+      await database()
+        .ref(`jobCards/${jobCardId}`)
+        .update({
+          status: 'completed',
+          updatedAt: Date.now(),
+          completedAt: timeCompleted ? timeCompleted.getTime() : Date.now(),
+        });
+    } catch (rtdbError: any) {
+      console.warn(
+        'RTDB jobCards complete mirror skipped:',
+        rtdbError?.message || rtdbError,
+      );
+    }
 
     // Clear PIN by updating via API (PIN will be cleared by backend)
     // The backend should handle clearing the PIN after successful completion
@@ -653,15 +619,20 @@ export const cancelTaskWithReason = async (
       cancellationReason: cancellationReason.trim(),
     });
 
-    // Note: Consultation status updates removed - consultations are no longer used
-
-    // Update in Realtime Database
-    await database()
-      .ref(`jobCards/${jobCardId}`)
-      .update({
-        status: 'cancelled',
-        updatedAt: Date.now(),
-      });
+    // Best-effort RTDB mirror
+    try {
+      await database()
+        .ref(`jobCards/${jobCardId}`)
+        .update({
+          status: 'cancelled',
+          updatedAt: Date.now(),
+        });
+    } catch (rtdbError: any) {
+      console.warn(
+        'RTDB jobCards cancel mirror skipped:',
+        rtdbError?.message || rtdbError,
+      );
+    }
 
     // Send notification to customer
     if (customerId) {
@@ -676,7 +647,7 @@ export const cancelTaskWithReason = async (
           problem,
         );
       } catch (notificationError) {
-        console.error('Error sending cancellation notification:', notificationError);
+        console.warn('Cancellation notification skipped:', notificationError);
       }
     }
   } catch (error: any) {

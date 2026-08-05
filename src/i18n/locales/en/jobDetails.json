@@ -2,6 +2,7 @@
   "loadingJobDetails": "Loading job details...",
   "jobNotFound": "Job not found",
   "phoneNotAvailable": "Phone number not available",
+  "navigateUnavailable": "Customer location not available for navigation",
   "failedToLoad": "Failed to load job details",
   "failedToStart": "Failed to start service",
   "failedToComplete": "Failed to complete task",
@@ -47,5 +48,9 @@
   "materialsUsed": "Materials Used",
   "materialDescription": "Material Description",
   "quantity": "Quantity",
-  "unitPrice": "Unit Price"
+  "unitPrice": "Unit Price",
+  "comments": "Comments",
+  "commentPlaceholder": "Write a comment…",
+  "noComments": "No comments yet",
+  "postComment": "Post"
 }

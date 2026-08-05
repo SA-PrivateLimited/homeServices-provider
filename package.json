@@ -49,6 +49,7 @@
     "react-native-share": "^10.0.2",
     "react-native-sound": "^0.13.0",
     "react-native-svg": "^14.1.0",
+    "react-native-tts": "^4.1.1",
     "react-native-vector-icons": "^10.0.3",
     "sapvt-ltd-app-packages": "file:../packages/saPvtLtdAppPackages",
     "socket.io-client": "^4.8.3",

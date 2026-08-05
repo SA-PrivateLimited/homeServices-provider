@@ -120,9 +120,25 @@ export async function getMyPendingServiceRequests(): Promise<ServiceRequest[]> {
   }
 }
 
+/**
+ * Open pending requests near this provider (district/pincode + specialty)
+ */
+export async function getNearbyPendingServiceRequests(): Promise<ServiceRequest[]> {
+  try {
+    const response = await apiGet<ServiceRequest[]>(
+      '/provider/serviceRequests/nearby-pending',
+    );
+    return Array.isArray(response) ? response : [];
+  } catch (error: any) {
+    console.warn('Failed to fetch nearby pending requests:', error?.message);
+    return [];
+  }
+}
+
 export const serviceRequestsApi = {
   getById: getServiceRequestById,
   getMyPending: getMyPendingServiceRequests,
+  getNearbyPending: getNearbyPendingServiceRequests,
   accept: acceptServiceRequest,
   reject: rejectServiceRequest,
 };

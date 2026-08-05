@@ -32,6 +32,8 @@ interface BookingAlertModalProps {
   onAccept: () => void;
   onReject: () => void;
   onDismiss: () => void;
+  /** Seconds remaining before auto-decline */
+  secondsLeft?: number;
 }
 
 export default function BookingAlertModal({
@@ -40,6 +42,7 @@ export default function BookingAlertModal({
   onAccept,
   onReject,
   onDismiss,
+  secondsLeft,
 }: BookingAlertModalProps) {
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
@@ -55,6 +58,7 @@ export default function BookingAlertModal({
   const [isAccepted, setIsAccepted] = useState(false);
   const [isRejected, setIsRejected] = useState(false);
   const [buttonText, setButtonText] = useState('Swipe Right to Accept');
+  const acceptOnceRef = useRef(false);
 
   const customerName = bookingData?.customerName || bookingData?.patientName || 'Customer';
   const customerPhone = bookingData?.customerPhone || bookingData?.patientPhone || '';
@@ -76,6 +80,7 @@ export default function BookingAlertModal({
       slideAnim.setValue(0);
       setIsAccepted(false);
       setIsRejected(false);
+      acceptOnceRef.current = false;
       setButtonText('Swipe Right to Accept');
       console.log('✅ Modal opened, resetting state');
     } else {
@@ -83,6 +88,7 @@ export default function BookingAlertModal({
       slideAnim.setValue(0);
       setIsAccepted(false);
       setIsRejected(false);
+      acceptOnceRef.current = false;
       setButtonText('Swipe Right to Accept');
       console.log('✅ Modal closed, resetting state');
     }
@@ -119,7 +125,9 @@ export default function BookingAlertModal({
         const dx = gestureState.dx;
 
         if (dx > SWIPE_THRESHOLD) {
-          // Swipe right past threshold - Accept
+          // Swipe right past threshold - Accept (once)
+          if (acceptOnceRef.current) return;
+          acceptOnceRef.current = true;
           console.log('✅ Swipe threshold reached, accepting booking');
           setIsAccepted(true);
           setButtonText('Accepted!');
@@ -224,9 +232,11 @@ export default function BookingAlertModal({
                 <Icon name="notifications-active" size={24} color={theme.primary} />
               </View>
               <View>
-                <Text style={[styles.title, {color: theme.text}]}>New Service Request</Text>
+                <Text style={[styles.title, {color: theme.text}]}>NEW JOB</Text>
                 <Text style={[styles.subtitle, {color: theme.textSecondary}]}>
-                  Swipe right to accept • Swipe left to reject
+                  {secondsLeft != null
+                    ? `Respond in ${secondsLeft}s`
+                    : 'Accept or decline'}
                 </Text>
               </View>
             </View>
@@ -324,7 +334,33 @@ export default function BookingAlertModal({
             </View>
           </ScrollView>
 
-          {/* Swipeable Action Button */}
+          {/* Primary Accept / Decline — one-handed */}
+          <View style={styles.primaryActions}>
+            <TouchableOpacity
+              style={[styles.declineBtn, {opacity: isAccepted ? 0.5 : 1}]}
+              disabled={isAccepted || isRejected}
+              onPress={() => {
+                if (acceptOnceRef.current) return;
+                acceptOnceRef.current = true;
+                setIsRejected(true);
+                onReject();
+              }}>
+              <Text style={styles.declineBtnText}>Decline</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.acceptBtn, {opacity: isRejected ? 0.5 : 1}]}
+              disabled={isAccepted || isRejected}
+              onPress={() => {
+                if (acceptOnceRef.current) return;
+                acceptOnceRef.current = true;
+                setIsAccepted(true);
+                onAccept();
+              }}>
+              <Text style={styles.acceptBtnText}>Accept</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Swipeable Action Button (secondary) */}
           <View style={styles.swipeableButtonContainer}>
             <Animated.View
               style={[
@@ -441,8 +477,38 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   swipeableButtonContainer: {
-    marginTop: 16,
+    marginTop: 8,
     width: '100%',
+  },
+  primaryActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  declineBtn: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+  },
+  declineBtnText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  acceptBtn: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#34C759',
+    alignItems: 'center',
+  },
+  acceptBtnText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
   },
   swipeableButtonBackground: {
     width: BUTTON_WIDTH,

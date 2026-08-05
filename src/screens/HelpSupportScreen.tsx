@@ -1,552 +1,196 @@
-import React, {useState, useEffect, useRef} from 'react';
+/**
+ * Help & Support — contact only (no AI chat)
+ */
+
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  ScrollView,
   Linking,
+  ScrollView,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
-import ragService from '../services/ragService';
-import {OPEN_AI_API_KEY} from '@env';
-import FormattedText from '../components/FormattedText';
-import AlertModal from '../components/AlertModal';
 import useTranslation from '../hooks/useTranslation';
+import AlertModal from '../components/AlertModal';
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  isLoading?: boolean;
-  needsEscalation?: boolean;
-}
+const SUPPORT_EMAIL = 'support@sa-privatelimited.com';
+const SUPPORT_PHONE = '1800000000';
 
-const HelpSupportScreen: React.FC<{navigation: any}> = ({navigation}) => {
-  const {t} = useTranslation();
-  const {isDarkMode, currentUser, consultations} = useStore();
+export default function HelpSupportScreen({navigation}: any) {
+  const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isIndexing, setIsIndexing] = useState(false);
-  const [indexStats, setIndexStats] = useState<{count: number; lastIndexed?: Date}>({count: 0});
-  const flatListRef = useRef<FlatList>(null);
+  const {t} = useTranslation();
+  const [alertVisible, setAlertVisible] = React.useState(false);
+  const [alertMessage, setAlertMessage] = React.useState('');
 
-  // Alert modal state
-  const [alertVisible, setAlertVisible] = useState(false);
-  const [alertConfig, setAlertConfig] = useState<{
-    title: string;
-    message: string;
-    type: 'success' | 'error' | 'info' | 'warning';
-  }>({title: '', message: '', type: 'info'});
-
-  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
-    setAlertConfig({title, message, type});
-    setAlertVisible(true);
-  };
-
-  useEffect(() => {
-    // Check if API key is configured
-    if (!OPEN_AI_API_KEY) {
-      setMessages([
-        {
-          id: '1',
-          role: 'assistant',
-          content: String(t('help.apiKeyNotConfigured')),
-          timestamp: new Date(),
-        },
-      ]);
-      return;
-    }
-
-    // Initial greeting
-    setMessages([
-      {
-        id: '1',
-        role: 'assistant',
-        content: t('help.greeting') as string,
-        timestamp: new Date(),
-      },
-    ]);
-
-    // Load index stats
-    loadIndexStats();
-
-    // Index consultations if available
-    if (currentUser && consultations.length > 0) {
-      indexConsultations();
-    }
-  }, [currentUser, consultations, t]);
-
-  const loadIndexStats = async () => {
+  const openEmail = async () => {
+    const subject = encodeURIComponent('HomeServices Provider Support');
+    const url = `mailto:${SUPPORT_EMAIL}?subject=${subject}`;
     try {
-      const stats = await ragService.getIndexStats();
-      setIndexStats(stats);
-    } catch (error) {
-    }
-  };
-
-  const indexConsultations = async () => {
-    if (!currentUser || consultations.length === 0 || !OPEN_AI_API_KEY) {
-      return;
-    }
-
-    setIsIndexing(true);
-    try {
-      await ragService.indexConsultations(consultations);
-      await loadIndexStats();
-    } catch (error: any) {
-      addMessage('assistant', t('help.failedToIndex', {error: error.message}));
-    } finally {
-      setIsIndexing(false);
-    }
-  };
-
-  const addMessage = (role: 'user' | 'assistant', content: string, isLoading = false, needsEscalation = false) => {
-    const message: ChatMessage = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      role,
-      content,
-      timestamp: new Date(),
-      isLoading,
-      needsEscalation,
-    };
-    setMessages(prev => [...prev, message]);
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({animated: true});
-    }, 100);
-  };
-
-  const handleContactSupport = () => {
-    const supportEmail = 'support@sa-privatelimited.com';
-    const subject = encodeURIComponent('HomeServices Support Request');
-    const body = encodeURIComponent(
-      `Dear Support Team,\n\nI need assistance with the following:\n\n[Please describe your issue here]\n\nThank you.\n\n---\nProvider: ${currentUser?.name || 'User'}\nPhone: ${currentUser?.phone || currentUser?.phoneNumber || 'N/A'}`
-    );
-    const mailtoLink = `mailto:${supportEmail}?subject=${subject}&body=${body}`;
-
-    Linking.canOpenURL(mailtoLink)
-      .then(supported => {
-        if (supported) {
-          return Linking.openURL(mailtoLink);
-        } else {
-          showAlert(
-            t('help.emailNotAvailable'),
-            t('help.emailNotAvailableMessage', {email: supportEmail}),
-            'warning'
-          );
-        }
-      })
-      .catch(err => {
-        showAlert(
-          t('help.emailNotAvailable'),
-          t('help.emailNotAvailableMessage', {email: supportEmail}),
-          'warning'
+      const can = await Linking.canOpenURL(url);
+      if (can) await Linking.openURL(url);
+      else {
+        setAlertMessage(
+          String(
+            t('help.emailNotAvailableMessage', {email: SUPPORT_EMAIL}) ||
+              `Please email ${SUPPORT_EMAIL}`,
+          ),
         );
-      });
-  };
-
-  const handleSend = async () => {
-    if (!inputText.trim() || isLoading || !OPEN_AI_API_KEY) {
-      return;
-    }
-
-    const userMessage = inputText.trim();
-    setInputText('');
-    addMessage('user', userMessage);
-
-    setIsLoading(true);
-    addMessage('assistant', '', true); // Loading message
-
-    try {
-      const result = await ragService.answerQuestion(userMessage, currentUser?.name);
-      
-      // Keep formatting for bullet points and bold text (don't strip ** markers)
-      let cleanedAnswer = result.answer
-        .replace(/###+\s+/g, '')
-        .replace(/##+\s+/g, '')
-        .replace(/#+\s+/g, '')
-        .replace(/\*\*\*(.*?)\*\*\*/g, '**$1**')
-        .replace(/```[\s\S]*?```/g, '')
-        .replace(/`(.*?)`/g, '$1')
-        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
-      
-      // Normalize bullet points
-      cleanedAnswer = cleanedAnswer.replace(/^[-*]\s+/gm, '• ');
-      
-      // Remove loading message and add response
-      setMessages(prev => {
-        const filtered = prev.filter(m => !m.isLoading);
-        return [
-          ...filtered,
-          {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            role: 'assistant',
-            content: cleanedAnswer,
-            timestamp: new Date(),
-            needsEscalation: result.needsEscalation,
-          },
-        ];
-      });
-
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({animated: true});
-      }, 100);
-    } catch (error: any) {
-      // Remove loading message and add error
-      setMessages(prev => {
-        const filtered = prev.filter(m => !m.isLoading);
-        return [
-          ...filtered,
-          {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            role: 'assistant',
-            content: t('help.errorMessage', {error: error.message}),
-            timestamp: new Date(),
-            needsEscalation: true,
-          },
-        ];
-      });
-    } finally {
-      setIsLoading(false);
+        setAlertVisible(true);
+      }
+    } catch {
+      setAlertMessage(`Please email ${SUPPORT_EMAIL}`);
+      setAlertVisible(true);
     }
   };
 
-  const renderMessage = ({item}: {item: ChatMessage}) => {
-    const isUser = item.role === 'user';
-    
-    if (item.isLoading) {
-      return (
-        <View style={[styles.messageContainer, styles.assistantMessage]}>
-          <ActivityIndicator size="small" color={theme.primary} />
-          <Text style={[styles.loadingText, {color: theme.textSecondary}]}>{t('help.thinking')}</Text>
-        </View>
-      );
-    }
-
-    return (
-      <View>
-        <View
-          style={[
-            styles.messageContainer,
-            isUser ? styles.userMessage : styles.assistantMessage,
-            isUser
-              ? {backgroundColor: theme.primary, alignSelf: 'flex-end'}
-              : {backgroundColor: theme.card, alignSelf: 'flex-start'},
-          ]}>
-          {isUser ? (
-            <Text
-              style={[
-                styles.messageText,
-                {color: '#FFFFFF'},
-              ]}
-              selectable>
-              {item.content}
-            </Text>
-          ) : (
-            <FormattedText
-              text={item.content}
-              style={styles.messageText}
-            />
-          )}
-          <Text
-            style={[
-              styles.timestamp,
-              {color: isUser ? 'rgba(255,255,255,0.7)' : theme.textSecondary},
-            ]}>
-            {item.timestamp.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-          </Text>
-        </View>
-        {item.needsEscalation && !isUser && (
-          <TouchableOpacity
-            style={[styles.escalationButton, {backgroundColor: theme.primary}]}
-            onPress={handleContactSupport}
-            activeOpacity={0.8}>
-            <Icon name="mail-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.escalationButtonText}>{t('help.contactSupport')}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    );
+  const openCall = () => {
+    Linking.openURL(`tel:${SUPPORT_PHONE}`).catch(() => {
+      setAlertMessage('Unable to open phone dialer');
+      setAlertVisible(true);
+    });
   };
 
   return (
-    <>
-      {/* Custom Alert Modal */}
+    <View style={[styles.container, {backgroundColor: theme.background}]}>
       <AlertModal
         visible={alertVisible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        type={alertConfig.type}
+        title={String(t('help.contactSupport') || 'Contact Support')}
+        message={alertMessage}
+        type="info"
         onClose={() => setAlertVisible(false)}
       />
 
-      <KeyboardAvoidingView
-        style={[styles.container, {backgroundColor: theme.background}]}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-        {/* Header */}
-      <View style={[styles.header, {backgroundColor: theme.card, borderBottomColor: theme.border}]}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={[styles.iconWrap, {backgroundColor: theme.primary + '20'}]}>
+          <Icon name="support-agent" size={56} color={theme.primary} />
+        </View>
+
+        <Text style={[styles.title, {color: theme.text}]}>
+          {String(t('help.title') || 'Help & Support')}
+        </Text>
+        <Text style={[styles.lead, {color: theme.textSecondary}]}>
+          Need help with jobs, profile, or going online? Reach our support team
+          directly — no chat bot.
+        </Text>
+
+        <View style={[styles.card, {backgroundColor: theme.card}]}>
+          <Text style={[styles.cardTitle, {color: theme.textSecondary}]}>
+            We can help with
+          </Text>
+          {[
+            'Going online / offline and receiving jobs',
+            'Profile setup and approval',
+            'Job accept, navigation, and completion PIN',
+            'Account or app technical issues',
+          ].map(item => (
+            <View key={item} style={styles.topicRow}>
+              <Icon name="check-circle" size={18} color="#34C759" />
+              <Text style={[styles.topicText, {color: theme.text}]}>{item}</Text>
+            </View>
+          ))}
+        </View>
+
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}>
-          <Icon name="arrow-back" size={24} color={theme.text} />
+          style={[styles.primaryBtn, {backgroundColor: theme.primary}]}
+          onPress={() => void openEmail()}
+          activeOpacity={0.85}>
+          <Icon name="email" size={22} color="#fff" />
+          <Text style={styles.primaryBtnText}>Email support</Text>
         </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, {color: theme.text}]}>{t('help.title')}</Text>
-          {isIndexing ? (
-            <Text style={[styles.headerSubtitle, {color: theme.textSecondary}]}>
-              {t('help.indexingConsultations')}
-            </Text>
-          ) : indexStats.count > 0 ? (
-            <Text style={[styles.headerSubtitle, {color: theme.textSecondary}]}>
-              {t('help.consultationsIndexed', {
-                count: indexStats.count,
-                plural: indexStats.count !== 1 ? 's' : ''
-              })}
-            </Text>
-          ) : (
-            <Text style={[styles.headerSubtitle, {color: theme.textSecondary}]}>
-              {t('help.aiAssistant')}
-            </Text>
-          )}
-        </View>
-        {consultations.length > 0 && (
-          <TouchableOpacity
-            onPress={indexConsultations}
-            style={styles.refreshButton}
-            disabled={isIndexing}>
-            <Icon
-              name="refresh"
-              size={24}
-              color={isIndexing ? theme.textSecondary : theme.primary}
-            />
-          </TouchableOpacity>
-        )}
-      </View>
+        <Text style={[styles.hint, {color: theme.textSecondary}]}>
+          {SUPPORT_EMAIL}
+        </Text>
 
-      {/* Messages List */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.messagesList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({animated: true})}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Icon name="chatbubbles-outline" size={64} color={theme.textSecondary} />
-            <Text style={[styles.emptyText, {color: theme.textSecondary}]}>
-              {t('help.startConversation')}
-            </Text>
-          </View>
-        }
-      />
+        <TouchableOpacity
+          style={[styles.secondaryBtn, {borderColor: theme.border || '#ccc'}]}
+          onPress={openCall}
+          activeOpacity={0.85}>
+          <Icon name="call" size={22} color={theme.primary} />
+          <Text style={[styles.secondaryBtnText, {color: theme.primary}]}>
+            Call support
+          </Text>
+        </TouchableOpacity>
 
-      {/* Input Area */}
-      <View style={[styles.inputContainer, {backgroundColor: theme.card, borderTopColor: theme.border}]}>
-        {!OPEN_AI_API_KEY && (
-          <View style={[styles.warningBanner, {backgroundColor: '#FFF3CD', borderLeftColor: '#FFC107'}]}>
-            <Icon name="warning" size={20} color="#856404" />
-            <Text style={[styles.warningText, {color: '#856404'}]}>
-              {t('help.apiKeyNotConfiguredWarning')}
-            </Text>
-          </View>
-        )}
-        <View style={styles.inputRow}>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.background,
-                color: theme.text,
-                borderColor: theme.border,
-              },
-            ]}
-            placeholder={t('help.askAboutConsultations')}
-            placeholderTextColor={theme.textSecondary}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            maxLength={500}
-            editable={!isLoading && !!OPEN_AI_API_KEY}
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              {
-                backgroundColor: isLoading || !inputText.trim() || !OPEN_AI_API_KEY
-                  ? theme.border
-                  : theme.primary,
-              },
-            ]}
-            onPress={handleSend}
-            disabled={isLoading || !inputText.trim() || !OPEN_AI_API_KEY}>
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Icon name="send" size={20} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </>
+        <TouchableOpacity
+          style={styles.backLink}
+          onPress={() => navigation.goBack()}>
+          <Text style={[styles.backText, {color: theme.textSecondary}]}>
+            {String(t('common.back') || 'Back')}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
+  container: {flex: 1},
+  content: {padding: 24, paddingBottom: 40},
+  iconWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: 16,
   },
-  backButton: {
-    padding: 8,
-    marginRight: 8,
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
   },
-  headerContent: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  refreshButton: {
-    padding: 8,
-  },
-  messagesList: {
-    padding: 16,
-    paddingBottom: 8,
-  },
-  messageContainer: {
-    maxWidth: '80%',
-    padding: 12,
-    borderRadius: 16,
-    marginBottom: 12,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  userMessage: {
-    borderBottomRightRadius: 4,
-  },
-  assistantMessage: {
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
+  lead: {
     fontSize: 15,
     lineHeight: 22,
-    letterSpacing: 0.2,
+    textAlign: 'center',
+    marginBottom: 24,
   },
-  timestamp: {
-    fontSize: 11,
-    marginTop: 4,
-    alignSelf: 'flex-end',
-  },
-  loadingText: {
-    fontSize: 13,
-    marginLeft: 8,
-    fontStyle: 'italic',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    marginTop: 16,
-  },
-  inputContainer: {
+  card: {
+    borderRadius: 14,
     padding: 16,
-    borderTopWidth: 1,
+    marginBottom: 24,
   },
-  warningBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-  },
-  warningText: {
+  cardTitle: {
     fontSize: 13,
-    marginLeft: 8,
-    flex: 1,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
-    maxHeight: 100,
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  escalationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginTop: 8,
+    fontWeight: '700',
     marginBottom: 12,
-    alignSelf: 'flex-start',
-    gap: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  escalationButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+  topicRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 10,
   },
+  topicText: {flex: 1, fontSize: 15, lineHeight: 21},
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  primaryBtnText: {color: '#fff', fontSize: 17, fontWeight: '700'},
+  hint: {textAlign: 'center', marginTop: 8, marginBottom: 16, fontSize: 13},
+  secondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  secondaryBtnText: {fontSize: 16, fontWeight: '700'},
+  backLink: {alignItems: 'center', marginTop: 28},
+  backText: {fontSize: 15},
 });
-
-export default HelpSupportScreen;
-

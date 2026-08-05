@@ -17,6 +17,7 @@ import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import websocketService from '../services/websocketService';
 import useTranslation from '../hooks/useTranslation';
+import {IncomingBookingProvider} from '../components/IncomingBookingContext';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -171,7 +172,7 @@ export default function ProviderTabNavigator() {
   };
 
   return (
-    <>
+    <IncomingBookingProvider>
       <ProfileSetupModal
         visible={showProfileSetupModal}
         onSetupNow={handleSetupNow}
@@ -201,7 +202,7 @@ export default function ProviderTabNavigator() {
             tabBarIcon: ({color, size}) => (
               <Icon name="dashboard" size={size} color={color} />
             ),
-            tabBarLabel: t('common.home'),
+            tabBarLabel: String(t('common.home')),
           }}
         />
         <Tab.Screen
@@ -211,7 +212,7 @@ export default function ProviderTabNavigator() {
             tabBarIcon: ({color, size}) => (
               <Icon name="work" size={size} color={color} />
             ),
-            tabBarLabel: t('common.jobs'),
+            tabBarLabel: String(t('common.jobs')),
           }}
         />
         <Tab.Screen
@@ -221,7 +222,7 @@ export default function ProviderTabNavigator() {
             tabBarIcon: ({color, size}) => (
               <Icon name="history" size={size} color={color} />
             ),
-            tabBarLabel: t('common.history'),
+            tabBarLabel: String(t('common.history')),
           }}
         />
         <Tab.Screen
@@ -231,10 +232,10 @@ export default function ProviderTabNavigator() {
             tabBarIcon: ({color, size}) => (
               <Icon name="person" size={size} color={color} />
             ),
-            tabBarLabel: t('common.profile'),
+            tabBarLabel: String(t('common.profile')),
           }}
         />
       </Tab.Navigator>
-    </>
+    </IncomingBookingProvider>
   );
 }

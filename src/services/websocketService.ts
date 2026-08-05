@@ -6,9 +6,6 @@
 import io, { Socket } from 'socket.io-client';
 import soundService from './soundService';
 import hooterForegroundService from './hooterForegroundService';
-import firestore from '@react-native-firebase/firestore';
-import auth from '@react-native-firebase/auth';
-import fcmNotificationService from './fcmNotificationService';
 import {serviceRequestsApi} from './api/serviceRequestsApi';
 import {providersApi} from './api/providersApi';
 import {SOCKET_URL} from '../config/api';
@@ -18,6 +15,7 @@ class WebSocketService {
   private isConnected: boolean = false;
   private currentProviderId: string | null = null;
   private bookingCallbacks: Array<(bookingData: any) => void> = [];
+  private _connectErrorLogged = false;
 
   constructor() {
     // Sound is now handled by soundService
@@ -60,23 +58,12 @@ class WebSocketService {
       return;
     }
 
-    // CRITICAL: Verify callback is registered BEFORE connecting
-    console.log('🔍 [WEBSOCKET] Checking callbacks before connect:', this.bookingCallbacks.length);
+    // Prefer having UI callbacks, but still connect so rooms join even if
+    // the booking host registers a moment later.
     if (this.bookingCallbacks.length === 0) {
-      console.warn('⚠️ [WEBSOCKET] WARNING: No callbacks registered yet!');
-      console.warn('⚠️ [WEBSOCKET] Callback should be registered BEFORE calling connect()');
-      console.warn('⚠️ [WEBSOCKET] Waiting 500ms for callback registration...');
-      
-      // Wait a bit for callback to be registered (in case of race condition)
-      setTimeout(() => {
-        if (this.bookingCallbacks.length === 0) {
-          console.error('❌ [WEBSOCKET] Still no callbacks after wait! Modal will not show!');
-        } else {
-          console.log('✅ [WEBSOCKET] Callback registered, proceeding with connect');
-          this.connect(providerId); // Retry connection
-        }
-      }, 500);
-      return; // Don't connect yet
+      console.warn(
+        '⚠️ [WEBSOCKET] Connecting with 0 booking callbacks — host should register soon',
+      );
     }
 
     // Reuse existing socket if already connected or still connecting for same provider
@@ -107,13 +94,13 @@ class WebSocketService {
     }
 
     try {
-      // Initialize socket connection
+      // Android emulator often fails raw websocket upgrade first; start with polling.
       const socket = io(SOCKET_URL, {
-        transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
+        transports: ['polling', 'websocket'],
         reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 10,
-        reconnectionDelayMax: 5000,
+        reconnectionDelay: 1500,
+        reconnectionAttempts: 15,
+        reconnectionDelayMax: 10000,
         timeout: 20000,
         forceNew: true,
         autoConnect: true,
@@ -127,10 +114,8 @@ class WebSocketService {
       });
       this.socket = socket;
 
-      // Use local `socket` so a later disconnect/replace doesn't hit a null this.socket
       socket.on('connect', () => {
         if (this.socket !== socket) {
-          // Stale connect from a replaced/disconnected instance — ignore
           return;
         }
 
@@ -142,6 +127,7 @@ class WebSocketService {
           transport: transport,
         });
         this.isConnected = true;
+        this._connectErrorLogged = false;
 
         console.log('📋 [WEBSOCKET] Setting up booking listener after connect...');
         this.setupBookingListener();
@@ -152,71 +138,49 @@ class WebSocketService {
           socket.emit('join-provider-room', providerIdForRoom);
           console.log(`✅ Join request sent for provider room: provider-${providerIdForRoom}`);
         } else {
-          console.warn('WebSocket connected but no provider ID available');
+          console.log('WebSocket connected but no provider ID available');
         }
       });
 
-      // Listen for room-joined confirmation
-      this.socket.on('room-joined', (data: any) => {
+      socket.on('room-joined', (data: any) => {
         console.log('✅ Room join confirmed:', data);
         console.log(`✅ Provider ${this.currentProviderId} is now in room: ${data.room}`);
         console.log(`📊 Room size: ${data.roomSize || 'unknown'}`);
       });
 
-      this.socket.on('disconnect', () => {
+      socket.on('disconnect', () => {
         console.log('WebSocket disconnected');
         this.isConnected = false;
       });
 
-      this.socket.on('connect_error', (error: any) => {
-        // Only log error if server URL is configured (not a placeholder)
-        if (SOCKET_URL && !SOCKET_URL.includes('your-production-server.com')) {
-          const errorMessage = error?.message || error?.toString() || 'Unknown error';
-          console.warn('WebSocket connection error (will retry):', errorMessage);
-          console.warn('Connection details:', {
-            url: SOCKET_URL,
-            providerId: this.currentProviderId,
-            error: errorMessage,
-            description: error?.description || 'No description',
-            type: error?.type || 'Unknown',
-          });
-          
-          // Check if it's a network error vs server error
-          if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Network')) {
-            console.warn('⚠️ Server might not be running. Start server with: cd HomeServices/server && npm start');
-          }
-        } else {
-          // Server URL not configured - silently skip connection
-          console.log('WebSocket server not configured. Skipping connection.');
-        }
+      socket.on('connect_error', (error: any) => {
         this.isConnected = false;
-        // Don't show alert for connection errors - they're handled by reconnection
+        // Log once — repeated console.warn becomes LogBox red screens during retries
+        if (this._connectErrorLogged) {
+          return;
+        }
+        this._connectErrorLogged = true;
+        const errorMessage = error?.message || String(error) || 'Unknown error';
+        console.log(
+          `⚠️ [WEBSOCKET] Connecting to ${SOCKET_URL} failed (${errorMessage}); retrying…`,
+        );
       });
 
-      this.socket.on('reconnect_error', (error) => {
-        // Only log if server URL is configured
-        if (SOCKET_URL && !SOCKET_URL.includes('your-production-server.com')) {
-          console.warn('WebSocket reconnection error (will retry):', error.message || error);
-        }
+      socket.on('reconnect_error', () => {
+        // silent — reconnection continues
       });
 
-      this.socket.on('reconnect_failed', () => {
-        // Only show alert if server URL is configured
-        if (SOCKET_URL && !SOCKET_URL.includes('your-production-server.com')) {
-          console.warn('WebSocket reconnection failed after all attempts');
-          // Don't show alert - WebSocket is optional for app functionality
-          // Alert.alert(
-          //   'Connection Failed',
-          //   'Unable to connect to the server. Please check your internet connection.',
-          //   [{text: 'OK'}]
-          // );
-        }
+      socket.on('reconnect_failed', () => {
+        console.log(
+          '⚠️ [WEBSOCKET] Reconnection failed; app will rely on API polling for bookings',
+        );
       });
 
       socket.on('reconnect', (attemptNumber) => {
         if (this.socket !== socket) return;
         console.log(`✅ [WEBSOCKET] WebSocket reconnected after ${attemptNumber} attempts`);
         console.log('📋 [WEBSOCKET] Callbacks count after reconnect:', this.bookingCallbacks.length);
+        this._connectErrorLogged = false;
         this.setupBookingListener();
         if (this.currentProviderId) {
           console.log(`📤 [WEBSOCKET] Rejoining room after reconnect: provider-${this.currentProviderId}`);
@@ -225,10 +189,10 @@ class WebSocketService {
       });
 
       socket.on('error', (error: any) => {
-        console.error('❌ WebSocket error:', error);
+        console.log('❌ WebSocket error:', error?.message || error);
       });
     } catch (error) {
-      console.error('Error initializing WebSocket:', error);
+      console.log('Error initializing WebSocket:', error);
     }
   }
 
@@ -430,98 +394,32 @@ class WebSocketService {
         providerDetails: Object.keys(providerDetails),
       });
 
-      // Accept service request - try Firestore FIRST (PRIMARY), then MongoDB
+      // Accept via MongoDB API only (Firestore legacy often permission-denied / noisy)
       let acceptedServiceRequest: any = null;
 
-      // STEP 1: Try Firestore first (PRIMARY store for service requests)
-      console.log('📋 [ACCEPT] Trying Firestore (PRIMARY):', serviceRequestId);
       try {
-        const serviceRequestDoc = await firestore()
-          .collection('serviceRequests')
-          .doc(serviceRequestId)
-          .get();
-
-        if (serviceRequestDoc.exists) {
-          // Update in Firestore
-          await firestore()
-            .collection('serviceRequests')
-            .doc(serviceRequestId)
-            .update({
-              status: 'accepted',
-              providerId: providerId,
-              ...providerDetails,
-              updatedAt: firestore.FieldValue.serverTimestamp(),
-            });
-          acceptedServiceRequest = {
-            ...serviceRequestDoc.data(),
-            _id: serviceRequestId,
-            id: serviceRequestId,
-          };
-          console.log('✅ [ACCEPT] Service request accepted in Firestore:', serviceRequestId);
-        }
-      } catch (firestoreError: any) {
-        console.warn('⚠️ [ACCEPT] Firestore error:', firestoreError.message);
+        acceptedServiceRequest = await serviceRequestsApi.accept(
+          serviceRequestId,
+          providerDetails,
+        );
+        console.log(
+          '✅ [ACCEPT] Service request accepted via API:',
+          serviceRequestId,
+        );
+      } catch (apiError: any) {
+        console.warn('⚠️ [ACCEPT] API accept failed:', apiError.message);
+        throw new Error(
+          apiError?.message ||
+            `Service request not found: ${serviceRequestId}. Please try again.`,
+        );
       }
 
-      // STEP 2: If not in Firestore, try MongoDB API
       if (!acceptedServiceRequest) {
-        console.log('📋 [ACCEPT] Not found in Firestore, trying MongoDB API:', serviceRequestId);
-        try {
-          acceptedServiceRequest = await serviceRequestsApi.accept(serviceRequestId, providerDetails);
-          console.log('✅ [ACCEPT] Service request accepted via MongoDB API:', serviceRequestId);
-        } catch (apiError: any) {
-          console.warn('⚠️ [ACCEPT] MongoDB API error:', apiError.message);
-        }
-      }
-
-      // If still not found anywhere, throw error
-      if (!acceptedServiceRequest) {
-        console.error('❌ [ACCEPT] Service request not found anywhere:', serviceRequestId);
+        console.error('❌ [ACCEPT] Empty accept response:', serviceRequestId);
         throw new Error(`Service request not found: ${serviceRequestId}. Please try again.`);
       }
 
-      // Extract data for notifications
-      const serviceRequestData = acceptedServiceRequest || {};
-      const customerId = serviceRequestData.customerId || serviceRequestData.patientId;
-      const serviceType = serviceRequestData.serviceType || providerInfo?.specialization || 'service';
-      const providerName = providerDetails.providerName || providerInfo?.name || 'Provider';
-      const customerPhone = serviceRequestData.customerPhone || serviceRequestData.patientPhone || serviceRequestData.phone;
-      const problem = serviceRequestData.problem || serviceRequestData.symptoms || serviceRequestData.notes || serviceRequestData.description;
-      
-      // Send notification to customer (immediately after accepting)
-      if (customerId) {
-        console.log('📱 [ACCEPT] Sending acceptance notification to customer:', {
-          customerId,
-          providerName,
-          serviceType,
-          serviceRequestId,
-          customerPhone: !!customerPhone,
-          hasProblem: !!problem,
-        });
-        
-        try {
-          await fcmNotificationService.notifyCustomerServiceAccepted(
-            customerId,
-            providerName,
-            serviceType,
-            serviceRequestId,
-            customerPhone,
-            problem,
-          );
-          console.log('✅ [ACCEPT] Acceptance notification sent successfully to customer');
-        } catch (notificationError: any) {
-          console.error('❌ [ACCEPT] Error sending acceptance notification:', {
-            error: notificationError.message,
-            code: notificationError.code,
-            customerId,
-          });
-          // Don't throw - notification failure shouldn't block booking acceptance
-          // createJobCard() will also send a notification as backup
-        }
-      } else {
-        console.warn('⚠️ [ACCEPT] Cannot send notification - customerId not found in service request data');
-        console.warn('⚠️ [ACCEPT] Service request data keys:', Object.keys(serviceRequestData || {}));
-      }
+      // Customer push + socket status are handled by the backend accept endpoint.
     } catch (error: any) {
       console.error('❌ [ACCEPT] Error accepting booking:', {
         error: error.message,
@@ -561,32 +459,10 @@ class WebSocketService {
         return;
       } catch (apiError: any) {
         console.warn('⚠️ [REJECT] MongoDB API error:', apiError.message);
+        throw new Error(
+          apiError?.message || `Failed to reject booking: ${serviceRequestId}`,
+        );
       }
-
-      // Fallback: Firestore (legacy)
-      try {
-        const serviceRequestDoc = await firestore()
-          .collection('serviceRequests')
-          .doc(serviceRequestId)
-          .get();
-
-        if (serviceRequestDoc.exists) {
-          await firestore()
-            .collection('serviceRequests')
-            .doc(serviceRequestId)
-            .update({
-              status: 'rejected',
-              rejectionReason: 'Provider is not ready to take this request',
-              updatedAt: firestore.FieldValue.serverTimestamp(),
-            });
-          console.log('✅ [REJECT] Service request rejected in Firestore:', serviceRequestId);
-          return;
-        }
-      } catch (firestoreError: any) {
-        console.warn('⚠️ [REJECT] Firestore error:', firestoreError.message);
-      }
-
-      throw new Error(`Service request not found: ${serviceRequestId}`);
     } catch (error: any) {
       console.error('❌ [REJECT] Error rejecting booking:', error);
       throw new Error(`Failed to reject booking: ${error.message}`);

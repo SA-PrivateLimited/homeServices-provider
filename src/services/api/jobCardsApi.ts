@@ -39,6 +39,14 @@ export interface JobCard {
   pinGeneratedAt?: string | Date;
   scheduledTime?: string | Date;
   cancellationReason?: string;
+  comments?: Array<{
+    _id: string;
+    role: 'admin' | 'provider' | 'customer';
+    authorId?: string;
+    authorName?: string;
+    text: string;
+    createdAt?: string | Date;
+  }>;
   createdAt: string | Date;
   updatedAt: string | Date;
 }
@@ -143,9 +151,20 @@ export async function updateJobCardStatus(
   });
 }
 
+/**
+ * Add a comment to a job card (visible to customer + admin)
+ */
+export async function addJobCardComment(
+  jobCardId: string,
+  text: string,
+): Promise<JobCard> {
+  return apiPost<JobCard>(`/provider/jobCards/${jobCardId}/comments`, {text});
+}
+
 export const jobCardsApi = {
   getProviderJobCards,
   getById: getJobCardById,
   create: createJobCard,
   updateStatus: updateJobCardStatus,
+  addComment: addJobCardComment,
 };

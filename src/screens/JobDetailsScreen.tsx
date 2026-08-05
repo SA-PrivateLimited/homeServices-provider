@@ -12,7 +12,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import auth from '@react-native-firebase/auth';
@@ -22,9 +21,17 @@ import {getJobCardById, updateJobCardStatus, verifyPINAndCompleteTask, cancelTas
 import {getServiceCategoryByName} from '../services/api/serviceCategoriesApi';
 import PINVerificationModal from '../components/PINVerificationModal';
 import CancelTaskModal from '../components/CancelTaskModal';
+import {
+  openCall,
+  openWhatsApp,
+  openNavigate,
+} from '../services/contactActions';
+import {speakNavigateToCustomer} from '../services/voicePromptService';
 import StartTaskModal from '../components/StartTaskModal';
 import AlertModal from '../components/AlertModal';
 import Toast from '../components/Toast';
+import JobCardComments from '../components/JobCardComments';
+import {jobCardsApi} from '../services/api/jobCardsApi';
 import useTranslation from '../hooks/useTranslation';
 
 export default function JobDetailsScreen({navigation, route}: any) {
@@ -181,10 +188,32 @@ export default function JobDetailsScreen({navigation, route}: any) {
   };
 
   const handleCallCustomer = () => {
-    if (jobCard?.customerPhone) {
-      Linking.openURL(`tel:${jobCard.customerPhone}`);
-    } else {
+    openCall(jobCard?.customerPhone).catch(() => {
       showAlert(t('common.error'), t('jobDetails.phoneNotAvailable'), 'warning');
+    });
+  };
+
+  const handleWhatsAppCustomer = () => {
+    openWhatsApp(jobCard?.customerPhone).catch(() => {
+      showAlert(t('common.error'), t('jobDetails.phoneNotAvailable'), 'warning');
+    });
+  };
+
+  const handleNavigateCustomer = async () => {
+    const addr = jobCard?.customerAddress;
+    try {
+      await speakNavigateToCustomer();
+      await openNavigate({
+        latitude: addr?.latitude,
+        longitude: addr?.longitude,
+        address: addr?.address,
+      });
+    } catch {
+      showAlert(
+        t('common.error'),
+        t('jobDetails.navigateUnavailable') || 'Location not available',
+        'warning',
+      );
     }
   };
 
@@ -432,6 +461,68 @@ export default function JobDetailsScreen({navigation, route}: any) {
         </View>
       )}
 
+      <JobCardComments
+        comments={(jobCard as any).comments || []}
+        theme={theme}
+        canComment={
+          jobCard.status === 'accepted' ||
+          jobCard.status === 'in-progress' ||
+          jobCard.status === 'completed'
+        }
+        title={String(t('jobDetails.comments') || 'Comments')}
+        placeholder={String(
+          t('jobDetails.commentPlaceholder') || 'Write a comment…',
+        )}
+        emptyText={String(t('jobDetails.noComments') || 'No comments yet')}
+        postLabel={String(t('jobDetails.postComment') || 'Post')}
+        onSubmit={async text => {
+          const updated = await jobCardsApi.addComment(jobCardId, text);
+          setJobCard(prev =>
+            prev
+              ? {...prev, comments: (updated as any).comments || []}
+              : prev,
+          );
+        }}
+      />
+
+      {/* One-handed contact / navigate */}
+      {(jobCard.status === 'accepted' ||
+        jobCard.status === 'in-progress' ||
+        jobCard.status === 'pending') && (
+        <View style={[styles.thumbActions, {backgroundColor: theme.card}]}>
+          <TouchableOpacity
+            style={styles.thumbBtn}
+            onPress={handleCallCustomer}>
+            <View style={[styles.thumbIcon, {backgroundColor: '#34C75920'}]}>
+              <Icon name="call" size={26} color="#34C759" />
+            </View>
+            <Text style={[styles.thumbLabel, {color: theme.text}]}>
+              {t('dashboard.call')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.thumbBtn}
+            onPress={handleWhatsAppCustomer}>
+            <View style={[styles.thumbIcon, {backgroundColor: '#25D36620'}]}>
+              <Icon name="chat" size={26} color="#25D366" />
+            </View>
+            <Text style={[styles.thumbLabel, {color: theme.text}]}>
+              {t('dashboard.whatsapp')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.thumbBtn}
+            onPress={() => void handleNavigateCustomer()}>
+            <View style={[styles.thumbIcon, {backgroundColor: '#007AFF20'}]}>
+              <Icon name="navigation" size={26} color="#007AFF" />
+            </View>
+            <Text style={[styles.thumbLabel, {color: theme.text}]}>
+              {t('dashboard.navigate')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Actions */}
       {jobCard.status !== 'completed' && jobCard.status !== 'cancelled' && (
         <View style={styles.actionsContainer}>
@@ -636,6 +727,30 @@ const styles = StyleSheet.create({
   actionsContainer: {
     padding: 16,
     gap: 12,
+  },
+  thumbActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 16,
+    borderRadius: 16,
+  },
+  thumbBtn: {
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 88,
+  },
+  thumbIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbLabel: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   actionButton: {
     flexDirection: 'row',
