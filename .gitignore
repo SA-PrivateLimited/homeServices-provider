@@ -3,14 +3,12 @@
 
 # Environment
 .env
-
 # Firebase Service Account Keys (NEVER commit these!)
 firebase/serviceAccountKey.json
 *firebase-adminsdk*.json
 *serviceAccountKey*.json
 *service-account*.json
 *medifind*.json
-
 # Xcode
 build/
 *.pbxuser
@@ -29,9 +27,7 @@ DerivedData
 *.ipa
 *.xcuserstate
 ios/.xcode.env.local
-
 # Android/IntelliJ
-build/
 .idea
 .gradle
 local.properties
@@ -41,32 +37,26 @@ local.properties
 *.keystore
 !debug.keystore
 gradle.properties
-
 # node.js
 node_modules/
 npm-debug.log
 yarn-error.log
-
 # fastlane
 **/fastlane/report.xml
 **/fastlane/Preview.html
 **/fastlane/screenshots
 **/fastlane/test_output
-
 # Bundle artifact
 *.jsbundle
-
 # Ruby / CocoaPods
 /ios/Pods/
 /vendor/bundle/
-
 # Temporary files
 *.orig.*
 web-build/
-
 # Metro
 .metro-health-check*
-
 # Testing
 /coverage
 agent-context/
+android/.kotlin/
