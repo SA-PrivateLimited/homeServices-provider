@@ -23,7 +23,6 @@ import {
   loginPin,
   registerWithOtp,
   resetPin,
-  sendPhoneOtp,
 } from '../services/api/phoneAuthApi';
 import {
   getRememberedPhone,
@@ -39,6 +38,7 @@ import LanguageSwitcher from '../components/LanguageSwitcher';
 import {Banner} from 'sapvt-ltd-app-packages';
 import PhoneNumberInput from '../components/PhoneNumberInput';
 import {INDIA_DIAL_CODE, localTenDigits} from '../utils/phone';
+import {useFirebasePhoneAuth} from '../hooks/useFirebasePhoneAuth';
 
 interface LoginScreenProps {
   navigation: any;
@@ -75,6 +75,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   const [otpSecondsLeft, setOtpSecondsLeft] = useState(0);
   const [approvalNote, setApprovalNote] = useState<string | null>(null);
   const pinLoginInFlight = useRef(false);
+  const firebasePhone = useFirebasePhoneAuth();
 
   const {isDarkMode, setCurrentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
@@ -223,10 +224,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
         return;
       }
 
-      const result = await sendPhoneOtp(fullPhone());
       setOtpMode('signup');
+      setOtpBanner(null);
+      await firebasePhone.sendOtp(fullPhone());
       setStep('otp');
-      applyOtpFromResponse(result);
     } catch (error: any) {
       setAlertModal({
         visible: true,
@@ -282,10 +283,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     setOtp('');
     setNewPin('');
     try {
-      const result = await sendPhoneOtp(fullPhone());
       setOtpMode('forgot');
+      setOtpBanner(null);
+      await firebasePhone.sendOtp(fullPhone());
       setStep('otp');
-      applyOtpFromResponse(result);
     } catch (error: any) {
       setAlertModal({
         visible: true,
@@ -302,8 +303,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     setLoading(true);
     setInlineError(null);
     try {
-      const result = await sendPhoneOtp(fullPhone());
-      applyOtpFromResponse(result);
+      setOtp('');
+      setOtpBanner(null);
+      await firebasePhone.sendOtp(fullPhone());
     } catch (error: any) {
       setInlineError(error.message || t('auth.failedToSendCode'));
     } finally {
@@ -323,10 +325,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     setLoading(true);
     setInlineError(null);
     try {
+      await firebasePhone.verifyOtp(otp.trim());
+      const idToken = await firebasePhone.getIdToken();
       const result =
         otpMode === 'signup'
-          ? await registerWithOtp(fullPhone(), otp.trim(), newPin.trim())
-          : await resetPin(fullPhone(), otp.trim(), newPin.trim());
+          ? await registerWithOtp(fullPhone(), newPin.trim(), {
+              idToken,
+              fullName: 'Provider',
+            })
+          : await resetPin(fullPhone(), newPin.trim(), {idToken});
+      await firebasePhone.reset();
       await finishWithPinReveal(
         result.token,
         result.user,
@@ -341,6 +349,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   };
 
   const handleUseAnotherNumber = async () => {
+    await firebasePhone.reset();
     await clearAllCredentials();
     setCurrentUser(null);
     setPhoneNumber('');
