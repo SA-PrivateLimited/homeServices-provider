@@ -30,10 +30,15 @@
   "callCustomer": "ग्राहक को कॉल करें",
   "viewDetails": "विवरण देखें",
   "completedLabel": "पूर्ण",
+  "cancelledLabel": "रद्द",
+  "completedOn": "{{date}} को पूर्ण",
+  "cancelledOn": "{{date}} को रद्द",
   "loadingJobHistory": "कार्य इतिहास लोड हो रहा है...",
-  "noJobHistory": "कोई कार्य इतिहास नहीं",
-  "completedJobsWillAppearHere": "आपके पूर्ण कार्य यहां दिखाई देंगे",
+  "noJobHistory": "अभी कोई कार्य इतिहास नहीं",
+  "completedJobsWillAppearHere": "जब आप कोई कार्य पूरा या रद्द करेंगे, वह यहाँ दिखेगा।",
+  "pastJobsDescription": "पिछले कार्य जो अब सक्रिय नहीं हैं — पूर्ण या रद्द।",
   "all": "सभी",
   "noJobsFound": "कोई कार्य नहीं मिला",
-  "noJobsFoundForStatus": "कोई {{status}} कार्य नहीं"
+  "noJobsFoundForStatus": "कोई {{status}} कार्य नहीं",
+  "viewJobDetails": "कार्य विवरण देखें"
 }

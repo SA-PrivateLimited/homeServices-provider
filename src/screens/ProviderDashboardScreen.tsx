@@ -22,21 +22,21 @@ import {
   getProviderStatus,
   startLocationTracking,
   stopLocationTracking,
-  getDistanceToCustomer,
 } from '../services/providerLocationService';
 import {getMyProfile} from '../services/api/providersApi';
 import websocketService from '../services/websocketService';
 import {getProviderJobCards} from '../services/jobCardService';
 import AlertModal from '../components/AlertModal';
-import Toast from '../components/Toast';
+import {Button, toast} from 'sapvt-ltd-app-packages';
 import useTranslation from '../hooks/useTranslation';
 import {useIncomingBooking} from '../components/IncomingBookingContext';
 import {
-  openCall,
-  openWhatsApp,
   openNavigate,
 } from '../services/contactActions';
 import {speakNavigateToCustomer} from '../services/voicePromptService';
+import {formatDistanceKm} from '../utils/distance';
+import RequestPhotoGallery from '../components/RequestPhotoGallery';
+import {getUserFacingErrorMessage} from '../utils/userFacingError';
 
 export default function ProviderDashboardScreen({navigation}: any) {
   const {isDarkMode, currentUser} = useStore();
@@ -56,9 +56,6 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [distanceLabel, setDistanceLabel] = useState<string | null>(null);
 
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{
@@ -122,7 +119,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
       console.error('Error loading dashboard data:', error);
       showAlert(
         tx('common.error'),
-        error.message || tx('dashboard.loadDashboardError'),
+        getUserFacingErrorMessage(error) || tx('dashboard.loadDashboardError'),
         'error',
       );
       setLoading(false);
@@ -155,49 +152,19 @@ export default function ProviderDashboardScreen({navigation}: any) {
     }
   }, [isOnline, userId]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!incomingBooking?.customerAddress) {
-        setDistanceLabel(null);
-        return;
-      }
-      try {
-        const addr = incomingBooking.customerAddress;
-        if (addr.latitude == null || addr.longitude == null) {
-          setDistanceLabel(null);
-          return;
-        }
-        const status = await getProviderStatus(userId || '');
-        if (cancelled || !status?.currentLocation) return;
-        const info = getDistanceToCustomer(status.currentLocation, {
-          latitude: addr.latitude,
-          longitude: addr.longitude,
-        });
-        if (!cancelled) setDistanceLabel(info?.distanceFormatted || null);
-      } catch {
-        if (!cancelled) setDistanceLabel(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [incomingBooking, userId]);
-
   const handleToggleOnline = async () => {
     try {
       isTogglingStatus.current = true;
       const newStatus = !isOnline;
       await setProviderOnline(newStatus);
       setIsOnline(newStatus);
-      setToastMessage(
+      toast.success(
         newStatus ? tx('dashboard.youreNowOnline') : tx('dashboard.youreNowOffline'),
       );
-      setShowToast(true);
     } catch (error: any) {
       showAlert(
         tx('common.error'),
-        error.message || tx('dashboard.updateStatusError'),
+        getUserFacingErrorMessage(error) || tx('dashboard.updateStatusError'),
         'error',
       );
       isTogglingStatus.current = false;
@@ -217,7 +184,9 @@ export default function ProviderDashboardScreen({navigation}: any) {
     incomingBooking?.consultationFee ??
     incomingBooking?.serviceFee ??
     null;
-  const serviceType = incomingBooking?.serviceType || 'Service';
+  const serviceType =
+    incomingBooking?.serviceType || tx('dashboard.serviceFallback');
+  const distanceLabel = formatDistanceKm(incomingBooking?.distanceKm);
 
   if (loading && !refreshing) {
     return (
@@ -248,14 +217,6 @@ export default function ProviderDashboardScreen({navigation}: any) {
         type={alertConfig.type}
         onClose={() => setAlertVisible(false)}
       />
-      <Toast
-        visible={showToast}
-        message={toastMessage}
-        type="success"
-        duration={3000}
-        onHide={() => setShowToast(false)}
-      />
-
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -298,6 +259,18 @@ export default function ProviderDashboardScreen({navigation}: any) {
                 {secondsLeft}s
               </Text>
             </View>
+            {incomingBooking.createdAt ? (
+              <Text style={[styles.newJobDist, {color: theme.textSecondary}]}>
+                Requested{' '}
+                {new Date(incomingBooking.createdAt).toLocaleString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </Text>
+            ) : null}
             <Text style={[styles.newJobService, {color: theme.text}]}>
               {serviceType}
             </Text>
@@ -318,49 +291,29 @@ export default function ProviderDashboardScreen({navigation}: any) {
                 {incomingBooking.problem}
               </Text>
             ) : null}
+            <RequestPhotoGallery
+              photos={incomingBooking.photos}
+              theme={theme}
+              title={tx('dashboard.customerPhotos')}
+            />
 
             <View style={styles.newJobActions}>
-              <TouchableOpacity
+              <Button
+                variant="danger"
+                title={tx('dashboard.decline')}
+                onPress={() => void rejectBooking()}
                 style={styles.declineBtn}
-                onPress={() => void rejectBooking()}>
-                <Text style={styles.declineBtnText}>
-                  {tx('dashboard.decline')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              />
+              <Button
+                variant="primary"
+                title={tx('dashboard.accept')}
+                onPress={() => void acceptBooking()}
                 style={styles.acceptBtn}
-                onPress={() => void acceptBooking()}>
-                <Text style={styles.acceptBtnText}>
-                  {tx('dashboard.accept')}
-                </Text>
-              </TouchableOpacity>
+                colors={{primary: '#34C759'}}
+              />
             </View>
 
             <View style={styles.newJobQuickRow}>
-              <TouchableOpacity
-                style={styles.miniAction}
-                onPress={() =>
-                  openCall(
-                    incomingBooking.customerPhone ||
-                      incomingBooking.patientPhone,
-                  ).catch(() => {})
-                }>
-                <Icon name="call" size={20} color="#34C759" />
-                <Text style={styles.miniActionText}>{tx('dashboard.call')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.miniAction}
-                onPress={() =>
-                  openWhatsApp(
-                    incomingBooking.customerPhone ||
-                      incomingBooking.patientPhone,
-                  ).catch(() => {})
-                }>
-                <Icon name="chat" size={20} color="#25D366" />
-                <Text style={styles.miniActionText}>
-                  {tx('dashboard.whatsapp')}
-                </Text>
-              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.miniAction}
                 onPress={async () => {
@@ -504,20 +457,10 @@ const styles = StyleSheet.create({
   newJobActions: {flexDirection: 'row', gap: 12, marginBottom: 12},
   declineBtn: {
     flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
-    backgroundColor: '#FF3B30',
-    alignItems: 'center',
   },
-  declineBtnText: {color: '#fff', fontSize: 17, fontWeight: '700'},
   acceptBtn: {
     flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
-    backgroundColor: '#34C759',
-    alignItems: 'center',
   },
-  acceptBtnText: {color: '#fff', fontSize: 17, fontWeight: '700'},
   newJobQuickRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',

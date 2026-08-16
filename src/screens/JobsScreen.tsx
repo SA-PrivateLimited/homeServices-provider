@@ -23,6 +23,12 @@ import {getUserId} from '../services/session';
 import {fetchJobCardsByProvider, JobCard, subscribeToProviderJobCardStatuses} from '../services/jobCardService';
 import useTranslation from '../hooks/useTranslation';
 import AdSlot from '../components/AdSlot';
+import EmptyState from '../components/EmptyState';
+import {
+  formatJobStatusDate,
+  getJobStatusColor,
+  normalizeJobStatusKey,
+} from '../utils/jobStatus';
 
 export default function JobsScreen({navigation, route}: any) {
   const {isDarkMode, currentUser} = useStore();
@@ -97,25 +103,10 @@ export default function JobsScreen({navigation, route}: any) {
     return jobCards.filter(job => job.status === status).length;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return '#FF9500';
-      case 'accepted':
-        return '#007AFF';
-      case 'in-progress':
-        return '#FF9500'; // Orange instead of green
-      case 'completed':
-        return '#34C759';
-      case 'cancelled':
-        return '#FF3B30';
-      default:
-        return '#8E8E93';
-    }
-  };
+  const getStatusColor = (status: string) => getJobStatusColor(status);
 
   const getStatusText = (status: string) => {
-    switch (status) {
+    switch (normalizeJobStatusKey(status)) {
       case 'pending':
         return t('jobCards.pending');
       case 'accepted':
@@ -167,6 +158,9 @@ export default function JobsScreen({navigation, route}: any) {
   const renderJobCard = ({item}: {item: JobCard}) => (
     <TouchableOpacity
       style={[styles.jobCard, {backgroundColor: theme.card}]}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.customerName || 'Customer'}, ${item.serviceType || 'Job'}, ${getStatusText(item.status)}`}
       onPress={() => {
         navigation.navigate('JobDetails', {jobCardId: item.id});
       }}>
@@ -179,41 +173,46 @@ export default function JobsScreen({navigation, route}: any) {
           </View>
           <View style={styles.customerDetails}>
             <Text style={[styles.customerName, {color: theme.text}]}>
-              {item.customerName}
+              {item.customerName || t('jobs.customerName')}
             </Text>
             <Text style={[styles.serviceType, {color: theme.textSecondary}]}>
               {item.serviceType}
             </Text>
             {item.customerPhone && (
               <View style={styles.customerPhoneRow}>
-                <Icon name="phone" size={14} color={theme.primary} />
                 <Text style={[styles.customerPhone, {color: theme.textSecondary}]}>
                   {item.customerPhone}
                 </Text>
                 <TouchableOpacity
                   style={[styles.callButton, {backgroundColor: theme.primary}]}
+                  accessibilityRole="button"
+                  accessibilityLabel={String(t('jobs.callCustomer'))}
                   onPress={(e) => {
                     e.stopPropagation();
                     handleCallCustomer(item.customerPhone);
                   }}>
                   <Icon name="phone" size={14} color="#fff" />
+                  <Text style={styles.callButtonText}>{t('jobs.callCustomer')}</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
         </View>
-        <View
-          style={[
-            styles.statusBadge,
-            {backgroundColor: getStatusColor(item.status) + '20'},
-          ]}>
-          <Text
+        <View style={styles.statusColumn}>
+          <View
             style={[
-              styles.statusText,
-              {color: getStatusColor(item.status)},
+              styles.statusBadge,
+              {backgroundColor: getStatusColor(item.status) + '20'},
             ]}>
-            {getStatusText(item.status)}
-          </Text>
+            <Text
+              style={[
+                styles.statusText,
+                {color: getStatusColor(item.status)},
+              ]}>
+              {getStatusText(item.status)}
+            </Text>
+          </View>
+          <Icon name="chevron-right" size={22} color={theme.textSecondary} />
         </View>
       </View>
 
@@ -228,7 +227,7 @@ export default function JobsScreen({navigation, route}: any) {
           <Icon name="location-on" size={16} color={theme.textSecondary} />
           <Text
             style={[styles.addressText, {color: theme.textSecondary}]}
-            numberOfLines={1}>
+            numberOfLines={2}>
             {item.customerAddress.address}
             {item.customerAddress.pincode && `, ${item.customerAddress.pincode}`}
           </Text>
@@ -238,7 +237,10 @@ export default function JobsScreen({navigation, route}: any) {
       <View style={styles.dateRow}>
         <Icon name="calendar-today" size={16} color={theme.textSecondary} />
         <Text style={[styles.dateText, {color: theme.textSecondary}]}>
-          {formatDate(item.scheduledTime || item.createdAt)}
+          {formatJobStatusDate(
+            item.status,
+            item.updatedAt || item.scheduledTime || item.createdAt,
+          ) || formatDate(item.scheduledTime || item.createdAt)}
         </Text>
       </View>
     </TouchableOpacity>
@@ -301,17 +303,15 @@ export default function JobsScreen({navigation, route}: any) {
 
       {/* Jobs List */}
       {filteredJobs.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Icon name="work-outline" size={64} color={theme.textSecondary} />
-          <Text style={[styles.emptyText, {color: theme.text}]}>
-            No jobs found
-          </Text>
-          <Text style={[styles.emptySubtext, {color: theme.textSecondary}]}>
-            {filter === 'all'
-              ? 'You don\'t have any jobs yet'
-              : `No ${getStatusText(filter).toLowerCase()} jobs`}
-          </Text>
-        </View>
+        <EmptyState
+          icon="inbox-outline"
+          title="No jobs found"
+          message={
+            filter === 'all'
+              ? "You don't have any jobs yet"
+              : `No ${String(getStatusText(filter)).toLowerCase()} jobs`
+          }
+        />
       ) : (
         <FlatList
           data={filteredJobs}
@@ -422,21 +422,31 @@ const styles = StyleSheet.create({
   customerPhoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 6,
     width: '100%',
-    gap: 1,
+    gap: 8,
   },
   customerPhone: {
     fontSize: 12,
     flex: 1,
   },
   callButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 1,
+    gap: 4,
+  },
+  callButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  statusColumn: {
+    alignItems: 'flex-end',
+    gap: 8,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -469,22 +479,6 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 14,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
   },
 });
 

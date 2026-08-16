@@ -510,18 +510,10 @@ export const verifyPINAndCompleteTask = async (
       throw new Error('Job card not found');
     }
 
-    const storedPIN = jobCardData.taskPIN;
+    // Backend is the PIN authority — send verificationPIN on complete.
+    // Do not compare against any PIN that GET may still return.
 
-    if (!storedPIN) {
-      throw new Error('No PIN found for this task. Please start the task first.');
-    }
-
-    // Verify PIN
-    if (enteredPIN !== storedPIN) {
-      throw new Error('Invalid PIN. Please enter the correct PIN sent to the customer.');
-    }
-
-    // PIN is correct, generate job card PDF
+    // Generate job card PDF (mobile extra; must not block PIN verification)
     let pdfUrl: string | undefined;
     try {
       const jobCard: JobCard = {
@@ -557,12 +549,13 @@ export const verifyPINAndCompleteTask = async (
       // Just log the error and continue
     }
 
-    // Complete the task via API with PDF URL
+    // Complete the task via API with PIN + optional PDF URL
     await jobCardsApi.updateStatus(jobCardId, 'completed', {
       completedAt: timeCompleted || new Date(),
       serviceAmount: amount,
       materialsUsed: materials,
       jobCardPdfUrl: pdfUrl,
+      verificationPIN: enteredPIN,
     });
 
     // Best-effort RTDB mirror

@@ -11,10 +11,10 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import auth from '@react-native-firebase/auth';
-import storage from '@react-native-firebase/storage';
 import {Select} from 'sapvt-ltd-app-packages';
 import {providersApi} from '../services/api/providersApi';
 import {launchImageLibrary} from 'react-native-image-picker';
+import {uploadAssetFromUri} from '../services/api/assetsApi';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import ProviderAddressInput from '../components/ProviderAddressInput';
@@ -237,18 +237,30 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   };
 
   const uploadImage = async (uri: string): Promise<string> => {
-    const filename = `provider_profiles/${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
-    const reference = storage().ref(filename);
-    await reference.putFile(uri);
-    return await reference.getDownloadURL();
+    const ref = await uploadAssetFromUri(uri, {
+      purpose: 'provider-profile',
+      contentType: 'image/jpeg',
+      fileName: 'profile.jpg',
+    });
+    return ref.url;
   };
 
   const uploadDocument = async (uri: string, docType: string): Promise<string> => {
-    const extension = uri.split('.').pop()?.toLowerCase() || 'jpg';
-    const filename = `provider_documents/${docType}/${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
-    const reference = storage().ref(filename);
-    await reference.putFile(uri);
-    return await reference.getDownloadURL();
+    const lower = uri.toLowerCase();
+    const contentType = lower.includes('.png')
+      ? 'image/png'
+      : lower.includes('.webp')
+        ? 'image/webp'
+        : lower.includes('.pdf')
+          ? 'application/pdf'
+          : 'image/jpeg';
+    const ref = await uploadAssetFromUri(uri, {
+      purpose: 'provider-document',
+      docKey: docType,
+      contentType,
+      fileName: `${docType}.${contentType === 'application/pdf' ? 'pdf' : 'jpg'}`,
+    });
+    return ref.url;
   };
 
   const pickDocument = (docType: 'idProof' | 'addressProof' | 'certificate') => {

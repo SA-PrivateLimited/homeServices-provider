@@ -12,6 +12,7 @@ import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import type {AppNotification} from '../store';
 import useTranslation from '../hooks/useTranslation';
+import EmptyState from '../components/EmptyState';
 
 interface NotificationsScreenProps {
   navigation: any;
@@ -200,12 +201,14 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
       )}
 
       {userNotifications.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Icon name="notifications-off-outline" size={64} color={theme.textSecondary} />
-          <Text style={[styles.emptyText, {color: theme.textSecondary}]}>
-            {t('notifications.noNotifications')}
-          </Text>
-        </View>
+        <EmptyState
+          icon="notifications-outline"
+          title={String(t('notifications.noNotifications'))}
+          message={String(
+            t('notifications.noNotificationsHint') ||
+              'You are all caught up',
+          )}
+        />
       ) : (
         <FlatList
           data={userNotifications}
@@ -295,15 +298,6 @@ const styles = StyleSheet.create({
   deleteButton: {
     padding: 4,
     marginLeft: 8,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    marginTop: 16,
   },
 });
 

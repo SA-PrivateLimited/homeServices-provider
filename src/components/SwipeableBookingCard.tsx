@@ -13,11 +13,13 @@ import {
   PanResponder,
   TouchableOpacity,
   Dimensions,
-  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {lightTheme, darkTheme} from '../utils/theme';
 import {useStore} from '../store';
+import useTranslation from '../hooks/useTranslation';
+import {formatDistanceKm} from '../utils/distance';
+import RequestPhotoGallery from './RequestPhotoGallery';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3; // 30% of screen width
@@ -38,6 +40,7 @@ export default function SwipeableBookingCard({
 }: SwipeableBookingCardProps) {
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const {t} = useTranslation();
   
   const [pan] = useState(new Animated.ValueXY());
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
@@ -102,11 +105,27 @@ export default function SwipeableBookingCard({
     }),
   ).current;
 
-  const customerName = bookingData.customerName || bookingData.patientName || 'Customer';
-  const customerPhone = bookingData.customerPhone || bookingData.patientPhone || '';
-  const serviceType = bookingData.serviceType || 'Service';
-  const problem = bookingData.problem || bookingData.symptoms || 'No description';
+  const customerName =
+    bookingData.customerName ||
+    bookingData.patientName ||
+    String(t('dashboard.customerFallback'));
+  const serviceType =
+    bookingData.serviceType || String(t('dashboard.serviceFallback'));
+  const problem =
+    bookingData.problem ||
+    bookingData.symptoms ||
+    String(t('dashboard.noDescription'));
   const customerAddress = bookingData.customerAddress || bookingData.patientAddress;
+  const distanceLabel = formatDistanceKm(bookingData.distanceKm);
+  const requestedAt = bookingData.createdAt
+    ? new Date(bookingData.createdAt).toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
 
   const rotateZ = pan.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
@@ -137,7 +156,9 @@ export default function SwipeableBookingCard({
             {opacity: rightOpacity},
           ]}>
           <Icon name="check-circle" size={60} color="#fff" />
-          <Text style={styles.backgroundActionText}>ACCEPT</Text>
+          <Text style={styles.backgroundActionText}>
+            {String(t('dashboard.accept'))}
+          </Text>
         </Animated.View>
         <Animated.View
           style={[
@@ -146,7 +167,9 @@ export default function SwipeableBookingCard({
             {opacity: leftOpacity},
           ]}>
           <Icon name="cancel" size={60} color="#fff" />
-          <Text style={styles.backgroundActionText}>REJECT</Text>
+          <Text style={styles.backgroundActionText}>
+            {String(t('dashboard.decline'))}
+          </Text>
         </Animated.View>
       </View>
 
@@ -170,9 +193,11 @@ export default function SwipeableBookingCard({
               <Icon name="notifications-active" size={24} color={theme.primary} />
             </View>
             <View>
-              <Text style={[styles.title, {color: theme.text}]}>New Service Request</Text>
+              <Text style={[styles.title, {color: theme.text}]}>
+                {String(t('dashboard.newServiceRequest'))}
+              </Text>
               <Text style={[styles.subtitle, {color: theme.textSecondary}]}>
-                Swipe right to accept • Swipe left to reject
+                {String(t('dashboard.swipeHint'))}
               </Text>
             </View>
           </View>
@@ -187,26 +212,33 @@ export default function SwipeableBookingCard({
             <Icon name="person" size={20} color={theme.primary} />
             <Text style={[styles.customerName, {color: theme.text}]}>{customerName}</Text>
           </View>
-          {customerPhone && (
-            <View style={styles.customerRow}>
-              <Icon name="phone" size={20} color={theme.textSecondary} />
-              <Text style={[styles.customerDetail, {color: theme.textSecondary}]}>
-                {customerPhone}
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* Service Details */}
         <View style={styles.detailsSection}>
+          {requestedAt ? (
+            <View style={styles.detailRow}>
+              <Icon name="access-time" size={18} color={theme.textSecondary} />
+              <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
+                Requested:
+              </Text>
+              <Text style={[styles.detailValue, {color: theme.text}]}>
+                {requestedAt}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.detailRow}>
             <Icon name="build" size={18} color={theme.textSecondary} />
-            <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>Service:</Text>
+            <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
+              {String(t('dashboard.serviceLabel'))}
+            </Text>
             <Text style={[styles.detailValue, {color: theme.text}]}>{serviceType}</Text>
           </View>
           <View style={styles.detailRow}>
             <Icon name="description" size={18} color={theme.textSecondary} />
-            <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>Problem:</Text>
+            <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
+              {String(t('dashboard.problemLabel'))}
+            </Text>
             <Text style={[styles.detailValue, {color: theme.text}]} numberOfLines={2}>
               {problem}
             </Text>
@@ -214,13 +246,31 @@ export default function SwipeableBookingCard({
           {customerAddress && (
             <View style={styles.detailRow}>
               <Icon name="location-on" size={18} color={theme.textSecondary} />
-              <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>Address:</Text>
+              <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
+                {String(t('dashboard.addressLabel'))}
+              </Text>
               <Text style={[styles.detailValue, {color: theme.text}]} numberOfLines={2}>
                 {customerAddress.address || ''}
                 {customerAddress.pincode ? `, ${customerAddress.pincode}` : ''}
               </Text>
             </View>
           )}
+          {distanceLabel ? (
+            <View style={styles.detailRow}>
+              <Icon name="straighten" size={18} color={theme.textSecondary} />
+              <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
+                {String(t('dashboard.distanceLabel'))}
+              </Text>
+              <Text style={[styles.detailValue, {color: theme.text}]}>
+                {distanceLabel}
+              </Text>
+            </View>
+          ) : null}
+          <RequestPhotoGallery
+            photos={bookingData.photos}
+            theme={theme}
+            title={String(t('dashboard.customerPhotos'))}
+          />
         </View>
 
         {/* Action Buttons (Fallback) */}
@@ -229,13 +279,17 @@ export default function SwipeableBookingCard({
             style={[styles.rejectButton, {borderColor: theme.border}]}
             onPress={onReject}>
             <Icon name="cancel" size={20} color="#FF3B30" />
-            <Text style={[styles.buttonText, {color: '#FF3B30'}]}>Reject</Text>
+            <Text style={[styles.buttonText, {color: '#FF3B30'}]}>
+              {String(t('dashboard.decline'))}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.acceptButton, {backgroundColor: theme.primary}]}
             onPress={onAccept}>
             <Icon name="check-circle" size={20} color="#fff" />
-            <Text style={[styles.buttonText, {color: '#fff'}]}>Accept</Text>
+            <Text style={[styles.buttonText, {color: '#fff'}]}>
+              {String(t('dashboard.accept'))}
+            </Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

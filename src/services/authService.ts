@@ -300,6 +300,13 @@ export const logout = async (): Promise<void> => {
       console.warn('WebSocket disconnect failed during logout:', wsError);
     }
 
+    try {
+      const {logoutRemote} = await import('./api/phoneAuthApi');
+      await logoutRemote();
+    } catch {
+      // Local session still clears below
+    }
+
     const {logoutProvider} = await import('./session');
     await logoutProvider();
 

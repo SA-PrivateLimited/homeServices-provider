@@ -70,6 +70,7 @@ export interface CreateJobCardData {
 export interface UpdateJobCardStatusData {
   status: JobCard['status'];
   taskPIN?: string;
+  verificationPIN?: string;
   pinGeneratedAt?: string | Date;
   startedAt?: string | Date;
   completedAt?: string | Date;

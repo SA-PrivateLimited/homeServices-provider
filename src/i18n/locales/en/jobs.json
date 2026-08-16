@@ -30,10 +30,15 @@
   "callCustomer": "Call Customer",
   "viewDetails": "View Details",
   "completedLabel": "Completed",
+  "cancelledLabel": "Cancelled",
+  "completedOn": "Completed on {{date}}",
+  "cancelledOn": "Cancelled on {{date}}",
   "loadingJobHistory": "Loading job history...",
-  "noJobHistory": "No job history",
-  "completedJobsWillAppearHere": "Your completed jobs will appear here",
+  "noJobHistory": "No job history yet",
+  "completedJobsWillAppearHere": "When you finish or cancel a job, it will appear here.",
+  "pastJobsDescription": "Past jobs that are no longer active — completed or cancelled.",
   "all": "All",
   "noJobsFound": "No jobs found",
-  "noJobsFoundForStatus": "No {{status}} jobs"
+  "noJobsFoundForStatus": "No {{status}} jobs",
+  "viewJobDetails": "View job details"
 }

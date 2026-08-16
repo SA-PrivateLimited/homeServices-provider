@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {useStore} from '../store';
@@ -31,11 +32,16 @@ import {
   setSession,
   clearAllCredentials,
 } from '../services/session';
+import {
+  getBrandName,
+  getLogoUrl,
+  subscribeBranding,
+} from '../services/brandingService';
 import PinBoxesInput from '../components/PinBoxesInput';
 import AlertModal from '../components/AlertModal';
 import useTranslation from '../hooks/useTranslation';
 import LanguageSwitcher from '../components/LanguageSwitcher';
-import {Banner} from 'sapvt-ltd-app-packages';
+import {Banner, Button} from 'sapvt-ltd-app-packages';
 import PhoneNumberInput from '../components/PhoneNumberInput';
 import {INDIA_DIAL_CODE, localTenDigits} from '../utils/phone';
 import {useFirebasePhoneAuth} from '../hooks/useFirebasePhoneAuth';
@@ -80,6 +86,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   const {isDarkMode, setCurrentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
+  const [brandName, setBrandName] = useState(getBrandName());
+  const [logoUrl, setLogoUrl] = useState(getLogoUrl());
 
   const [alertModal, setAlertModal] = useState<{
     visible: boolean;
@@ -92,6 +100,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     message: '',
     type: 'info',
   });
+
+  useEffect(() => {
+    return subscribeBranding(() => {
+      setBrandName(getBrandName());
+      setLogoUrl(getLogoUrl());
+    });
+  }, []);
 
   const fullPhone = () =>
     INDIA_DIAL_CODE + localTenDigits(phoneNumber);
@@ -433,9 +448,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
         ) : null}
 
         <View style={styles.header}>
-          <Icon name="construct-outline" size={56} color={theme.primary} />
+          {logoUrl ? (
+            <Image
+              source={{uri: logoUrl}}
+              style={styles.logo}
+              resizeMode="contain"
+              accessibilityLabel={brandName}
+            />
+          ) : (
+            <Icon name="construct-outline" size={56} color={theme.primary} />
+          )}
           <Text style={[styles.title, {color: theme.text}]}>
-            HomeServices Provider
+            {brandName}
           </Text>
           <Text style={[styles.subtitle, {color: theme.textSecondary}]}>
             {subtitleForStep()}
@@ -463,22 +487,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
               placeholderTextColor={theme.textSecondary}
               style={{marginBottom: 16}}
             />
-            <TouchableOpacity
-              style={[
-                styles.button,
-                {backgroundColor: theme.primary},
-                loading && styles.buttonDisabled,
-              ]}
+            <Button
+              variant="primary"
+              block
+              title={String(t('auth.continue') || 'Continue')}
               onPress={() => void handleContinuePhone()}
-              disabled={loading}>
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>
-                  {t('auth.continue') || 'Continue'}
-                </Text>
-              )}
-            </TouchableOpacity>
+              loading={loading}
+              disabled={loading}
+              style={styles.button}
+            />
           </View>
         ) : null}
 
@@ -509,20 +526,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
             {inlineError ? (
               <Text style={styles.inlineError}>{inlineError}</Text>
             ) : null}
-            <TouchableOpacity
-              style={[
-                styles.button,
-                {backgroundColor: theme.primary},
-                loading && styles.buttonDisabled,
-              ]}
+            <Button
+              variant="primary"
+              block
+              title={String(t('auth.login') || 'Login')}
               onPress={() => void handleLoginWithPin()}
-              disabled={loading}>
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>{t('auth.login') || 'Login'}</Text>
-              )}
-            </TouchableOpacity>
+              loading={loading}
+              disabled={loading}
+              style={styles.button}
+            />
             <TouchableOpacity
               style={styles.linkBtn}
               onPress={() => void handleForgotPin()}
@@ -593,25 +605,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
             {inlineError ? (
               <Text style={styles.inlineError}>{inlineError}</Text>
             ) : null}
-            <TouchableOpacity
-              style={[
-                styles.button,
-                {backgroundColor: theme.primary},
-                loading && styles.buttonDisabled,
-              ]}
-              onPress={() => void handleVerifyOtpAndSetPin()}
-              disabled={loading}>
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>
-                  {otpMode === 'signup'
-                    ? t('auth.verifyAndCreateAccount') ||
+            <Button
+              variant="primary"
+              block
+              title={String(
+                otpMode === 'signup'
+                  ? t('auth.verifyAndCreateAccount') ||
                       'Verify & create account'
-                    : t('auth.verifyOtpAndSetPin') || 'Verify & set PIN'}
-                </Text>
+                  : t('auth.verifyOtpAndSetPin') || 'Verify & set PIN',
               )}
-            </TouchableOpacity>
+              onPress={() => void handleVerifyOtpAndSetPin()}
+              loading={loading}
+              disabled={loading}
+              style={styles.button}
+            />
             <TouchableOpacity
               style={styles.linkBtn}
               onPress={() => void handleResendOtp()}
@@ -662,13 +669,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                 {approvalNote}
               </Text>
             ) : null}
-            <TouchableOpacity
-              style={[styles.button, {backgroundColor: theme.primary}]}
-              onPress={goMain}>
-              <Text style={styles.buttonText}>
-                {t('auth.continue') || 'Continue'}
-              </Text>
-            </TouchableOpacity>
+            <Button
+              variant="primary"
+              block
+              title={String(t('auth.continue') || 'Continue')}
+              onPress={goMain}
+              style={styles.button}
+            />
           </View>
         ) : null}
       </ScrollView>
@@ -726,6 +733,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   header: {alignItems: 'center', marginBottom: 28},
+  logo: {width: 72, height: 72, borderRadius: 12},
   title: {fontSize: 26, fontWeight: 'bold', marginTop: 16, marginBottom: 8},
   subtitle: {
     fontSize: 15,
@@ -772,14 +780,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   button: {
-    height: 52,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 12,
   },
-  buttonDisabled: {opacity: 0.6},
-  buttonText: {color: '#fff', fontSize: 16, fontWeight: '700'},
   linkBtn: {alignItems: 'center', paddingVertical: 10},
   linkText: {fontSize: 14, fontWeight: '600'},
   pinReveal: {
