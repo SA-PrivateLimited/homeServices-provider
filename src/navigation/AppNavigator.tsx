@@ -19,7 +19,6 @@ import {onSessionExpired} from '../services/sessionExpiry';
 
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
-import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import ProviderTabNavigator from './ProviderTabNavigator';
 import JobDetailsScreen from '../screens/JobDetailsScreen';
 import ServiceProviderProfileSetupScreen from '../screens/ServiceProviderProfileSetupScreen';
@@ -116,7 +115,6 @@ export default function AppNavigator() {
         screenOptions={{headerShown: false}}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="SignUp" component={SignUpScreen} />
-        <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
         <Stack.Screen
           name="PhoneVerification"
           component={PhoneVerificationScreen}
@@ -128,7 +126,7 @@ export default function AppNavigator() {
           component={JobDetailsScreen}
           options={{
             headerShown: true,
-            title: 'Job Details',
+            title: String(t('jobCard.title') || 'Job Details'),
             headerStyle: {backgroundColor: theme.card},
             headerTintColor: theme.text,
           }}
