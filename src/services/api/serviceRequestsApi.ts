@@ -34,7 +34,8 @@ export interface ServiceRequest {
   providerAddress?: any;
   consultationId?: string;
   questionnaireAnswers?: any;
-  photos?: string[];
+  photos?: Array<string | {key?: string; url?: string}>;
+  distanceKm?: number;
   cancellationReason?: string;
   rejectionReason?: string;
   rejectedAt?: string | Date;

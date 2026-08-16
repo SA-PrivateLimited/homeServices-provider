@@ -7,7 +7,7 @@ const AlertModal: React.FC<AlertModalProps> = props => {
   return (
     <PackageAlertModal
       {...props}
-      buttonText={props.buttonText || t('common.ok') || 'OK'}
+      buttonText={props.buttonText || String(t('common.ok') || 'OK')}
     />
   );
 };

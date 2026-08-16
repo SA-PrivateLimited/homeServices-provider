@@ -2,6 +2,7 @@
   "loadingJobDetails": "नौकरी विवरण लोड हो रहा है...",
   "jobNotFound": "नौकरी नहीं मिली",
   "phoneNotAvailable": "फ़ोन नंबर उपलब्ध नहीं है",
+  "navigateUnavailable": "नेविगेशन के लिए ग्राहक का स्थान उपलब्ध नहीं है",
   "failedToLoad": "नौकरी विवरण लोड करने में विफल",
   "failedToStart": "सेवा शुरू करने में विफल",
   "failedToComplete": "कार्य पूर्ण करने में विफल",
@@ -51,5 +52,9 @@
   "comments": "टिप्पणियाँ",
   "commentPlaceholder": "टिप्पणी लिखें…",
   "noComments": "अभी कोई टिप्पणी नहीं",
-  "postComment": "पोस्ट करें"
+  "postComment": "पोस्ट करें",
+  "contactAfterAcceptCustomer": "जॉब स्वीकार करने के बाद आप ग्राहक से संपर्क कर सकते हैं।",
+  "callCustomer": "ग्राहक को कॉल करें",
+  "contactUnavailable": "संपर्क उपलब्ध नहीं",
+  "customerPhotos": "ग्राहक की तस्वीरें"
 }

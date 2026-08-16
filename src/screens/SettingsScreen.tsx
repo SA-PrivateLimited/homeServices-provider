@@ -18,7 +18,7 @@ import {COPYRIGHT_OWNER} from '@env';
 import authService from '../services/authService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
-import ConfirmationModal from '../components/ConfirmationModal';
+import ConfirmDialog from '../components/ConfirmationModal';
 import AlertModal from '../components/AlertModal';
 import useTranslation from '../hooks/useTranslation';
 
@@ -198,7 +198,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
       />
 
       {/* Confirmation Modal */}
-      <ConfirmationModal
+      <ConfirmDialog
         visible={confirmVisible}
         title={confirmConfig.title}
         message={confirmConfig.message}

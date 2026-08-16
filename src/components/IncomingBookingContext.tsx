@@ -20,9 +20,10 @@ import {serviceRequestsApi} from '../services/api/serviceRequestsApi';
 import {createJobCard} from '../services/jobCardService';
 import BookingAlertModal from './BookingAlertModal';
 import AlertModal from './AlertModal';
-import Toast from './Toast';
+import {toast} from 'sapvt-ltd-app-packages';
 import useTranslation from '../hooks/useTranslation';
 import {speakNewJobReceived} from '../services/voicePromptService';
+import {getUserFacingErrorMessage} from '../utils/userFacingError';
 
 export const ACCEPT_TIMEOUT_SEC = 40;
 
@@ -61,6 +62,9 @@ function toBookingShape(latest: any) {
     isTargeted: !!latest.providerId,
     status: latest.status,
     createdAt: latest.createdAt,
+    scheduledTime: latest.scheduledTime,
+    photos: latest.photos,
+    distanceKm: latest.distanceKm,
   };
 }
 
@@ -108,8 +112,6 @@ export function IncomingBookingProvider({
   const [secondsLeft, setSecondsLeft] = useState(ACCEPT_TIMEOUT_SEC);
   const [loading, setLoading] = useState(false);
   const [preferInlineCard, setPreferInlineCard] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{
     title: string;
@@ -120,6 +122,8 @@ export function IncomingBookingProvider({
   const handledIdsRef = useRef<Set<string>>(new Set());
   const acceptingRef = useRef(false);
   const timeoutFiredRef = useRef(false);
+  const incomingRef = useRef<any>(null);
+  incomingRef.current = incomingBooking;
 
   const showAlert = (
     title: string,
@@ -167,23 +171,53 @@ export function IncomingBookingProvider({
         const profile = await getMyProfile();
         if (!profile?.isOnline || cancelled) return;
 
-        const pending = await serviceRequestsApi.getMyPending();
+        const [pending, nearby] = await Promise.all([
+          serviceRequestsApi.getMyPending(),
+          serviceRequestsApi.getNearbyPending(),
+        ]);
         if (cancelled) return;
-        const nextPending = pending.find(
-          item => !handledIdsRef.current.has(bookingIdOf(item)),
-        );
-        if (nextPending) {
-          presentBooking(toBookingShape(nextPending));
+
+        const byId = new Map<string, any>();
+        for (const item of [...(pending || []), ...(nearby || [])]) {
+          const id = bookingIdOf(item);
+          if (!id) continue;
+          const prev = byId.get(id);
+          byId.set(id, {
+            ...prev,
+            ...item,
+            distanceKm: item.distanceKm ?? prev?.distanceKm,
+            photos:
+              item.photos && item.photos.length ? item.photos : prev?.photos,
+          });
+        }
+
+        const current = incomingRef.current;
+        if (current) {
+          const extra = byId.get(bookingIdOf(current));
+          if (extra) {
+            setIncomingBooking((prev: any) => {
+              if (!prev || bookingIdOf(prev) !== bookingIdOf(extra)) {
+                return prev;
+              }
+              const distanceKm = prev.distanceKm ?? extra.distanceKm;
+              const photos =
+                prev.photos && prev.photos.length
+                  ? prev.photos
+                  : extra.photos;
+              if (distanceKm === prev.distanceKm && photos === prev.photos) {
+                return prev;
+              }
+              return {...prev, distanceKm, photos};
+            });
+          }
           return;
         }
 
-        const nearby = await serviceRequestsApi.getNearbyPending();
-        if (cancelled) return;
-        const nextNearby = (nearby || []).find(
+        const next = [...byId.values()].find(
           item => !handledIdsRef.current.has(bookingIdOf(item)),
         );
-        if (nextNearby) {
-          presentBooking(toBookingShape(nextNearby));
+        if (next) {
+          presentBooking(toBookingShape(next));
         }
       } catch (e) {
         console.warn('[BOOKING] poll failed', e);
@@ -229,13 +263,22 @@ export function IncomingBookingProvider({
         provider._id || provider.id || userId,
         provider,
       );
-      await createJobCard(bookingData, (provider as any).address);
-      setToastMessage(String(t('dashboard.requestAccepted')));
-      setShowToast(true);
+      // Backend accept is the source of truth. Local job-card create is
+      // fallback only if the API did not already create/sync a card.
+      try {
+        await createJobCard(bookingData, (provider as any).address);
+      } catch (cardError: any) {
+        console.warn(
+          '[ACCEPT] job card create fallback skipped:',
+          cardError?.message || cardError,
+        );
+      }
+      toast.success(String(t('dashboard.requestAccepted')));
     } catch (error: any) {
       showAlert(
         String(t('common.error')),
-        error.message || String(t('dashboard.acceptRequestError')),
+        getUserFacingErrorMessage(error) ||
+          String(t('dashboard.acceptRequestError')),
         'error',
       );
     } finally {
@@ -255,12 +298,12 @@ export function IncomingBookingProvider({
     try {
       setLoading(true);
       await websocketService.rejectBooking(bookingData);
-      setToastMessage(String(t('dashboard.requestRejected')));
-      setShowToast(true);
+      toast.success(String(t('dashboard.requestRejected')));
     } catch (error: any) {
       showAlert(
         String(t('common.error')),
-        error.message || String(t('dashboard.rejectRequestError')),
+        getUserFacingErrorMessage(error) ||
+          String(t('dashboard.rejectRequestError')),
         'error',
       );
     } finally {
@@ -274,9 +317,6 @@ export function IncomingBookingProvider({
     websocketService.stopSound();
     setIncomingBooking(null);
   }, [incomingBooking]);
-
-  const incomingRef = useRef<any>(null);
-  incomingRef.current = incomingBooking;
 
   // Countdown + auto dismiss/decline
   useEffect(() => {
@@ -365,12 +405,6 @@ export function IncomingBookingProvider({
         message={alertConfig.message}
         type={alertConfig.type}
         onClose={() => setAlertVisible(false)}
-      />
-
-      <Toast
-        visible={showToast}
-        message={toastMessage}
-        onHide={() => setShowToast(false)}
       />
     </IncomingBookingContext.Provider>
   );

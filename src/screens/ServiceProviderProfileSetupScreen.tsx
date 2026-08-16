@@ -11,16 +11,17 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import auth from '@react-native-firebase/auth';
-import storage from '@react-native-firebase/storage';
 import {Select} from 'sapvt-ltd-app-packages';
 import {providersApi} from '../services/api/providersApi';
 import {launchImageLibrary} from 'react-native-image-picker';
+import {uploadAssetFromUri} from '../services/api/assetsApi';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import ProviderAddressInput from '../components/ProviderAddressInput';
 import AlertModal from '../components/AlertModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import useTranslation from '../hooks/useTranslation';
+import {getUserFacingErrorMessage} from '../utils/userFacingError';
 // Service Provider Types (replacing doctor specialties)
 const SERVICE_TYPES = [
   'Carpenter',
@@ -56,6 +57,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   const [languages, setLanguages] = useState<string[]>([]);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [existingProfile, setExistingProfile] = useState<any>(null);
@@ -223,10 +225,23 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   };
 
   const pickImage = () => {
-    launchImageLibrary({mediaType: 'photo', quality: 0.8}, response => {
-      if (response.assets && response.assets[0].uri) {
-        setProfileImage(response.assets[0].uri);
-        setImageError(false);
+    launchImageLibrary({mediaType: 'photo', quality: 0.8}, async response => {
+      const asset = response.assets?.[0];
+      if (!asset?.uri) return;
+      setImageError(false);
+      setUploadingPhoto(true);
+      try {
+        const url = await uploadImage(asset.uri, asset.type);
+        setProfileImage(url);
+      } catch (error) {
+        setAlertModal({
+          visible: true,
+          title: t('common.error'),
+          message: getUserFacingErrorMessage(error, 'generic'),
+          type: 'error',
+        });
+      } finally {
+        setUploadingPhoto(false);
       }
     });
   };
@@ -236,19 +251,41 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     setProfileImage(null);
   };
 
-  const uploadImage = async (uri: string): Promise<string> => {
-    const filename = `provider_profiles/${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
-    const reference = storage().ref(filename);
-    await reference.putFile(uri);
-    return await reference.getDownloadURL();
+  const uploadImage = async (uri: string, contentType?: string): Promise<string> => {
+    const type = (contentType || '').toLowerCase().replace('image/jpg', 'image/jpeg');
+    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    const mime = allowed.has(type) ? type : 'image/jpeg';
+    const fileName =
+      mime === 'image/png'
+        ? 'profile.png'
+        : mime === 'image/webp'
+          ? 'profile.webp'
+          : 'profile.jpg';
+    const ref = await uploadAssetFromUri(uri, {
+      purpose: 'provider-profile',
+      contentType: mime,
+      fileName,
+    });
+    await providersApi.updateMyProfile({profileImage: ref.url});
+    return ref.url;
   };
 
   const uploadDocument = async (uri: string, docType: string): Promise<string> => {
-    const extension = uri.split('.').pop()?.toLowerCase() || 'jpg';
-    const filename = `provider_documents/${docType}/${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
-    const reference = storage().ref(filename);
-    await reference.putFile(uri);
-    return await reference.getDownloadURL();
+    const lower = uri.toLowerCase();
+    const contentType = lower.includes('.png')
+      ? 'image/png'
+      : lower.includes('.webp')
+        ? 'image/webp'
+        : lower.includes('.pdf')
+          ? 'application/pdf'
+          : 'image/jpeg';
+    const ref = await uploadAssetFromUri(uri, {
+      purpose: 'provider-document',
+      docKey: docType,
+      contentType,
+      fileName: `${docType}.${contentType === 'application/pdf' ? 'pdf' : 'jpg'}`,
+    });
+    return ref.url;
   };
 
   const pickDocument = (docType: 'idProof' | 'addressProof' | 'certificate') => {
@@ -576,8 +613,16 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         </Text>
 
         {/* Profile Photo */}
-        <TouchableOpacity style={styles.photoContainer} onPress={pickImage} activeOpacity={0.8}>
-          {profileImage && profileImage.trim() !== '' && !imageError ? (
+        <TouchableOpacity
+          style={styles.photoContainer}
+          onPress={pickImage}
+          activeOpacity={0.8}
+          disabled={uploadingPhoto}>
+          {uploadingPhoto ? (
+            <View style={styles.photoPlaceholder}>
+              <ActivityIndicator color="#007AFF" />
+            </View>
+          ) : profileImage && profileImage.trim() !== '' && !imageError ? (
             <View style={styles.imageContainer}>
               <Image
                 source={{uri: profileImage}}

@@ -19,8 +19,9 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {lightTheme, darkTheme} from '../utils/theme';
 import {useStore} from '../store';
-import {getProviderStatus, getDistanceToCustomer} from '../services/providerLocationService';
-import auth from '@react-native-firebase/auth';
+import useTranslation from '../hooks/useTranslation';
+import {formatDistanceKm} from '../utils/distance';
+import RequestPhotoGallery from './RequestPhotoGallery';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
 const BUTTON_WIDTH = SCREEN_WIDTH * 0.9 - 40; // Account for modal padding
@@ -46,53 +47,50 @@ export default function BookingAlertModal({
 }: BookingAlertModalProps) {
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
-  
-  const [distanceInfo, setDistanceInfo] = useState<{
-    distanceFormatted: string;
-    etaMinutes: number;
-  } | null>(null);
-  const [loadingDistance, setLoadingDistance] = useState(false);
-  
-  // Swipeable button animation
+  const {t} = useTranslation();
+
+  const [swipeHint, setSwipeHint] = useState<'idle' | 'release'>('idle');
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [isAccepted, setIsAccepted] = useState(false);
   const [isRejected, setIsRejected] = useState(false);
-  const [buttonText, setButtonText] = useState('Swipe Right to Accept');
   const acceptOnceRef = useRef(false);
 
-  const customerName = bookingData?.customerName || bookingData?.patientName || 'Customer';
-  const customerPhone = bookingData?.customerPhone || bookingData?.patientPhone || '';
-  const serviceType = bookingData?.serviceType || 'Service';
-  const problem = bookingData?.problem || bookingData?.symptoms || 'No description';
+  const customerName =
+    bookingData?.customerName ||
+    bookingData?.patientName ||
+    String(t('dashboard.customerFallback'));
+  // customerPhone intentionally omitted until job is accepted (backend redacts)
+  const serviceType =
+    bookingData?.serviceType || String(t('dashboard.serviceFallback'));
+  const problem =
+    bookingData?.problem ||
+    bookingData?.symptoms ||
+    String(t('dashboard.noDescription'));
   const customerAddress = bookingData?.customerAddress || bookingData?.patientAddress;
   const scheduledTime = bookingData?.scheduledTime
     ? new Date(bookingData.scheduledTime).toLocaleString()
-    : 'Not specified';
+    : String(t('dashboard.notSpecified'));
+  const requestedAt = bookingData?.createdAt
+    ? new Date(bookingData.createdAt).toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
   const consultationFee = bookingData?.consultationFee || bookingData?.serviceFee;
 
-  // Calculate distance when modal opens
+  const distanceLabel = formatDistanceKm(bookingData?.distanceKm);
+
+  // Reset swipe control when modal opens or closes
   useEffect(() => {
-    if (visible && customerAddress && customerAddress.latitude && customerAddress.longitude) {
-      calculateDistance();
-    }
-    // Reset button when modal opens or closes
-    if (visible) {
-      slideAnim.setValue(0);
-      setIsAccepted(false);
-      setIsRejected(false);
-      acceptOnceRef.current = false;
-      setButtonText('Swipe Right to Accept');
-      console.log('✅ Modal opened, resetting state');
-    } else {
-      // Reset when modal closes
-      slideAnim.setValue(0);
-      setIsAccepted(false);
-      setIsRejected(false);
-      acceptOnceRef.current = false;
-      setButtonText('Swipe Right to Accept');
-      console.log('✅ Modal closed, resetting state');
-    }
-  }, [visible]);
+    slideAnim.setValue(0);
+    setIsAccepted(false);
+    setIsRejected(false);
+    acceptOnceRef.current = false;
+    setSwipeHint('idle');
+  }, [visible, slideAnim]);
 
   // Pan responder for swipeable button
   const panResponder = useRef(
@@ -111,12 +109,11 @@ export default function BookingAlertModal({
           const maxSlide = BUTTON_WIDTH - 60; // 60 is thumb size
           const clampedDx = Math.max(0, Math.min(maxSlide, dx));
           slideAnim.setValue(clampedDx);
-          
-          // Update button text based on progress
+
           if (clampedDx > SWIPE_THRESHOLD) {
-            setButtonText('Release to Accept');
+            setSwipeHint('release');
           } else {
-            setButtonText('Swipe Right to Accept');
+            setSwipeHint('idle');
           }
         }
       },
@@ -128,15 +125,9 @@ export default function BookingAlertModal({
           // Swipe right past threshold - Accept (once)
           if (acceptOnceRef.current) return;
           acceptOnceRef.current = true;
-          console.log('✅ Swipe threshold reached, accepting booking');
           setIsAccepted(true);
-          setButtonText('Accepted!');
-          
-          // Call onAccept immediately - it will handle closing the modal and stopping sound
-          console.log('✅ Calling onAccept to close modal');
           onAccept();
-          
-          // Animate for visual feedback (but modal should already be closing)
+
           Animated.spring(slideAnim, {
             toValue: BUTTON_WIDTH - 60,
             useNativeDriver: false,
@@ -144,14 +135,13 @@ export default function BookingAlertModal({
             friction: 7,
           }).start();
         } else {
-          // Not swiped far enough or swiped left - Return to start
           Animated.spring(slideAnim, {
             toValue: 0,
             useNativeDriver: false,
             tension: 50,
             friction: 7,
           }).start(() => {
-            setButtonText('Swipe Right to Accept');
+            setSwipeHint('idle');
           });
         }
       },
@@ -171,51 +161,23 @@ export default function BookingAlertModal({
     extrapolate: 'clamp',
   });
 
-  const calculateDistance = async () => {
-    try {
-      setLoadingDistance(true);
-      const currentUser = auth().currentUser;
-      if (!currentUser) return;
-
-      const providerStatus = await getProviderStatus(currentUser.uid);
-      if (
-        providerStatus?.currentLocation &&
-        customerAddress.latitude &&
-        customerAddress.longitude
-      ) {
-        const info = getDistanceToCustomer(
-          providerStatus.currentLocation,
-          {
-            latitude: customerAddress.latitude,
-            longitude: customerAddress.longitude,
-          },
-        );
-        setDistanceInfo(info);
-      }
-    } catch (error) {
-      console.log('Could not calculate distance:', error);
-    } finally {
-      setLoadingDistance(false);
-    }
-  };
+  const swipeLabel = isAccepted
+    ? String(t('dashboard.acceptedExclaim'))
+    : isRejected
+      ? String(t('dashboard.rejectedExclaim'))
+      : swipeHint === 'release'
+        ? String(t('dashboard.releaseToAccept'))
+        : String(t('dashboard.swipeRightToAccept'));
 
   // Don't render if not visible
   if (!visible) {
-    console.log('🚫 BookingAlertModal: Not visible, returning null');
     return null;
   }
 
   // Don't render if no booking data
   if (!bookingData) {
-    console.log('🚫 BookingAlertModal: No booking data, returning null');
     return null;
   }
-  
-  console.log('✅ BookingAlertModal: Rendering modal with booking:', {
-    id: bookingData?.consultationId || bookingData?.id || bookingData?.bookingId,
-    customerName: bookingData?.customerName || bookingData?.patientName,
-    visible: visible,
-  });
 
   return (
     <Modal
@@ -232,11 +194,15 @@ export default function BookingAlertModal({
                 <Icon name="notifications-active" size={24} color={theme.primary} />
               </View>
               <View>
-                <Text style={[styles.title, {color: theme.text}]}>NEW JOB</Text>
+                <Text style={[styles.title, {color: theme.text}]}>
+                  {String(t('dashboard.newJob'))}
+                </Text>
                 <Text style={[styles.subtitle, {color: theme.textSecondary}]}>
                   {secondsLeft != null
-                    ? `Respond in ${secondsLeft}s`
-                    : 'Accept or decline'}
+                    ? String(
+                        t('dashboard.respondInSeconds', {seconds: secondsLeft}),
+                      )
+                    : String(t('dashboard.acceptOrDecline'))}
                 </Text>
               </View>
             </View>
@@ -252,26 +218,23 @@ export default function BookingAlertModal({
                 <Icon name="person" size={20} color={theme.primary} />
                 <Text style={[styles.customerName, {color: theme.text}]}>{customerName}</Text>
               </View>
-              {customerPhone && (
-                <View style={styles.customerRow}>
-                  <Icon name="phone" size={20} color={theme.textSecondary} />
-                  <Text style={[styles.customerDetail, {color: theme.textSecondary}]}>
-                    {customerPhone}
-                  </Text>
-                </View>
-              )}
+              {/* Phone withheld until job is accepted */}
             </View>
 
             {/* Service Details */}
             <View style={styles.detailsSection}>
               <View style={styles.detailRow}>
                 <Icon name="build" size={18} color={theme.textSecondary} />
-                <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>Service:</Text>
+                <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
+                  {String(t('dashboard.serviceLabel'))}
+                </Text>
                 <Text style={[styles.detailValue, {color: theme.text}]}>{serviceType}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Icon name="description" size={18} color={theme.textSecondary} />
-                <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>Problem:</Text>
+                <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
+                  {String(t('dashboard.problemLabel'))}
+                </Text>
                 <Text style={[styles.detailValue, {color: theme.text}]} numberOfLines={3}>
                   {problem}
                 </Text>
@@ -279,7 +242,9 @@ export default function BookingAlertModal({
               {customerAddress && (
                 <View style={styles.detailRow}>
                   <Icon name="location-on" size={18} color={theme.textSecondary} />
-                  <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>Address:</Text>
+                  <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
+                    {String(t('dashboard.addressLabel'))}
+                  </Text>
                   <Text style={[styles.detailValue, {color: theme.text}]} numberOfLines={3}>
                     {customerAddress.address || ''}
                     {customerAddress.pincode ? `, ${customerAddress.pincode}` : ''}
@@ -291,46 +256,56 @@ export default function BookingAlertModal({
                   </Text>
                 </View>
               )}
-              {scheduledTime && scheduledTime !== 'Not specified' && (
+              {requestedAt ? (
+                <View style={styles.detailRow}>
+                  <Icon name="access-time" size={18} color={theme.textSecondary} />
+                  <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
+                    {String(t('dashboard.requestedLabel'))}
+                  </Text>
+                  <Text style={[styles.detailValue, {color: theme.text}]}>
+                    {requestedAt}
+                  </Text>
+                </View>
+              ) : null}
+              {scheduledTime &&
+                scheduledTime !== String(t('dashboard.notSpecified')) && (
                 <View style={styles.detailRow}>
                   <Icon name="schedule" size={18} color={theme.textSecondary} />
                   <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
-                    Scheduled Time:
+                    {String(t('dashboard.scheduledLabel'))}
                   </Text>
-                  <Text style={[styles.detailValue, {color: theme.text}]}>{scheduledTime}</Text>
+                  <Text style={[styles.detailValue, {color: theme.text}]}>
+                    {scheduledTime}
+                  </Text>
                 </View>
               )}
-              {consultationFee && (
+              {consultationFee ? (
                 <View style={styles.detailRow}>
                   <Icon name="attach-money" size={18} color={theme.textSecondary} />
                   <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
-                    Service Fee:
+                    {String(t('dashboard.serviceFeeLabel'))}
                   </Text>
                   <Text style={[styles.detailValue, {color: theme.text}]}>
                     ₹{consultationFee}
                   </Text>
                 </View>
-              )}
-              {distanceInfo && (
-                <>
-                  <View style={styles.detailRow}>
-                    <Icon name="straighten" size={18} color={theme.textSecondary} />
-                    <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
-                      Distance:
-                    </Text>
-                    <Text style={[styles.detailValue, {color: theme.text}]}>
-                      {distanceInfo.distanceFormatted}
-                    </Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Icon name="timer" size={18} color={theme.textSecondary} />
-                    <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>ETA:</Text>
-                    <Text style={[styles.detailValue, {color: theme.text}]}>
-                      ~{distanceInfo.etaMinutes} min
-                    </Text>
-                  </View>
-                </>
-              )}
+              ) : null}
+              {distanceLabel ? (
+                <View style={styles.detailRow}>
+                  <Icon name="straighten" size={18} color={theme.textSecondary} />
+                  <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
+                    {String(t('dashboard.distanceLabel'))}
+                  </Text>
+                  <Text style={[styles.detailValue, {color: theme.text}]}>
+                    {distanceLabel}
+                  </Text>
+                </View>
+              ) : null}
+              <RequestPhotoGallery
+                photos={bookingData?.photos}
+                theme={theme}
+                title={String(t('dashboard.customerPhotos'))}
+              />
             </View>
           </ScrollView>
 
@@ -345,7 +320,7 @@ export default function BookingAlertModal({
                 setIsRejected(true);
                 onReject();
               }}>
-              <Text style={styles.declineBtnText}>Decline</Text>
+              <Text style={styles.declineBtnText}>{String(t('dashboard.decline'))}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.acceptBtn, {opacity: isRejected ? 0.5 : 1}]}
@@ -356,7 +331,7 @@ export default function BookingAlertModal({
                 setIsAccepted(true);
                 onAccept();
               }}>
-              <Text style={styles.acceptBtnText}>Accept</Text>
+              <Text style={styles.acceptBtnText}>{String(t('dashboard.accept'))}</Text>
             </TouchableOpacity>
           </View>
 
@@ -378,9 +353,7 @@ export default function BookingAlertModal({
                 <Icon name="arrow-forward" size={24} color="#fff" />
               </Animated.View>
               <View style={styles.swipeableButtonTextContainer}>
-                <Text style={styles.swipeableButtonText}>
-                  {isAccepted ? 'Accepted!' : isRejected ? 'Rejected!' : buttonText}
-                </Text>
+                <Text style={styles.swipeableButtonText}>{swipeLabel}</Text>
               </View>
             </Animated.View>
           </View>

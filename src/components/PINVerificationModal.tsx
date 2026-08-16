@@ -15,6 +15,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import useTranslation from '../hooks/useTranslation';
+import {getUserFacingErrorMessage} from '../utils/userFacingError';
 
 interface Material {
   description: string;
@@ -74,7 +75,7 @@ const PINVerificationModal: React.FC<PINVerificationModalProps> = ({
       setMaterials([{description: '', quantity: '', unitPrice: ''}]);
       setShowAmountSection(false);
     } catch (err: any) {
-      setError(err.message || String(t('jobDetails.invalidPIN')));
+      setError(getUserFacingErrorMessage(err, 'pin') || String(t('jobDetails.invalidPIN')));
     } finally {
       setVerifying(false);
     }

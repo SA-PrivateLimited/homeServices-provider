@@ -1,4 +1,4 @@
-import React, {useState, useRef} from 'react';
+import React, {useEffect, useState, useRef} from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,10 @@ import auth from '@react-native-firebase/auth';
 import useTranslation from '../hooks/useTranslation';
 import {updateMe} from '../services/api/usersApi';
 import {getMyProfile} from '../services/api/providersApi';
+import {
+  getBrandName,
+  subscribeBranding,
+} from '../services/brandingService';
 
 const {width, height} = Dimensions.get('window');
 
@@ -117,14 +121,22 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({navigation, route}) 
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
+  const [brandName, setBrandName] = useState(getBrandName());
   const scrollViewRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    return subscribeBranding(() => setBrandName(getBrandName()));
+  }, []);
+
+  const withBrand = (text: string) =>
+    (text || '').replace(/HomeServices(?: Provider)?/g, brandName);
 
   // Translate steps dynamically
   const patientStepsTranslated: OnboardingStep[] = [
     {
       id: 1,
-      title: t('onboarding.welcomeToHomeServices'),
-      description: t('onboarding.welcomeDescription'),
+      title: withBrand(t('onboarding.welcomeToHomeServices')),
+      description: withBrand(t('onboarding.welcomeDescription')),
       icon: 'medical',
       iconColor: '#4A90E2',
     },
@@ -162,7 +174,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({navigation, route}) 
     {
       id: 1,
       title: t('onboarding.welcomeDr'),
-      description: t('onboarding.welcomeDrDescription'),
+      description: withBrand(t('onboarding.welcomeDrDescription')),
       icon: 'medical',
       iconColor: '#4A90E2',
     },

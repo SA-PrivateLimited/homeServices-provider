@@ -14,7 +14,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import {getJobCardById, updateJobCardStatus, verifyPINAndCompleteTask, cancelTaskWithReason, subscribeToJobCardStatus, JobCard} from '../services/jobCardService';
@@ -29,26 +28,35 @@ import {
 import {speakNavigateToCustomer} from '../services/voicePromptService';
 import StartTaskModal from '../components/StartTaskModal';
 import AlertModal from '../components/AlertModal';
-import Toast from '../components/Toast';
+import {Button, toast} from 'sapvt-ltd-app-packages';
 import JobCardComments from '../components/JobCardComments';
 import {jobCardsApi} from '../services/api/jobCardsApi';
 import useTranslation from '../hooks/useTranslation';
+import {
+  formatJobStatusDate,
+  getJobStatusColor,
+  normalizeJobStatusKey,
+} from '../utils/jobStatus';
+import {serviceRequestsApi} from '../services/api/serviceRequestsApi';
+import RequestPhotoGallery from '../components/RequestPhotoGallery';
+import {getUserFacingErrorMessage} from '../utils/userFacingError';
+import type {RequestPhotoInput} from '../utils/requestPhotos';
 
 export default function JobDetailsScreen({navigation, route}: any) {
   const {jobCardId} = route.params;
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const currentUser = auth().currentUser;
   const {t} = useTranslation();
 
   const [jobCard, setJobCard] = useState<JobCard | null>(null);
+  const [requestPhotos, setRequestPhotos] = useState<RequestPhotoInput[] | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [showPINModal, setShowPINModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
   const [questionnaireQuestions, setQuestionnaireQuestions] = useState<Record<string, string>>({});
   const [timeStarted, setTimeStarted] = useState<Date | undefined>(undefined);
 
@@ -84,7 +92,19 @@ export default function JobDetailsScreen({navigation, route}: any) {
       setLoading(true);
       const job = await getJobCardById(jobCardId);
       setJobCard(job);
-      
+
+      const requestId = job?.consultationId || job?.bookingId;
+      if (requestId) {
+        try {
+          const request = await serviceRequestsApi.getById(requestId);
+          setRequestPhotos(request?.photos || null);
+        } catch {
+          setRequestPhotos(null);
+        }
+      } else {
+        setRequestPhotos(null);
+      }
+
       // Fetch questionnaire questions if available
       if (job?.questionnaireAnswers && job?.serviceType) {
         await loadQuestionnaireQuestions(job.serviceType);
@@ -133,11 +153,11 @@ export default function JobDetailsScreen({navigation, route}: any) {
       if (updatedJob) {
         setJobCard(updatedJob);
       }
-      setToastMessage(t('jobDetails.serviceStarted'));
-      setShowToast(true);
+      toast.success(String(t('jobDetails.serviceStarted')));
     } catch (error: any) {
-      setToastMessage(error.message || t('jobDetails.failedToStart'));
-      setShowToast(true);
+      toast.error(
+        getUserFacingErrorMessage(error) || String(t('jobDetails.failedToStart')),
+      );
     } finally {
       setUpdating(false);
     }
@@ -164,8 +184,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
       }
       setShowPINModal(false);
       setTimeStarted(undefined);
-      setToastMessage(t('jobDetails.taskCompleted'));
-      setShowToast(true);
+      toast.success(String(t('jobDetails.taskCompleted')));
     } catch (error: any) {
       throw error; // Let the modal handle the error
     }
@@ -180,8 +199,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
         setJobCard(updatedJob);
       }
       setShowCancelModal(false);
-      setToastMessage(t('jobDetails.taskCancelled'));
-      setShowToast(true);
+      toast.success(String(t('jobDetails.taskCancelled')));
     } catch (error: any) {
       throw error; // Let the modal handle the error
     }
@@ -217,20 +235,22 @@ export default function JobDetailsScreen({navigation, route}: any) {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  const getStatusColor = (status: string) => getJobStatusColor(status);
+
+  const getStatusTitle = (status: string) => {
+    switch (normalizeJobStatusKey(status)) {
       case 'pending':
-        return '#FF9500';
+        return t('jobDetails.statusPending');
       case 'accepted':
-        return '#007AFF';
+        return t('jobDetails.statusAccepted');
       case 'in-progress':
-        return '#34C759';
+        return t('jobDetails.statusInProgress');
       case 'completed':
-        return '#34C759';
+        return t('jobDetails.statusCompleted');
       case 'cancelled':
-        return '#FF3B30';
+        return t('jobDetails.statusCancelled');
       default:
-        return '#8E8E93';
+        return status;
     }
   };
 
@@ -292,7 +312,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
           />
           <View style={styles.statusTextContainer}>
             <Text style={[styles.statusText, {color: theme.text}]}>
-              {jobCard.status.charAt(0).toUpperCase() + jobCard.status.slice(1)}
+              {String(getStatusTitle(jobCard.status)).toUpperCase()}
             </Text>
             <Text style={[styles.statusSubtext, {color: theme.textSecondary}]}>
               {jobCard.status === 'pending'
@@ -305,15 +325,22 @@ export default function JobDetailsScreen({navigation, route}: any) {
                 ? t('jobDetails.serviceCompleted')
                 : t('jobDetails.jobCancelled')}
             </Text>
+            {(jobCard.status === 'completed' ||
+              jobCard.status === 'cancelled') && (
+              <Text style={[styles.statusDate, {color: theme.text}]}>
+                {formatJobStatusDate(
+                  jobCard.status,
+                  jobCard.updatedAt || jobCard.createdAt,
+                )}
+              </Text>
+            )}
           </View>
         </View>
       </View>
 
       {/* Customer Details */}
       <View style={[styles.card, {backgroundColor: theme.card}]}>
-        <Text style={[styles.cardTitle, {color: theme.text}]}>
-          {t('jobDetails.customerDetails')}
-        </Text>
+        <Text style={[styles.cardTitle, {color: theme.text}]}>Customer</Text>
         <View style={styles.customerInfo}>
           <View style={styles.customerAvatar}>
             <Text style={styles.customerInitial}>
@@ -322,17 +349,20 @@ export default function JobDetailsScreen({navigation, route}: any) {
           </View>
           <View style={styles.customerDetails}>
             <Text style={[styles.customerName, {color: theme.text}]}>
-              {jobCard.customerName}
+              {jobCard.customerName || 'Name not available'}
             </Text>
-            {jobCard.customerPhone && (
-              <TouchableOpacity
-                style={styles.phoneButton}
-                onPress={handleCallCustomer}>
-                <Icon name="phone" size={16} color={theme.primary} />
-                <Text style={[styles.phoneText, {color: theme.primary}]}>
-                  {jobCard.customerPhone}
-                </Text>
-              </TouchableOpacity>
+            {jobCard.customerPhone ? (
+              <Text style={[styles.phoneText, {color: theme.textSecondary}]}>
+                {jobCard.customerPhone}
+              </Text>
+            ) : jobCard.status === 'pending' ? (
+              <Text style={[styles.phoneText, {color: theme.textSecondary}]}>
+                {t('jobDetails.contactAfterAcceptCustomer')}
+              </Text>
+            ) : (
+              <Text style={[styles.phoneText, {color: theme.textSecondary}]}>
+                {t('jobDetails.contactUnavailable')}
+              </Text>
             )}
           </View>
         </View>
@@ -374,6 +404,11 @@ export default function JobDetailsScreen({navigation, route}: any) {
             </Text>
           </View>
         )}
+        <RequestPhotoGallery
+          photos={requestPhotos}
+          theme={theme}
+          title={String(t('jobDetails.customerPhotos'))}
+        />
       </View>
 
       {/* Questionnaire Answers */}
@@ -485,31 +520,35 @@ export default function JobDetailsScreen({navigation, route}: any) {
         }}
       />
 
-      {/* One-handed contact / navigate */}
+      {/* One-handed contact / navigate — Call/WhatsApp only when phone available */}
       {(jobCard.status === 'accepted' ||
         jobCard.status === 'in-progress' ||
         jobCard.status === 'pending') && (
         <View style={[styles.thumbActions, {backgroundColor: theme.card}]}>
-          <TouchableOpacity
-            style={styles.thumbBtn}
-            onPress={handleCallCustomer}>
-            <View style={[styles.thumbIcon, {backgroundColor: '#34C75920'}]}>
-              <Icon name="call" size={26} color="#34C759" />
-            </View>
-            <Text style={[styles.thumbLabel, {color: theme.text}]}>
-              {t('dashboard.call')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.thumbBtn}
-            onPress={handleWhatsAppCustomer}>
-            <View style={[styles.thumbIcon, {backgroundColor: '#25D36620'}]}>
-              <Icon name="chat" size={26} color="#25D366" />
-            </View>
-            <Text style={[styles.thumbLabel, {color: theme.text}]}>
-              {t('dashboard.whatsapp')}
-            </Text>
-          </TouchableOpacity>
+          {jobCard.customerPhone ? (
+            <>
+              <TouchableOpacity
+                style={styles.thumbBtn}
+                onPress={handleCallCustomer}>
+                <View style={[styles.thumbIcon, {backgroundColor: '#34C75920'}]}>
+                  <Icon name="call" size={26} color="#34C759" />
+                </View>
+                <Text style={[styles.thumbLabel, {color: theme.text}]}>
+                  {t('jobDetails.callCustomer')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.thumbBtn}
+                onPress={handleWhatsAppCustomer}>
+                <View style={[styles.thumbIcon, {backgroundColor: '#25D36620'}]}>
+                  <Icon name="chat" size={26} color="#25D366" />
+                </View>
+                <Text style={[styles.thumbLabel, {color: theme.text}]}>
+                  {t('dashboard.whatsapp')}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
           <TouchableOpacity
             style={styles.thumbBtn}
             onPress={() => void handleNavigateCustomer()}>
@@ -527,34 +566,40 @@ export default function JobDetailsScreen({navigation, route}: any) {
       {jobCard.status !== 'completed' && jobCard.status !== 'cancelled' && (
         <View style={styles.actionsContainer}>
           {jobCard.status === 'accepted' && (
-            <TouchableOpacity
-              style={[styles.actionButton, {backgroundColor: theme.primary}]}
+            <Button
+              variant="primary"
+              block
+              title={String(t('jobDetails.startService'))}
               onPress={() => setShowStartModal(true)}
-              disabled={updating}>
-              <Icon name="play-arrow" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>{t('jobDetails.startService')}</Text>
-            </TouchableOpacity>
+              disabled={updating}
+              loading={updating}
+              style={styles.actionButton}
+            />
           )}
 
           {jobCard.status === 'in-progress' && (
-            <TouchableOpacity
-              style={[styles.actionButton, {backgroundColor: '#34C759'}]}
+            <Button
+              variant="primary"
+              block
+              title={String(t('jobDetails.markAsCompleted'))}
               onPress={() => setShowPINModal(true)}
-              disabled={updating}>
-              <Icon name="check-circle" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>{t('jobDetails.markAsCompleted')}</Text>
-            </TouchableOpacity>
+              disabled={updating}
+              style={styles.actionButton}
+              colors={{primary: '#34C759'}}
+            />
           )}
 
-          {/* Cancel Task Button */}
-          {(jobCard.status === 'pending' || jobCard.status === 'accepted' || jobCard.status === 'in-progress') && (
-            <TouchableOpacity
-              style={[styles.actionButton, {backgroundColor: '#FF3B30'}]}
+          {(jobCard.status === 'pending' ||
+            jobCard.status === 'accepted' ||
+            jobCard.status === 'in-progress') && (
+            <Button
+              variant="danger"
+              block
+              title={String(t('jobDetails.cancelTask'))}
               onPress={() => setShowCancelModal(true)}
-              disabled={updating}>
-              <Icon name="cancel" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>{t('jobDetails.cancelTask')}</Text>
-            </TouchableOpacity>
+              disabled={updating}
+              style={styles.actionButton}
+            />
           )}
         </View>
       )}
@@ -584,15 +629,6 @@ export default function JobDetailsScreen({navigation, route}: any) {
         onCancel={handleCancelTask}
         onClose={() => setShowCancelModal(false)}
       />
-
-        {/* Toast Notification */}
-        <Toast
-          visible={showToast}
-          message={toastMessage}
-          type="success"
-          duration={3000}
-          onHide={() => setShowToast(false)}
-        />
       </ScrollView>
     </>
   );
@@ -641,6 +677,11 @@ const styles = StyleSheet.create({
   statusSubtext: {
     fontSize: 14,
     marginTop: 4,
+  },
+  statusDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
   },
   card: {
     padding: 16,
@@ -753,17 +794,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    marginBottom: 8,
   },
   errorText: {
     fontSize: 16,

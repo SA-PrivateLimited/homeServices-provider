@@ -52,5 +52,9 @@
   "comments": "Comments",
   "commentPlaceholder": "Write a comment…",
   "noComments": "No comments yet",
-  "postComment": "Post"
+  "postComment": "Post",
+  "contactAfterAcceptCustomer": "You can contact the customer after you accept the job.",
+  "callCustomer": "Call Customer",
+  "contactUnavailable": "Contact not available",
+  "customerPhotos": "Customer photos"
 }

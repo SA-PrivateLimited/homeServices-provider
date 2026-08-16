@@ -22,6 +22,13 @@ import {lightTheme, darkTheme} from '../utils/theme';
 import {getUserId} from '../services/session';
 import {fetchJobCardsByProvider, JobCard} from '../services/jobCardService';
 import useTranslation from '../hooks/useTranslation';
+import EmptyState from '../components/EmptyState';
+import {
+  formatJobStatusDate,
+  getJobStatusColor,
+  getJobStatusTitle,
+  normalizeJobStatusKey,
+} from '../utils/jobStatus';
 
 export default function JobsHistoryScreen({navigation}: any) {
   const {t} = useTranslation();
@@ -65,12 +72,25 @@ export default function JobsHistoryScreen({navigation}: any) {
 
   const formatDate = (date: Date | any) => {
     if (!date) return 'N/A';
-    const d = date instanceof Date ? date : date.toDate();
+    const d = date instanceof Date ? date : date.toDate?.() ? date.toDate() : new Date(date);
     return d.toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
     });
+  };
+
+  const statusDateLabel = (item: JobCard) => {
+    const key = normalizeJobStatusKey(item.status);
+    const formatted = formatDate(item.updatedAt || item.createdAt);
+    if (formatted === 'N/A') return '';
+    if (key === 'cancelled') {
+      return t('jobs.cancelledOn', {date: formatted}) || `Cancelled on ${formatted}`;
+    }
+    if (key === 'completed') {
+      return t('jobs.completedOn', {date: formatted}) || `Completed on ${formatted}`;
+    }
+    return formatJobStatusDate(item.status, item.updatedAt || item.createdAt);
   };
 
   const handleCallCustomer = (phoneNumber?: string) => {
@@ -96,9 +116,15 @@ export default function JobsHistoryScreen({navigation}: any) {
       });
   };
 
-  const renderJobCard = ({item}: {item: JobCard}) => (
+  const renderJobCard = ({item}: {item: JobCard}) => {
+    const statusColor = getJobStatusColor(item.status);
+    const dateLine = statusDateLabel(item);
+    return (
     <TouchableOpacity
       style={[styles.jobCard, {backgroundColor: theme.card}]}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.customerName || 'Customer'}, ${item.serviceType || 'Job'}, ${getJobStatusTitle(item.status)}. ${t('jobs.viewJobDetails')}`}
       onPress={() => {
         navigation.navigate('JobDetails', {jobCardId: item.id});
       }}>
@@ -111,46 +137,44 @@ export default function JobsHistoryScreen({navigation}: any) {
           </View>
           <View style={styles.customerDetails}>
             <Text style={[styles.customerName, {color: theme.text}]}>
-              {item.customerName}
+              {item.customerName || t('jobs.customerName')}
             </Text>
             <Text style={[styles.serviceType, {color: theme.textSecondary}]}>
               {item.serviceType}
             </Text>
             {item.customerPhone && (
               <View style={styles.customerPhoneRow}>
-                <Icon name="phone" size={14} color={theme.primary} />
                 <Text style={[styles.customerPhone, {color: theme.textSecondary}]}>
                   {item.customerPhone}
                 </Text>
                 <TouchableOpacity
                   style={[styles.callButton, {backgroundColor: theme.primary}]}
+                  accessibilityRole="button"
+                  accessibilityLabel={String(t('jobs.callCustomer'))}
                   onPress={(e) => {
                     e.stopPropagation();
                     handleCallCustomer(item.customerPhone);
                   }}>
                   <Icon name="phone" size={14} color="#fff" />
+                  <Text style={styles.callButtonText}>{t('jobs.callCustomer')}</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
         </View>
-        <View
-          style={[
-            styles.statusBadge,
-            {
-              backgroundColor:
-                item.status === 'completed' ? '#34C75920' : '#FF3B3020',
-            },
-          ]}>
-          <Text
+        <View style={styles.statusColumn}>
+          <View
             style={[
-              styles.statusText,
-              {
-                color: item.status === 'completed' ? '#34C759' : '#FF3B30',
-              },
+              styles.statusBadge,
+              {backgroundColor: statusColor + '20'},
             ]}>
-            {item.status === 'completed' ? t('jobCards.completed') : t('jobCards.cancelled')}
-          </Text>
+            <Text style={[styles.statusText, {color: statusColor}]}>
+              {item.status === 'completed'
+                ? t('jobCards.completed')
+                : t('jobCards.cancelled')}
+            </Text>
+          </View>
+          <Icon name="chevron-right" size={22} color={theme.textSecondary} />
         </View>
       </View>
 
@@ -165,21 +189,24 @@ export default function JobsHistoryScreen({navigation}: any) {
           <Icon name="location-on" size={16} color={theme.textSecondary} />
           <Text
             style={[styles.addressText, {color: theme.textSecondary}]}
-            numberOfLines={1}>
+            numberOfLines={2}>
             {item.customerAddress.address}
             {item.customerAddress.pincode && `, ${item.customerAddress.pincode}`}
           </Text>
         </View>
       )}
 
-      <View style={styles.dateRow}>
-        <Icon name="calendar-today" size={16} color={theme.textSecondary} />
-        <Text style={[styles.dateText, {color: theme.textSecondary}]}>
-          {t('jobs.completedLabel')}: {formatDate(item.updatedAt || item.createdAt)}
-        </Text>
-      </View>
+      {dateLine ? (
+        <View style={styles.dateRow}>
+          <Icon name="calendar-today" size={16} color={theme.textSecondary} />
+          <Text style={[styles.dateText, {color: theme.textSecondary}]}>
+            {dateLine}
+          </Text>
+        </View>
+      ) : null}
     </TouchableOpacity>
-  );
+    );
+  };
 
   if (loading && !refreshing) {
     return (
@@ -194,16 +221,15 @@ export default function JobsHistoryScreen({navigation}: any) {
 
   return (
     <View style={[styles.container, {backgroundColor: theme.background}]}>
+      <Text style={[styles.pageSub, {color: theme.textSecondary}]}>
+        {t('jobs.pastJobsDescription')}
+      </Text>
       {jobCards.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Icon name="history" size={64} color={theme.textSecondary} />
-          <Text style={[styles.emptyText, {color: theme.text}]}>
-            {t('jobs.noJobHistory')}
-          </Text>
-          <Text style={[styles.emptySubtext, {color: theme.textSecondary}]}>
-            {t('jobs.completedJobsWillAppearHere')}
-          </Text>
-        </View>
+        <EmptyState
+          icon="calendar-outline"
+          title={String(t('jobs.noJobHistory'))}
+          message={String(t('jobs.completedJobsWillAppearHere'))}
+        />
       ) : (
         <FlatList
           data={jobCards}
@@ -233,6 +259,14 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
+    paddingTop: 8,
+  },
+  pageSub: {
+    fontSize: 14,
+    lineHeight: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   jobCard: {
     padding: 16,
@@ -283,20 +317,30 @@ const styles = StyleSheet.create({
   customerPhoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    gap: 6,
+    marginTop: 6,
+    gap: 8,
   },
   customerPhone: {
     fontSize: 12,
     flex: 1,
   },
   callButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  callButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  statusColumn: {
+    alignItems: 'flex-end',
+    gap: 8,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -314,7 +358,7 @@ const styles = StyleSheet.create({
   },
   addressRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 8,
     gap: 8,
   },
@@ -329,22 +373,6 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 14,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
   },
 });
 
