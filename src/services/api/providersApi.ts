@@ -30,6 +30,14 @@ export interface Provider {
   languages?: string[];
   profileImage?: string;
   photo?: string;
+  documents?: {
+    idProof?: string;
+    addressProof?: string;
+    certificate?: string;
+    idProofVerified?: boolean;
+    addressProofVerified?: boolean;
+    certificateVerified?: boolean;
+  };
   address?: Record<string, unknown> | string | null;
   location?: {
     latitude?: number;
