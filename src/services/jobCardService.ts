@@ -14,6 +14,7 @@ import {providersApi} from './api/providersApi';
 import {usersApi} from './api/usersApi';
 import {PDFService} from './pdfService';
 import {SOCKET_URL} from '../config/api';
+import {getStoredJwt} from './session';
 
 export interface JobCard {
   id?: string;
@@ -339,9 +340,14 @@ export const updateJobCardStatus = async (
             providerName,
             serviceType,
           };
+          const jwt = await getStoredJwt();
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+          };
+          if (jwt) headers.Authorization = `Bearer ${jwt}`;
           const response = await fetch(`${SOCKET_URL}/emit-service-completed`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers,
             body: JSON.stringify(payload),
           });
           if (!response.ok) {
