@@ -23,6 +23,12 @@ import {getUserId} from '../services/session';
 import {fetchJobCardsByProvider, JobCard, subscribeToProviderJobCardStatuses} from '../services/jobCardService';
 import useTranslation from '../hooks/useTranslation';
 import AdSlot from '../components/AdSlot';
+import {
+  acceptPartnerRequest,
+  listIncomingPartnerRequests,
+  rejectPartnerRequest,
+  type PartnerIncomingRequest,
+} from '../services/api/partnerCollaborationApi';
 
 export default function JobsScreen({navigation, route}: any) {
   const {isDarkMode, currentUser} = useStore();
@@ -37,6 +43,8 @@ export default function JobsScreen({navigation, route}: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'in-progress' | 'completed'>(initialFilter);
+  const [incomingHelp, setIncomingHelp] = useState<PartnerIncomingRequest[]>([]);
+  const [helpBusyId, setHelpBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (userId) {
@@ -72,6 +80,8 @@ export default function JobsScreen({navigation, route}: any) {
       setLoading(true);
       const jobs = await fetchJobCardsByProvider(userId);
       setJobCards(jobs);
+      const incoming = await listIncomingPartnerRequests();
+      setIncomingHelp(incoming);
     } catch (error) {
       console.error('Error loading job cards:', error);
     } finally {
@@ -162,6 +172,28 @@ export default function JobsScreen({navigation, route}: any) {
         console.error('Error opening phone dialer:', err);
         Alert.alert(t('common.error'), t('jobs.failedToOpenDialer'));
       });
+  };
+
+  const handleIncomingHelp = async (
+    id: string,
+    action: 'accept' | 'reject',
+  ) => {
+    setHelpBusyId(id);
+    try {
+      if (action === 'accept') {
+        await acceptPartnerRequest(id);
+      } else {
+        await rejectPartnerRequest(id);
+      }
+      setIncomingHelp(prev => prev.filter(r => r.id !== id));
+    } catch (error: any) {
+      Alert.alert(
+        String(t('common.error') || 'Error'),
+        error?.message || String(t('jobs.rejectJob') || 'Could not update request'),
+      );
+    } finally {
+      setHelpBusyId(null);
+    }
   };
 
   const renderJobCard = ({item}: {item: JobCard}) => (
@@ -257,6 +289,58 @@ export default function JobsScreen({navigation, route}: any) {
 
   return (
     <View style={[styles.container, {backgroundColor: theme.background}]}>
+      {/* Incoming partner help */}
+      <View style={[styles.helpBox, {backgroundColor: theme.card, borderColor: theme.border}]}>
+        <Text style={[styles.helpTitle, {color: theme.text}]}>
+          {String(t('jobs.incomingHelp') || 'Incoming help requests')}
+        </Text>
+        {incomingHelp.length === 0 ? (
+          <Text style={[styles.helpEmpty, {color: theme.textSecondary}]}>
+            {String(t('jobs.incomingHelpEmpty') || 'No partner help requests right now.')}
+          </Text>
+        ) : (
+          incomingHelp.map(req => (
+            <View key={req.id} style={[styles.helpRow, {borderColor: theme.border}]}>
+              <Text style={[styles.helpName, {color: theme.text}]}>
+                {req.requestingProviderName || 'Partner'}
+              </Text>
+              <Text style={[styles.helpMeta, {color: theme.textSecondary}]}>
+                {[req.neededServiceType || req.jobServiceType, req.customerName]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+              {req.problem ? (
+                <Text style={[styles.helpMeta, {color: theme.textSecondary}]} numberOfLines={2}>
+                  {req.problem}
+                </Text>
+              ) : null}
+              <View style={styles.helpActions}>
+                <TouchableOpacity
+                  style={[styles.helpBtn, {backgroundColor: theme.primary}]}
+                  disabled={helpBusyId === req.id}
+                  onPress={() => void handleIncomingHelp(req.id, 'accept')}>
+                  {helpBusyId === req.id ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.helpBtnText}>
+                      {String(t('jobs.acceptHelp') || 'Accept')}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.helpBtn, {backgroundColor: '#FF3B30'}]}
+                  disabled={helpBusyId === req.id}
+                  onPress={() => void handleIncomingHelp(req.id, 'reject')}>
+                  <Text style={styles.helpBtnText}>
+                    {String(t('jobs.rejectHelp') || 'Decline')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
         {(['all', 'pending', 'accepted', 'in-progress', 'completed'] as const).map(status => (
@@ -486,5 +570,30 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
+  helpBox: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  helpTitle: {fontSize: 15, fontWeight: '700', marginBottom: 8},
+  helpEmpty: {fontSize: 13},
+  helpRow: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 10,
+    marginTop: 8,
+  },
+  helpName: {fontSize: 15, fontWeight: '600'},
+  helpMeta: {fontSize: 13, marginTop: 2},
+  helpActions: {flexDirection: 'row', gap: 8, marginTop: 10},
+  helpBtn: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  helpBtnText: {color: '#fff', fontWeight: '600', fontSize: 13},
 });
 

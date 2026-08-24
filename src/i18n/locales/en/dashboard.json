@@ -22,6 +22,7 @@
   "goOnlineMessage": "Go online to start receiving service requests",
   "loadDashboardError": "Failed to load dashboard data. Please try again.",
   "updateStatusError": "Failed to update online status",
+  "mustBeApproved": "Your profile must be approved before you can go online.",
   "addressRequired": "Please set up your address in profile settings to accept requests.",
   "acceptRequestError": "Failed to accept service request.",
   "requestAccepted": "Service request accepted! Job card created successfully.",

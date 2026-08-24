@@ -82,5 +82,10 @@
   "district": "ज़िला",
   "pincode": "पिनकोड",
   "useCurrentLocation": "वर्तमान स्थान उपयोग करें",
-  "currentLocation": "वर्तमान स्थान"
+  "currentLocation": "वर्तमान स्थान",
+  "otherServices": "अन्य सेवाएँ",
+  "addAnotherService": "एक और सेवा जोड़ें",
+  "addService": "जोड़ें",
+  "serviceAdded": "सेवा जोड़ दी गई। अगर कहा जाए तो सत्यापन पूरा करें।",
+  "serviceAddFailed": "यह सेवा नहीं जोड़ी जा सकी।"
 }

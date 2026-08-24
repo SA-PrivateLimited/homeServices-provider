@@ -37,6 +37,13 @@
   "appName": "होमसर्विसेज",
   "allRightsReserved": "सर्वाधिकार सुरक्षित",
   "disclaimer": "केवल शैक्षिक उद्देश्यों के लिए। हमेशा स्वास्थ्य सेवा पेशेवरों से परामर्श करें।",
+  "switchToCustomer": "ग्राहक मोड पर जाएँ",
+  "switchFailed": "ग्राहक मोड नहीं खुल सका। फिर कोशिश करें।",
+  "deleteAccount": "खाता हटाएँ",
+  "deleteAccountHint": "इस ऐप से आपका डेटा स्थायी रूप से हटा दें",
+  "deleteAccountConfirm": "यह आपका पार्टनर खाता और उसी फ़ोन पर ग्राहक एक्सेस स्थायी रूप से हटा देगा। इसे वापस नहीं लिया जा सकता।",
+  "deleteAccountFailed": "खाता नहीं हटाया जा सका। फिर कोशिश करें।",
+  "deleteAccountAction": "हटाएँ",
   "aboutHomeServices": "HomeServices प्रदाता के बारे में",
   "aboutMessage": "संस्करण: 1.0.0\n\nHomeServices प्रणाली के लिए सेवा प्रदाता पोर्टल।"
 }

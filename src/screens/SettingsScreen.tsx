@@ -7,6 +7,7 @@ import {
   Switch,
   ScrollView,
   Image,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {CommonActions} from '@react-navigation/native';
@@ -21,6 +22,8 @@ import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import AlertModal from '../components/AlertModal';
 import useTranslation from '../hooks/useTranslation';
+import {usersApi} from '../services/api/usersApi';
+import {PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL} from '../config/legal';
 
 interface SettingsScreenProps {
   navigation: any;
@@ -44,6 +47,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
   const [confirmConfig, setConfirmConfig] = useState<{
     title: string;
     message: string;
+    confirmText?: string;
     onConfirm: () => void;
   }>({title: '', message: '', onConfirm: () => {}});
 
@@ -61,19 +65,36 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
   };
 
   const handlePrivacy = () => {
-    showAlert(
-      t('settings.privacy'),
-      t('settings.privacyMessage'),
-      'info'
-    );
+    void Linking.openURL(PRIVACY_POLICY_URL);
   };
 
   const handleTerms = () => {
-    showAlert(
-      t('settings.terms'),
-      t('settings.termsMessage'),
-      'info'
-    );
+    void Linking.openURL(TERMS_OF_SERVICE_URL);
+  };
+
+  const handleDeleteAccount = () => {
+    setConfirmConfig({
+      title: String(t('settings.deleteAccount') || 'Delete account'),
+      message: String(
+        t('settings.deleteAccountConfirm') ||
+          'This permanently deletes your account. This cannot be undone.',
+      ),
+      confirmText: String(t('settings.deleteAccountAction') || 'Delete'),
+      onConfirm: async () => {
+        setConfirmVisible(false);
+        try {
+          await usersApi.deleteMe();
+          await handleConfirmLogout();
+        } catch (error: any) {
+          showAlert(
+            t('common.error'),
+            error?.message || String(t('settings.deleteAccountFailed')),
+            'error',
+          );
+        }
+      },
+    });
+    setConfirmVisible(true);
   };
 
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
@@ -204,7 +225,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
         message={confirmConfig.message}
         onConfirm={confirmConfig.onConfirm}
         onCancel={() => setConfirmVisible(false)}
-        confirmText={t('settings.restartTour')}
+        confirmText={confirmConfig.confirmText || t('settings.restartTour')}
       />
 
       <ScrollView
@@ -286,6 +307,17 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
           subtitle={t('settings.logoutSubtitle')}
           onPress={handleLogout}
         />
+        {currentUser ? (
+          <SettingItem
+            icon="trash-outline"
+            title={String(t('settings.deleteAccount') || 'Delete account')}
+            subtitle={String(
+              t('settings.deleteAccountHint') ||
+                'Permanently remove your data from this app',
+            )}
+            onPress={handleDeleteAccount}
+          />
+        ) : null}
       </View>
 
       <View style={styles.section}>

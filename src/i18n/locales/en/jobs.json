@@ -35,5 +35,9 @@
   "completedJobsWillAppearHere": "Your completed jobs will appear here",
   "all": "All",
   "noJobsFound": "No jobs found",
-  "noJobsFoundForStatus": "No {{status}} jobs"
+  "noJobsFoundForStatus": "No {{status}} jobs",
+  "incomingHelp": "Incoming help requests",
+  "incomingHelpEmpty": "No partner help requests right now.",
+  "acceptHelp": "Accept",
+  "rejectHelp": "Decline"
 }

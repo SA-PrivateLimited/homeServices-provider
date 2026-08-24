@@ -82,5 +82,10 @@
   "district": "District",
   "pincode": "Pincode",
   "useCurrentLocation": "Use current location",
-  "currentLocation": "Current location"
+  "currentLocation": "Current location",
+  "otherServices": "Other services",
+  "addAnotherService": "Add another service",
+  "addService": "Add",
+  "serviceAdded": "Service added. Complete verification if asked.",
+  "serviceAddFailed": "Could not add this service."
 }

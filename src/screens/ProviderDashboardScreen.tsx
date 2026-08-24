@@ -53,6 +53,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
   } = useIncomingBooking();
 
   const [isOnline, setIsOnline] = useState(false);
+  const [approvalStatus, setApprovalStatus] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
@@ -92,6 +93,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
       const provider = await getMyProfile();
       if (provider) {
         setIsOnline(provider.isOnline || false);
+        setApprovalStatus(provider.approvalStatus);
       }
     } catch (error) {
       console.error('Error loading provider status:', error);
@@ -186,8 +188,16 @@ export default function ProviderDashboardScreen({navigation}: any) {
 
   const handleToggleOnline = async () => {
     try {
-      isTogglingStatus.current = true;
       const newStatus = !isOnline;
+      if (newStatus && approvalStatus && approvalStatus !== 'approved') {
+        showAlert(
+          tx('common.error'),
+          tx('dashboard.mustBeApproved'),
+          'warning',
+        );
+        return;
+      }
+      isTogglingStatus.current = true;
       await setProviderOnline(newStatus);
       setIsOnline(newStatus);
       setToastMessage(

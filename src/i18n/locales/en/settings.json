@@ -37,6 +37,13 @@
   "appName": "HomeServices",
   "allRightsReserved": "All rights reserved",
   "disclaimer": "For educational purposes only. Always consult healthcare professionals.",
+  "switchToCustomer": "Switch to Customer",
+  "switchFailed": "Could not open Customer mode. Try again.",
+  "deleteAccount": "Delete account",
+  "deleteAccountHint": "Permanently remove your data from this app",
+  "deleteAccountConfirm": "This permanently deletes your Partner account and Customer access on the same phone. This cannot be undone.",
+  "deleteAccountFailed": "Could not delete your account. Try again.",
+  "deleteAccountAction": "Delete",
   "aboutHomeServices": "About HomeServices Provider",
   "aboutMessage": "Version: 1.0.0\n\nService Provider portal for HomeServices system."
 }

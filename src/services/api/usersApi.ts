@@ -3,7 +3,7 @@
  * Handles user operations via backend API
  */
 
-import {apiGet, apiPut, apiPost} from './apiClient';
+import {apiGet, apiPut, apiPost, apiDelete} from './apiClient';
 
 export interface UserLocation {
   latitude?: number;
@@ -98,10 +98,16 @@ export async function createOrUpdateUser(userData: CreateUserData): Promise<User
   return apiPost<User>('/users/me', userData);
 }
 
+/** Permanently delete the signed-in partner account. */
+export async function deleteMe(): Promise<void> {
+  await apiDelete('/users/me');
+}
+
 export const usersApi = {
   getMe,
   getById: getUserById,
   updateMe,
   updateFcmToken,
   createOrUpdate: createOrUpdateUser,
+  deleteMe,
 };

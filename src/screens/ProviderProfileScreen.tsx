@@ -14,11 +14,16 @@ import {
   Pressable,
   Alert,
   TextInput,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {Select} from 'sapvt-ltd-app-packages';
+import {Select, bilingualProfessionLine} from 'sapvt-ltd-app-packages';
 import {useStore} from '../store';
 import {getMyProfile, updateMyProfile} from '../services/api/providersApi';
+import {fetchServiceCategories} from '../services/serviceCategoriesService';
+import {createCustomerContextHandoff, addMyProviderService} from '../services/api/partnerCollaborationApi';
+import {usersApi} from '../services/api/usersApi';
+import {PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL} from '../config/legal';
 import {getUserId} from '../services/session';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 import ProviderHelpSupportModal from '../components/ProviderHelpSupportModal';
@@ -31,7 +36,7 @@ import useTranslation from '../hooks/useTranslation';
 
 const DRAWER_WIDTH = Math.min(320, Dimensions.get('window').width * 0.82);
 
-const SERVICE_TYPES = [
+const FALLBACK_SERVICE_TYPES = [
   'Carpenter',
   'Electrician',
   'Plumber',
@@ -60,9 +65,10 @@ interface ProviderProfile {
   profileImage?: string;
   photo?: string;
   languages?: string[];
-  approvalStatus?: 'pending' | 'approved' | 'rejected';
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
   address?: ProviderServiceAddressValue | null;
+  serviceCategories?: string[];
 }
 
 function resolveServiceType(provider: any): string {
@@ -76,7 +82,7 @@ function resolveServiceType(provider: any): string {
       '',
   ).trim();
   if (!raw) return '';
-  const normalized = SERVICE_TYPES.find(
+  const normalized = FALLBACK_SERVICE_TYPES.find(
     type => type.toLowerCase() === raw.toLowerCase() || type === raw,
   );
   return normalized || raw;
@@ -135,6 +141,9 @@ function mapProvider(provider: any): ProviderProfile {
     approvalStatus: provider.approvalStatus,
     rejectionReason: provider.rejectionReason,
     address: merged,
+    serviceCategories: Array.isArray(provider.serviceCategories)
+      ? provider.serviceCategories.filter(Boolean)
+      : [],
   };
 }
 
@@ -152,6 +161,8 @@ export default function ProviderProfileScreen({navigation}: any) {
   const [editName, setEditName] = useState('');
   const [editServiceType, setEditServiceType] = useState('');
   const [editExperience, setEditExperience] = useState('');
+  const [addServiceName, setAddServiceName] = useState('');
+  const [addingService, setAddingService] = useState(false);
   const [editAddress, setEditAddress] = useState<ProviderServiceAddressValue>({
     type: 'home',
     address: '',
@@ -169,6 +180,22 @@ export default function ProviderProfileScreen({navigation}: any) {
   const userId = getUserId(currentUser);
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
+  const [serviceTypes, setServiceTypes] = useState<string[]>(FALLBACK_SERVICE_TYPES);
+  const [serviceHi, setServiceHi] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    void fetchServiceCategories()
+      .then(cats => {
+        const names = cats.map(c => c.name).filter(Boolean);
+        if (names.length) setServiceTypes(names);
+        const hi: Record<string, string> = {};
+        cats.forEach(c => {
+          if (c.nameHi) hi[c.name] = c.nameHi;
+        });
+        setServiceHi(hi);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const beginEdit = useCallback((data: ProviderProfile) => {
     setEditName(data.name || '');
@@ -372,6 +399,33 @@ export default function ProviderProfileScreen({navigation}: any) {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAddService = async () => {
+    const name = addServiceName.trim();
+    if (!name) return;
+    setAddingService(true);
+    try {
+      const updated = await addMyProviderService(name);
+      if (updated && typeof updated === 'object') {
+        setProfile(mapProvider(updated));
+      } else {
+        await loadProviderProfile();
+      }
+      setAddServiceName('');
+      Alert.alert(
+        String(t('common.success') || 'Success'),
+        String(t('profile.serviceAdded') || 'Service added.'),
+      );
+    } catch (error: any) {
+      Alert.alert(
+        String(t('common.error') || 'Error'),
+        error?.message ||
+          String(t('profile.serviceAddFailed') || 'Could not add this service.'),
+      );
+    } finally {
+      setAddingService(false);
     }
   };
 
@@ -660,7 +714,10 @@ export default function ProviderProfileScreen({navigation}: any) {
               </Text>
               {isEditing ? (
                 <Select
-                  options={SERVICE_TYPES.map(s => ({value: s, label: s}))}
+                  options={serviceTypes.map(s => ({
+                    value: s,
+                    label: bilingualProfessionLine(s, {nameHi: serviceHi[s]}),
+                  }))}
                   value={editServiceType}
                   onChange={setEditServiceType}
                   placeholder={String(t('profile.selectServiceType'))}
@@ -671,6 +728,64 @@ export default function ProviderProfileScreen({navigation}: any) {
                   {specialtyDisplay}
                 </Text>
               )}
+
+              {(profile.serviceCategories || []).filter(
+                s => s && s !== profile.serviceType,
+              ).length > 0 ? (
+                <>
+                  <Text style={[styles.fieldLabel, {color: theme.textSecondary}]}>
+                    {String(t('profile.otherServices') || 'Other services')}
+                  </Text>
+                  {(profile.serviceCategories || [])
+                    .filter(s => s && s !== profile.serviceType)
+                    .map(s => (
+                      <Text
+                        key={s}
+                        style={[styles.fieldValue, {color: theme.text}]}>
+                        {bilingualProfessionLine(s, {nameHi: serviceHi[s]})}
+                      </Text>
+                    ))}
+                </>
+              ) : null}
+
+              <Text style={[styles.fieldLabel, {color: theme.textSecondary}]}>
+                {String(t('profile.addAnotherService') || 'Add another service')}
+              </Text>
+              <Select
+                options={serviceTypes
+                  .filter(s => {
+                    const owned = new Set(
+                      [
+                        profile.serviceType,
+                        ...(profile.serviceCategories || []),
+                      ].filter(Boolean),
+                    );
+                    return !owned.has(s);
+                  })
+                  .map(s => ({
+                    value: s,
+                    label: bilingualProfessionLine(s, {nameHi: serviceHi[s]}),
+                  }))}
+                value={addServiceName}
+                onChange={setAddServiceName}
+                placeholder={String(t('profile.selectServiceType'))}
+                title={String(t('profile.addAnotherService') || 'Add another service')}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.addServiceBtn,
+                  {backgroundColor: theme.primary, opacity: addingService ? 0.6 : 1},
+                ]}
+                onPress={() => void handleAddService()}
+                disabled={addingService || !addServiceName}>
+                {addingService ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.addServiceBtnText}>
+                    {String(t('profile.addService') || 'Add')}
+                  </Text>
+                )}
+              </TouchableOpacity>
 
               <Text style={[styles.fieldLabel, {color: theme.textSecondary}]}>
                 {String(t('profile.experience'))}
@@ -890,6 +1005,45 @@ export default function ProviderProfileScreen({navigation}: any) {
             onPress={() => setShowLogoutModal(true)}
             danger
           />
+          <SettingItem
+            icon="trash-outline"
+            title={String(t('settings.deleteAccount') || 'Delete account')}
+            subtitle={String(
+              t('settings.deleteAccountHint') ||
+                'Permanently remove your data from this app',
+            )}
+            onPress={() => {
+              Alert.alert(
+                String(t('settings.deleteAccount') || 'Delete account'),
+                String(
+                  t('settings.deleteAccountConfirm') ||
+                    'This permanently deletes your account. This cannot be undone.',
+                ),
+                [
+                  {text: String(t('common.cancel') || 'Cancel'), style: 'cancel'},
+                  {
+                    text: String(t('settings.deleteAccountAction') || 'Delete'),
+                    style: 'destructive',
+                    onPress: () => {
+                      void (async () => {
+                        try {
+                          await usersApi.deleteMe();
+                          await handleConfirmLogout();
+                        } catch (error: any) {
+                          Alert.alert(
+                            String(t('common.error') || 'Error'),
+                            error?.message ||
+                              String(t('settings.deleteAccountFailed')),
+                          );
+                        }
+                      })();
+                    },
+                  },
+                ],
+              );
+            }}
+            danger
+          />
         </View>
 
         <Text style={[styles.version, {color: theme.textSecondary}]}>
@@ -963,6 +1117,28 @@ export default function ProviderProfileScreen({navigation}: any) {
                 }}
               />
               <SettingItem
+                icon="swap-horizontal"
+                title={String(t('settings.switchToCustomer') || 'Switch to Customer')}
+                onPress={() => {
+                  closeSidebar();
+                  void createCustomerContextHandoff()
+                    .then(code =>
+                      Linking.openURL(
+                        `https://akanso.in/auth/handoff?code=${encodeURIComponent(code)}`,
+                      ),
+                    )
+                    .catch(() =>
+                      Alert.alert(
+                        String(t('common.error') || 'Error'),
+                        String(
+                          t('settings.switchFailed') ||
+                            'Could not open Customer mode.',
+                        ),
+                      ),
+                    );
+                }}
+              />
+              <SettingItem
                 icon="help-circle"
                 title={String(t('profile.helpSupport'))}
                 onPress={() => {
@@ -992,6 +1168,22 @@ export default function ProviderProfileScreen({navigation}: any) {
                         'Service Provider portal for HomeServices',
                     )}`,
                   );
+                }}
+              />
+              <SettingItem
+                icon="shield-checkmark"
+                title={String(t('settings.privacy') || 'Privacy Policy')}
+                onPress={() => {
+                  closeSidebar();
+                  void Linking.openURL(PRIVACY_POLICY_URL);
+                }}
+              />
+              <SettingItem
+                icon="document-text"
+                title={String(t('settings.terms') || 'Terms of Service')}
+                onPress={() => {
+                  closeSidebar();
+                  void Linking.openURL(TERMS_OF_SERVICE_URL);
                 }}
               />
             </ScrollView>
@@ -1184,6 +1376,14 @@ const styles = StyleSheet.create({
   settingText: {marginLeft: 12, flex: 1},
   settingTitle: {fontSize: 15, fontWeight: '500'},
   settingSubtitle: {fontSize: 12, marginTop: 2},
+  addServiceBtn: {
+    marginTop: 8,
+    marginBottom: 12,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  addServiceBtnText: {color: '#fff', fontWeight: '600', fontSize: 14},
   version: {
     textAlign: 'center',
     fontSize: 12,

@@ -35,5 +35,9 @@
   "completedJobsWillAppearHere": "आपके पूर्ण कार्य यहां दिखाई देंगे",
   "all": "सभी",
   "noJobsFound": "कोई कार्य नहीं मिला",
-  "noJobsFoundForStatus": "कोई {{status}} कार्य नहीं"
+  "noJobsFoundForStatus": "कोई {{status}} कार्य नहीं",
+  "incomingHelp": "साथी से मदद के अनुरोध",
+  "incomingHelpEmpty": "अभी कोई मदद अनुरोध नहीं है।",
+  "acceptHelp": "स्वीकार करें",
+  "rejectHelp": "अस्वीकार करें"
 }

@@ -12,8 +12,9 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import auth from '@react-native-firebase/auth';
 import storage from '@react-native-firebase/storage';
-import {Select} from 'sapvt-ltd-app-packages';
+import {Select, bilingualProfessionLine} from 'sapvt-ltd-app-packages';
 import {providersApi} from '../services/api/providersApi';
+import {fetchServiceCategories} from '../services/serviceCategoriesService';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
@@ -22,7 +23,7 @@ import AlertModal from '../components/AlertModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import useTranslation from '../hooks/useTranslation';
 // Service Provider Types (replacing doctor specialties)
-const SERVICE_TYPES = [
+const FALLBACK_SERVICE_TYPES = [
   'Carpenter',
   'Electrician',
   'Plumber',
@@ -96,9 +97,22 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     visible: false,
     docType: null,
   });
+  const [serviceTypes, setServiceTypes] = useState<string[]>(FALLBACK_SERVICE_TYPES);
+  const [serviceHi, setServiceHi] = useState<Record<string, string>>({});
 
   useEffect(() => {
     checkExistingProfile();
+    void fetchServiceCategories()
+      .then(cats => {
+        const names = cats.map(c => c.name).filter(Boolean);
+        if (names.length) setServiceTypes(names);
+        const hi: Record<string, string> = {};
+        cats.forEach(c => {
+          if (c.nameHi) hi[c.name] = c.nameHi;
+        });
+        setServiceHi(hi);
+      })
+      .catch(() => undefined);
   }, []);
 
   const checkExistingProfile = async () => {
@@ -158,7 +172,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         let savedServiceType = (profile.serviceType || profile.specialization || profile.specialty || '').trim();
 
         if (savedServiceType) {
-          const normalized = SERVICE_TYPES.find(type =>
+          const normalized = serviceTypes.find(type =>
             type.toLowerCase() === savedServiceType.toLowerCase() ||
             type === savedServiceType
           );
@@ -623,7 +637,10 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
 
         <Select
           label={String(t('providerProfile.serviceTypeRequired'))}
-          options={SERVICE_TYPES.map(s => ({value: s, label: s}))}
+          options={serviceTypes.map(s => ({
+            value: s,
+            label: bilingualProfessionLine(s, {nameHi: serviceHi[s]}),
+          }))}
           value={serviceType}
           onChange={setServiceType}
           placeholder={String(t('providerProfile.selectServiceType'))}
