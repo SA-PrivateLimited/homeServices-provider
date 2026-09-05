@@ -1,0 +1,45 @@
+.settings-subhead {
+  margin-bottom: 20px;
+}
+
+.settings-subhead-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  padding: 4px 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--primaryDark);
+  cursor: pointer;
+}
+
+.settings-subhead-crumb {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--textSecondary);
+  line-height: 1.4;
+}
+
+.settings-subhead-title {
+  margin: 6px 0 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.settings-subhead-lead {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--textSecondary);
+  max-width: 40rem;
+}
+
+@media (min-width: 861px) {
+  .settings-subhead-title {
+    font-size: 24px;
+  }
+}

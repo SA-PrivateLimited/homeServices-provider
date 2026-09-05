@@ -1,0 +1,51 @@
+.kyc-card-toggle {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.kyc-card-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kyc-card-toggle .profile-section-title {
+  margin: 0;
+}
+
+.kyc-card-summary {
+  margin: 0;
+  font-size: 13px;
+  color: var(--textSecondary);
+}
+
+.kyc-card-lead {
+  margin: 8px 0 16px;
+}
+
+.kyc-card-chevron {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--textSecondary);
+  transition: transform 0.15s ease;
+}
+
+.kyc-card-chevron.is-open {
+  transform: rotate(180deg);
+}

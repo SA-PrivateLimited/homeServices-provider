@@ -1,0 +1,43 @@
+.akanso-support-chip {
+  position: fixed;
+  z-index: 18;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(var(--tabbar-h, 64px) + var(--safe-bottom, 0px) + 12px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(220px, calc(100vw - 24px));
+  padding: 8px 12px 8px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card, #fff);
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.08));
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.akanso-support-chip:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+}
+
+.akanso-support-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.akanso-support-chip__logo {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+@media (min-width: 900px) {
+  .akanso-support-chip {
+    bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  }
+}

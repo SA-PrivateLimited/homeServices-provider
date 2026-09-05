@@ -205,8 +205,9 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
           icon="notifications-outline"
           title={String(t('notifications.noNotifications'))}
           message={String(
-            t('notifications.noNotificationsHint') ||
-              'You are all caught up',
+            t('notifications.noNotificationsHint', {
+              defaultValue: String(t('notifications.empty')),
+            }),
           )}
         />
       ) : (

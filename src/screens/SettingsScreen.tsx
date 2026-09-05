@@ -1,507 +1,207 @@
 import React, {useState} from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Switch,
-  ScrollView,
-  Image,
-} from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
-import {CommonActions} from '@react-navigation/native';
-import {Picker} from '@react-native-picker/picker';
+import {Linking, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Icon} from 'sapvt-ltd-app-packages';
 import {useStore} from '../store';
-import LanguageSwitcher from '../components/LanguageSwitcher';
-import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
-import {COPYRIGHT_OWNER} from '@env';
-import authService from '../services/authService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
-import ConfirmDialog from '../components/ConfirmationModal';
-import AlertModal from '../components/AlertModal';
+import {useResolvedTheme} from '../hooks/useResolvedTheme';
+import type {Theme} from '../utils/theme';
 import useTranslation from '../hooks/useTranslation';
+import {UseAsCustomerCard} from '../components/ecosystem/UseAsCustomerCard';
+import {NotificationsSettingsCard} from '../components/NotificationsSettingsCard';
+import {createCustomerContextHandoff} from '../services/api/contextHandoffApi';
+import {customerHandoffUrl, getCustomerWebUrl} from '../utils/customerWebUrl';
+import authService from '../services/authService';
+import {CommonActions} from '@react-navigation/native';
+import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
 
-interface SettingsScreenProps {
-  navigation: any;
+function SettingsRow({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  theme,
+}: {
+  icon: string;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  theme: Theme;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.row, {borderBottomColor: theme.border}]}>
+      <View style={styles.rowIcon}>
+        <Icon name={icon} size={22} color={theme.text} />
+      </View>
+      <View style={styles.copy}>
+        <Text style={[styles.title, {color: theme.text}]}>{title}</Text>
+        <Text style={[styles.sub, {color: theme.textSecondary}]}>{subtitle}</Text>
+      </View>
+      <Icon name="chevron_right" size={22} color={theme.textSecondary} />
+    </Pressable>
+  );
 }
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
-  const {isDarkMode, toggleTheme, currentUser, setCurrentUser, language, setLanguage} = useStore();
-  const theme = isDarkMode ? darkTheme : lightTheme;
+export default function SettingsScreen({navigation}: any) {
+  const {currentUser, setCurrentUser, colorTheme} = useStore();
+  const theme = useResolvedTheme();
   const {t} = useTranslation();
-
-  // Alert modal state
-  const [alertVisible, setAlertVisible] = useState(false);
-  const [alertConfig, setAlertConfig] = useState<{
-    title: string;
-    message: string;
-    type: 'success' | 'error' | 'info' | 'warning';
-  }>({title: '', message: '', type: 'info'});
-
-  // Confirmation modal state
-  const [confirmVisible, setConfirmVisible] = useState(false);
-  const [confirmConfig, setConfirmConfig] = useState<{
-    title: string;
-    message: string;
-    onConfirm: () => void;
-  }>({title: '', message: '', onConfirm: () => {}});
-
-  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
-    setAlertConfig({title, message, type});
-    setAlertVisible(true);
-  };
-
-  const handleAbout = () => {
-    showAlert(
-      t('settings.aboutHomeServices'),
-      t('settings.aboutMessage', {owner: COPYRIGHT_OWNER || 'SA-PrivateLimited'}),
-      'info'
-    );
-  };
-
-  const handlePrivacy = () => {
-    showAlert(
-      t('settings.privacy'),
-      t('settings.privacyMessage'),
-      'info'
-    );
-  };
-
-  const handleTerms = () => {
-    showAlert(
-      t('settings.terms'),
-      t('settings.termsMessage'),
-      'info'
-    );
-  };
-
-  const [showLogoutModal, setShowLogoutModal] = React.useState(false);
-
-  const handleLogout = () => {
-    setShowLogoutModal(true);
-  };
-
-  const handleConfirmLogout = async () => {
-    setShowLogoutModal(false);
-    try {
-      await authService.logout();
-      setCurrentUser(null);
-      // Navigate to Login screen using parent navigator (root stack)
-      // Settings is inside a tab navigator, so we need to get the parent
-      const parentNavigation = navigation.getParent();
-      if (parentNavigation) {
-        parentNavigation.reset({
-          index: 0,
-          routes: [{name: 'Login'}],
-        });
-      } else {
-        // Fallback to CommonActions for root navigation
-        navigation.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{name: 'Login'}],
-          })
-        );
-      }
-    } catch (error: any) {
-      showAlert(t('common.error'), error.message, 'error');
-    }
-  };
-
-  const handleRestartAppTour = () => {
-    setConfirmConfig({
-      title: t('settings.restartAppTour'),
-      message: t('settings.restartAppTourMessage'),
-      onConfirm: async () => {
-        setConfirmVisible(false);
-        try {
-          // Clear all guide completion flags from AsyncStorage
-          const keys = await AsyncStorage.getAllKeys();
-          const guideKeys = keys.filter(key => key.startsWith('@homeservices_guide_completed'));
-          if (guideKeys.length > 0) {
-            await AsyncStorage.multiRemove(guideKeys);
-          }
-
-          showAlert(
-            t('common.success'),
-            t('settings.appTourResetSuccess'),
-            'success'
-          );
-        } catch (error) {
-          showAlert(t('common.error'), t('settings.appTourResetError'), 'error');
-        }
-      },
-    });
-    setConfirmVisible(true);
-  };
-
-  const SettingItem = ({
-    icon,
-    title,
-    subtitle,
-    onPress,
-    rightComponent,
-  }: {
-    icon: string;
-    title: string;
-    subtitle?: string;
-    onPress?: () => void;
-    rightComponent?: React.ReactNode;
-  }) => (
-    <View style={[styles.settingItem, {backgroundColor: theme.card}]}>
-      <TouchableOpacity
-        style={styles.settingLeft}
-        onPress={onPress}
-        disabled={!onPress || !!rightComponent}
-        activeOpacity={onPress ? 0.7 : 1}>
-        <Icon name={icon} size={22} color={theme.primary} />
-        <View style={styles.settingText}>
-          <Text style={[styles.settingTitle, {color: theme.text}]}>
-            {title}
-          </Text>
-          {subtitle && (
-            <Text style={[styles.settingSubtitle, {color: theme.textSecondary}]}>
-              {subtitle}
-            </Text>
-          )}
-        </View>
-      </TouchableOpacity>
-      {rightComponent ? (
-        <View style={{minWidth: 150, alignItems: 'flex-end'}}>{rightComponent}</View>
-      ) : (
-        onPress && <Icon name="chevron-forward" size={20} color={theme.textSecondary} />
-      )}
-    </View>
+  const tx = (key: string) => String(t(key));
+  const [customerBusy, setCustomerBusy] = useState(false);
+  const [showLogout, setShowLogout] = useState(false);
+  const canSwitch = Boolean(
+    (currentUser as {canSwitchToCustomer?: boolean})?.canSwitchToCustomer,
   );
+  void colorTheme;
 
-  const getInitials = (name: string) => {
-    if (!name) return 'U';
-    const parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  const openCustomer = () => {
+    if (customerBusy) return;
+    if (canSwitch) {
+      setCustomerBusy(true);
+      void createCustomerContextHandoff()
+        .then(code => Linking.openURL(customerHandoffUrl(code)))
+        .catch(() => {})
+        .finally(() => setCustomerBusy(false));
+      return;
     }
-    return name.charAt(0).toUpperCase();
+    void Linking.openURL(getCustomerWebUrl());
   };
-
-  const [imageError, setImageError] = React.useState(false);
 
   return (
-    <>
-      {/* Custom Alert Modal */}
-      <AlertModal
-        visible={alertVisible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        type={alertConfig.type}
-        onClose={() => setAlertVisible(false)}
-      />
-
-      {/* Confirmation Modal */}
-      <ConfirmDialog
-        visible={confirmVisible}
-        title={confirmConfig.title}
-        message={confirmConfig.message}
-        onConfirm={confirmConfig.onConfirm}
-        onCancel={() => setConfirmVisible(false)}
-        confirmText={t('settings.restartTour')}
-      />
-
-      <ScrollView
-        style={[styles.container, {backgroundColor: theme.background}]}
-        contentContainerStyle={styles.content}>
-        {/* Profile Header - Similar to Doctor Profile */}
-      {currentUser && (
-        <TouchableOpacity 
-          style={[styles.profileHeader, {backgroundColor: theme.card}]}
-          onPress={() => {
-            // Navigate to Profile screen
-            navigation.dispatch(
-              CommonActions.navigate({
-                name: 'Profile',
-              }),
-            );
-          }}
-          activeOpacity={0.7}>
-          {(() => {
-            const imageUrl = (currentUser.profileImage || '').trim();
-            const hasValidImage = imageUrl !== '' && !imageError && 
-              (imageUrl.startsWith('http://') || imageUrl.startsWith('https://') || 
-               imageUrl.startsWith('file://') || imageUrl.startsWith('content://'));
-            
-            if (hasValidImage) {
-              return (
-                <Image
-                  source={{uri: imageUrl}}
-                  style={styles.profileHeaderImage}
-                  onError={() => setImageError(true)}
-                  resizeMode="cover"
-                />
-              );
-            }
-            
-            return (
-              <View style={[styles.profileHeaderImage, styles.profileHeaderImagePlaceholder, {backgroundColor: theme.primary}]}>
-                {currentUser.name && currentUser.name.trim() !== '' ? (
-                  <Text style={styles.profileHeaderInitials}>
-                    {getInitials(currentUser.name)}
-                  </Text>
-                ) : (
-                  <Icon name="person" size={50} color="#fff" />
-                )}
-              </View>
-            );
-          })()}
-          <Text style={[styles.profileHeaderName, {color: theme.text}]}>
-            {currentUser.name}
-          </Text>
-          <Text style={[styles.profileHeaderEmail, {color: theme.textSecondary}]}>
-            {currentUser.phone || currentUser.phoneNumber || ''}
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-          {t('settings.account')}
+    <View style={[styles.root, {backgroundColor: theme.background}]}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={[styles.lead, {color: theme.textSecondary}]}>
+          {tx('settings.lead')}
         </Text>
-        {currentUser && (
-          <SettingItem
-            icon="person-circle"
-            title={t('settings.profile')}
-            subtitle={currentUser.name}
-            onPress={() => {
-              // Navigate to Profile screen
-              navigation.dispatch(
-                CommonActions.navigate({
-                  name: 'Profile',
-                }),
-              );
-            }}
-          />
-        )}
-        <SettingItem
-          icon="log-out-outline"
-          title={t('settings.logout')}
-          subtitle={t('settings.logoutSubtitle')}
-          onPress={handleLogout}
+        <SettingsRow
+          theme={theme}
+          icon="person"
+          title={tx('settings.sectionProfile')}
+          subtitle={tx('settings.sectionProfileSub')}
+          onPress={() => navigation.navigate('SettingsProfile')}
         />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-          {String(t('settings.appearance') || 'APPEARANCE')}
-        </Text>
-        <SettingItem
-          icon="moon"
-          title={String(t('settings.darkMode') || 'Dark Mode')}
-          subtitle={isDarkMode ? String(t('common.enabled') || 'Enabled') : String(t('common.disabled') || 'Disabled')}
-          rightComponent={
-            <Switch
-              value={isDarkMode}
-              onValueChange={toggleTheme}
-              trackColor={{false: theme.border, true: theme.primary}}
-              thumbColor="#FFFFFF"
-            />
-          }
+        <SettingsRow
+          theme={theme}
+          icon="lock"
+          title={tx('settings.sectionAccount')}
+          subtitle={tx('settings.sectionAccountSub')}
+          onPress={() => navigation.navigate('SettingsAccount')}
         />
-        <SettingItem
-          icon="language"
-          title={String(t('settings.language') || 'Language')}
-          subtitle={language === 'en' ? String(t('settings.english') || 'English') : String(t('settings.hindi') || 'Hindi')}
-          rightComponent={<LanguageSwitcher />}
-        />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-          {t('settings.support')}
-        </Text>
-        <SettingItem
-          icon="person-add"
-          title={t('recommendations.shareContact')}
-          subtitle={t('recommendations.shareContactSubtitle')}
-          onPress={() => navigation.navigate('ShareContactRecommendation')}
-        />
-        <SettingItem
-          icon="help-circle"
-          title={t('settings.help')}
-          subtitle={t('settings.helpSubtitle')}
+        <SettingsRow
+          theme={theme}
+          icon="support"
+          title={tx('ecosystem.helpTitle') || tx('help.title')}
+          subtitle={tx('settings.sectionHelpSub')}
           onPress={() => navigation.navigate('HelpSupport')}
         />
-        <SettingItem
-          icon="book"
-          title={t('settings.appTour')}
-          subtitle={t('settings.appTourSubtitle')}
-          onPress={handleRestartAppTour}
+        <SettingsRow
+          theme={theme}
+          icon="info"
+          title={tx('settings.sectionAbout')}
+          subtitle={tx('settings.sectionAboutSub')}
+          onPress={() => navigation.navigate('SettingsAbout')}
         />
-      </View>
 
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-          {t('settings.information')}
+        <Text style={[styles.other, {color: theme.textSecondary}]}>
+          {tx('settings.otherSection')}
         </Text>
-        <SettingItem
-          icon="information-circle"
-          title={t('settings.about')}
-          subtitle={t('settings.aboutSubtitle')}
-          onPress={handleAbout}
+        <NotificationsSettingsCard
+          theme={theme}
+          title={tx('notifications.settingsTitle') || tx('notifications.title')}
+          body={
+            tx('notifications.settingsBody') || tx('notifications.enableHint')
+          }
+          enableLabel={
+            tx('notifications.settingsEnable') ||
+            tx('notifications.enable') ||
+            'Turn on notifications'
+          }
+          onLabel={tx('notifications.settingsOn')}
+          offLabel={tx('notifications.settingsOff')}
+          blockedLabel={tx('notifications.settingsBlocked')}
         />
-        <SettingItem
-          icon="shield-checkmark"
-          title={t('settings.privacy')}
-          onPress={handlePrivacy}
-        />
-        <SettingItem
-          icon="document-text"
-          title={t('settings.terms')}
-          onPress={handleTerms}
-        />
-      </View>
 
-      <View style={styles.footer}>
-        <Icon name="medical" size={32} color={theme.primary} />
-        <Text style={[styles.appName, {color: theme.text}]}>{t('settings.appName')}</Text>
-        <Text style={[styles.version, {color: theme.textSecondary}]}>
-          {t('settings.version')} 1.0.0
-        </Text>
-        <Text style={[styles.copyright, {color: theme.textSecondary}]}>
-          © 2025 {COPYRIGHT_OWNER || 'SA-PrivateLimited'}
-        </Text>
-        <Text style={[styles.copyright, {color: theme.textSecondary}]}>
-          {t('settings.allRightsReserved')}
-        </Text>
-        <View style={styles.disclaimer}>
-          <Icon name="alert-circle-outline" size={16} color={theme.textSecondary} />
-          <Text style={[styles.disclaimerText, {color: theme.textSecondary}]}>
-            {t('settings.disclaimer')}
-          </Text>
+        <UseAsCustomerCard
+          canSwitch={canSwitch}
+          busy={customerBusy}
+          onOpenCustomer={openCustomer}
+          theme={theme}
+        />
+
+        {/* Web `.settings-logout-wrap` + `.settings-logout` */}
+        <View style={[styles.logoutWrap, {borderTopColor: theme.border}]}>
+          <Pressable
+            style={[
+              styles.logout,
+              {
+                borderColor: `${theme.error}66`,
+                backgroundColor: theme.card,
+              },
+            ]}
+            onPress={() => setShowLogout(true)}
+            accessibilityRole="button"
+            accessibilityLabel={tx('profile.logout')}>
+            <Icon name="logout" size={20} color={theme.error} />
+            <Text style={[styles.logoutText, {color: theme.error}]}>
+              {tx('profile.logout')}
+            </Text>
+          </Pressable>
         </View>
-      </View>
-      
-        <LogoutConfirmationModal
-          visible={showLogoutModal}
-          onConfirm={handleConfirmLogout}
-          onCancel={() => setShowLogoutModal(false)}
-        />
       </ScrollView>
-    </>
+
+      <LogoutConfirmationModal
+        visible={showLogout}
+        onCancel={() => setShowLogout(false)}
+        onConfirm={async () => {
+          setShowLogout(false);
+          try {
+            await authService.logout();
+          } catch {
+            /* ignore */
+          }
+          await setCurrentUser(null);
+          const parent = navigation.getParent();
+          (parent || navigation).dispatch(
+            CommonActions.reset({index: 0, routes: [{name: 'Login'}]}),
+          );
+        }}
+      />
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    paddingVertical: 20,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1,
-    paddingHorizontal: 20,
-    marginBottom: 8,
-  },
-  settingItem: {
+  root: {flex: 1},
+  content: {padding: 16, paddingBottom: 40},
+  lead: {fontSize: 14, lineHeight: 20, marginBottom: 16},
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    ...commonStyles.shadowSmall,
-    marginHorizontal: 20,
-    marginVertical: 4,
-    borderRadius: 12,
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  settingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  settingText: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  settingSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  footer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-  },
-  appName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 12,
-  },
-  version: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  copyright: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  disclaimer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  rowIcon: {width: 36, alignItems: 'center'},
+  copy: {flex: 1},
+  title: {fontSize: 16, fontWeight: '700'},
+  sub: {fontSize: 13, marginTop: 2},
+  other: {marginTop: 24, marginBottom: 8, fontSize: 13, fontWeight: '700'},
+  logoutWrap: {
     marginTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 28,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  disclaimerText: {
-    flex: 1,
-    fontSize: 11,
-    marginLeft: 8,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  profileHeader: {
+  logout: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 30,
-    paddingHorizontal: 20,
-    marginBottom: 24,
-    marginHorizontal: 20,
-    borderRadius: 12,
-    ...commonStyles.shadowSmall,
-  },
-  profileHeaderImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 16,
-  },
-  profileHeaderImagePlaceholder: {
     justifyContent: 'center',
-    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    minHeight: 48,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 16,
   },
-  profileHeaderInitials: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  profileHeaderName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  profileHeaderEmail: {
-    fontSize: 14,
-  },
-  languagePicker: {
-    width: 150,
-    height: 50,
-    backgroundColor: 'transparent',
-  },
+  logoutText: {fontSize: 15, fontWeight: '700'},
 });
-
-export default SettingsScreen;

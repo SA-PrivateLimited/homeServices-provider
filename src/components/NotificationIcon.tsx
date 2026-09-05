@@ -6,9 +6,13 @@ import {lightTheme, darkTheme} from '../utils/theme';
 
 interface NotificationIconProps {
   onPress: () => void;
+  compact?: boolean;
 }
 
-const NotificationIcon: React.FC<NotificationIconProps> = ({onPress}) => {
+const NotificationIcon: React.FC<NotificationIconProps> = ({
+  onPress,
+  compact,
+}) => {
   const {isDarkMode, getUnreadCount, currentUser} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const unreadCount = getUnreadCount(currentUser?.id);
@@ -16,8 +20,9 @@ const NotificationIcon: React.FC<NotificationIconProps> = ({onPress}) => {
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={[styles.container, {marginRight: 15}]}
-      activeOpacity={0.7}>
+      style={[styles.container, compact ? styles.compact : styles.spaced]}
+      activeOpacity={0.7}
+      hitSlop={{top: 8, bottom: 8, left: 8, right: 4}}>
       <Icon name="notifications-outline" size={24} color={theme.text} />
       {unreadCount > 0 && (
         <View
@@ -40,6 +45,16 @@ const styles = StyleSheet.create({
   container: {
     position: 'relative',
     padding: 4,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compact: {
+    marginRight: 4,
+  },
+  spaced: {
+    marginRight: 8,
   },
   badge: {
     position: 'absolute',

@@ -1,0 +1,54 @@
+.profile-completion-dialog.hs-modal {
+  width: min(100%, 420px);
+}
+
+.profile-completion-dialog__message {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--textSecondary, #4a5568);
+}
+
+.profile-completion-dialog .hs-dialog__footer {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.profile-completion-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary, #2e7d32) 6%, transparent);
+}
+
+.profile-completion-hint strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text, #1a202c);
+}
+
+.profile-completion-hint p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--textSecondary, #4a5568);
+}
+
+.profile-completion-hint__bar {
+  margin-top: 4px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary, #2e7d32) 16%, #edf2f7);
+  overflow: hidden;
+}
+
+.profile-completion-hint__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary, #2e7d32);
+}

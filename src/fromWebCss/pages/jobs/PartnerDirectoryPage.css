@@ -1,0 +1,119 @@
+.pdir {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 720px;
+}
+
+.pdir-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pdir-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.pdir-context {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.pdir-head .page-sub {
+  margin: 2px 0 0;
+}
+
+.pdir-search {
+  width: 100%;
+}
+
+.pdir-search .hs-input,
+.pdir-search input {
+  min-height: 44px;
+}
+
+.pdir-section-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pdir-filters-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.pdir-filters-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pdir-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pdir-label {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pdir-selects {
+  display: grid;
+  gap: 12px;
+}
+
+.pdir-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pdir-list--scroll {
+  max-height: 360px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
+@media (min-width: 700px) {
+  .pdir-selects {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pdir-list--scroll {
+    max-height: 480px;
+  }
+}

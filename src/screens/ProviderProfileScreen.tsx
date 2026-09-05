@@ -19,6 +19,8 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {Select} from 'sapvt-ltd-app-packages';
 import {useStore} from '../store';
 import {getMyProfile, updateMyProfile} from '../services/api/providersApi';
+import {uploadAssetFromUri} from '../services/api/assetsApi';
+import {launchImageLibrary} from 'react-native-image-picker';
 import {getUserId} from '../services/session';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 import ProviderHelpSupportModal from '../components/ProviderHelpSupportModal';
@@ -27,6 +29,8 @@ import ProviderServiceAddressFields, {
   type ProviderServiceAddressValue,
 } from '../components/ProviderServiceAddressFields';
 import ReviewsList from '../components/ReviewsList';
+import {WorkShowcaseEditor} from '../components/WorkShowcaseEditor';
+import {KycDocumentsCard} from '../components/KycDocumentsCard';
 import useTranslation from '../hooks/useTranslation';
 
 const DRAWER_WIDTH = Math.min(320, Dimensions.get('window').width * 0.82);
@@ -62,6 +66,15 @@ interface ProviderProfile {
   languages?: string[];
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
+  photos?: string[];
+  documents?: {
+    idProof?: string;
+    addressProof?: string;
+    certificate?: string;
+    idProofVerified?: boolean;
+    addressProofVerified?: boolean;
+    certificateVerified?: boolean;
+  };
   address?: ProviderServiceAddressValue | null;
 }
 
@@ -134,6 +147,8 @@ function mapProvider(provider: any): ProviderProfile {
     languages: provider.languages,
     approvalStatus: provider.approvalStatus,
     rejectionReason: provider.rejectionReason,
+    photos: Array.isArray(provider.photos) ? provider.photos : [],
+    documents: provider.documents,
     address: merged,
   };
 }
@@ -149,6 +164,7 @@ export default function ProviderProfileScreen({navigation}: any) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [editName, setEditName] = useState('');
   const [editServiceType, setEditServiceType] = useState('');
   const [editExperience, setEditExperience] = useState('');
@@ -494,6 +510,33 @@ export default function ProviderProfileScreen({navigation}: any) {
     );
   };
 
+  const pickProfilePhoto = () => {
+    launchImageLibrary({mediaType: 'photo', quality: 0.8}, async response => {
+      const asset = response.assets?.[0];
+      if (!asset?.uri) return;
+      setPhotoBusy(true);
+      try {
+        const ref = await uploadAssetFromUri(asset.uri, {
+          purpose: 'provider-profile',
+          contentType: asset.type || 'image/jpeg',
+          fileName: asset.fileName || 'profile.jpg',
+        });
+        await updateMyProfile({profileImage: ref.url} as any);
+        setProfile(prev =>
+          prev ? {...prev, profileImage: ref.url, photo: ref.url} : prev,
+        );
+        setImageError(false);
+      } catch (err: any) {
+        Alert.alert(
+          String(t('common.error')),
+          String(err?.message || t('errors.generic')),
+        );
+      } finally {
+        setPhotoBusy(false);
+      }
+    });
+  };
+
   if (loading) {
     return (
       <View
@@ -537,6 +580,13 @@ export default function ProviderProfileScreen({navigation}: any) {
             profile?.name || currentUser?.name || 'P',
             profile?.profileImage || profile?.photo,
           )}
+          <TouchableOpacity onPress={pickProfilePhoto} disabled={photoBusy}>
+            <Text style={[styles.changePhoto, {color: theme.primary}]}>
+              {photoBusy
+                ? String(t('common.loading'))
+                : String(t('profile.changePhoto') || t('showcase.addPhoto') || 'Change photo')}
+            </Text>
+          </TouchableOpacity>
           <Text style={[styles.profileHeaderName, {color: theme.text}]}>
             {profile?.name ||
               currentUser?.name ||
@@ -585,6 +635,25 @@ export default function ProviderProfileScreen({navigation}: any) {
             </View>
           ) : null}
         </View>
+
+        {profile ? (
+          <>
+            <WorkShowcaseEditor
+              theme={theme}
+              photos={profile.photos || []}
+              onChange={next =>
+                setProfile(prev => (prev ? {...prev, photos: next} : prev))
+              }
+            />
+            <KycDocumentsCard
+              theme={theme}
+              documents={profile.documents}
+              onUpdated={docs =>
+                setProfile(prev => (prev ? {...prev, documents: docs} : prev))
+              }
+            />
+          </>
+        ) : null}
 
         {!profile ? (
           <View style={styles.section}>
@@ -985,11 +1054,11 @@ export default function ProviderProfileScreen({navigation}: any) {
                   Alert.alert(
                     String(
                       t('settings.aboutHomeServices') ||
-                        'HomeServices Provider',
+                        'Akanso Partner',
                     ),
                     `${String(t('profile.version'))} 1.0.0\n\n${String(
                       t('settings.aboutMessage') ||
-                        'Service Provider portal for HomeServices',
+                        'Akanso Partner helps you receive jobs and grow your work.',
                     )}`,
                   );
                 }}
@@ -1058,6 +1127,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   profileHeaderInitials: {fontSize: 36, fontWeight: 'bold', color: '#fff'},
+  changePhoto: {fontSize: 14, fontWeight: '600', marginBottom: 8},
   profileHeaderName: {fontSize: 22, fontWeight: 'bold', marginBottom: 4},
   profileHeaderPhone: {fontSize: 14, marginTop: 2},
   metaRow: {

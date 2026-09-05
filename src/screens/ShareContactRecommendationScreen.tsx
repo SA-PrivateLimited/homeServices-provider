@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
+    padding: 14,
   },
   header: {
     alignItems: 'center',
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   },
   form: {
     borderRadius: 16,
-    padding: 20,
+    padding: 14,
     marginBottom: 20,
   },
   formGroup: {
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   modalContent: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 20,
+    padding: 14,
     maxHeight: '80%',
   },
   modalHeader: {

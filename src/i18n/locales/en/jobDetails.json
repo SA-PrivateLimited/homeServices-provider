@@ -56,5 +56,6 @@
   "contactAfterAcceptCustomer": "You can contact the customer after you accept the job.",
   "callCustomer": "Call Customer",
   "contactUnavailable": "Contact not available",
-  "customerPhotos": "Customer photos"
+  "customerPhotos": "Customer photos",
+  "completionPhotos": "Completion photos"
 }

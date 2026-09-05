@@ -10,12 +10,26 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import {launchImageLibrary} from 'react-native-image-picker';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import useTranslation from '../hooks/useTranslation';
 import {getUserFacingErrorMessage} from '../utils/userFacingError';
+import {uploadAssetFromUri} from '../services/api/assetsApi';
+
+const MAX_COMPLETION_PHOTOS = 3;
+
+type CompletionPhotoDraft = {
+  id: string;
+  localUri: string;
+  key?: string;
+  url?: string;
+  uploading: boolean;
+};
 
 interface Material {
   description: string;
@@ -26,13 +40,27 @@ interface Material {
 
 interface PINVerificationModalProps {
   visible: boolean;
-  onVerify: (pin: string, amount?: number, materials?: Material[], timeStarted?: Date, timeCompleted?: Date) => Promise<void>;
+  jobCardId: string;
+  onVerify: (
+    pin: string,
+    amount?: number,
+    materials?: Array<{
+      description: string;
+      quantity?: number;
+      unitPrice?: number;
+      total?: number;
+    }>,
+    timeStarted?: Date,
+    timeCompleted?: Date,
+    completionPhotos?: Array<{key: string; url: string}>,
+  ) => Promise<void>;
   onCancel: () => void;
   timeStarted?: Date;
 }
 
 const PINVerificationModal: React.FC<PINVerificationModalProps> = ({
   visible,
+  jobCardId,
   onVerify,
   onCancel,
   timeStarted,
@@ -46,10 +74,18 @@ const PINVerificationModal: React.FC<PINVerificationModalProps> = ({
   const [amount, setAmount] = useState('');
   const [materials, setMaterials] = useState<Material[]>([{description: '', quantity: '', unitPrice: ''}]);
   const [showAmountSection, setShowAmountSection] = useState(false);
+  const [photos, setPhotos] = useState<CompletionPhotoDraft[]>([]);
+
+  const photosReady = photos.filter(p => p.key && p.url);
+  const photosUploading = photos.some(p => p.uploading);
 
   const handleVerify = async () => {
     if (!pin || pin.length !== 4) {
       setError(String(t('jobDetails.pleaseEnter4DigitPIN')));
+      return;
+    }
+    if (photosUploading) {
+      setError(String(t('jobDetail.waitForPhotos')));
       return;
     }
 
@@ -69,11 +105,19 @@ const PINVerificationModal: React.FC<PINVerificationModalProps> = ({
         : undefined;
       const timeCompleted = new Date();
       
-      await onVerify(pin, amountValue, materialsValue, timeStarted, timeCompleted);
+      await onVerify(
+        pin,
+        amountValue,
+        materialsValue,
+        timeStarted,
+        timeCompleted,
+        photosReady.map(p => ({key: p.key as string, url: p.url as string})),
+      );
       setPin('');
       setAmount('');
       setMaterials([{description: '', quantity: '', unitPrice: ''}]);
       setShowAmountSection(false);
+      setPhotos([]);
     } catch (err: any) {
       setError(getUserFacingErrorMessage(err, 'pin') || String(t('jobDetails.invalidPIN')));
     } finally {
@@ -87,7 +131,49 @@ const PINVerificationModal: React.FC<PINVerificationModalProps> = ({
     setMaterials([{description: '', quantity: '', unitPrice: ''}]);
     setError('');
     setShowAmountSection(false);
+    setPhotos([]);
     onCancel();
+  };
+
+  const pickCompletionPhoto = () => {
+    if (photos.length >= MAX_COMPLETION_PHOTOS) {
+      setError(
+        String(
+          t('jobDetail.maxCompletionPhotos', {max: MAX_COMPLETION_PHOTOS}),
+        ),
+      );
+      return;
+    }
+    launchImageLibrary({mediaType: 'photo', quality: 0.8, selectionLimit: 1}, async response => {
+      const asset = response.assets?.[0];
+      if (!asset?.uri) return;
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const localUri = asset.uri;
+      setPhotos(prev => [...prev, {id, localUri, uploading: true}]);
+      setError('');
+      try {
+        const ref = await uploadAssetFromUri(localUri, {
+          purpose: 'job-completion-photo',
+          contentType: asset.type || 'image/jpeg',
+          fileName: asset.fileName || 'completion.jpg',
+          jobCardId,
+        });
+        setPhotos(prev =>
+          prev.map(p =>
+            p.id === id
+              ? {...p, key: ref.key, url: ref.url, uploading: false}
+              : p,
+          ),
+        );
+      } catch (err: any) {
+        setPhotos(prev => prev.filter(p => p.id !== id));
+        setError(getUserFacingErrorMessage(err) || String(t('jobDetails.failedToComplete')));
+      }
+    });
+  };
+
+  const removeCompletionPhoto = (id: string) => {
+    setPhotos(prev => prev.filter(p => p.id !== id));
   };
 
   const addMaterial = () => {
@@ -132,8 +218,14 @@ const PINVerificationModal: React.FC<PINVerificationModalProps> = ({
             style={[
               styles.modalContainer,
               {
-                backgroundColor: theme.card,
-                shadowColor: isDarkMode ? '#000' : '#000',
+                backgroundColor: isDarkMode
+                  ? theme.card
+                  : 'rgba(255,255,255,0.92)',
+                borderWidth: 1,
+                borderColor: isDarkMode
+                  ? theme.border
+                  : 'rgba(30, 60, 90, 0.08)',
+                shadowColor: '#1E3C5A',
               },
             ]}>
             <ScrollView 
@@ -183,6 +275,59 @@ const PINVerificationModal: React.FC<PINVerificationModalProps> = ({
                 {error && (
                   <Text style={styles.errorText}>{error}</Text>
                 )}
+              </View>
+
+              <View style={styles.photosSection}>
+                <Text style={[styles.label, {color: theme.text}]}>
+                  {String(t('jobDetail.completionPhotosOptional'))}
+                </Text>
+                <Text style={[styles.photosHint, {color: theme.textSecondary}]}>
+                  {String(
+                    t('jobDetail.completionPhotosHint', {
+                      max: MAX_COMPLETION_PHOTOS,
+                      mb: 5,
+                    }),
+                  )}
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.photosRow}>
+                  {photos.map(photo => (
+                    <View key={photo.id} style={styles.photoWrap}>
+                      <Image source={{uri: photo.localUri}} style={styles.photoThumb} />
+                      {photo.uploading ? (
+                        <View style={styles.photoBusy}>
+                          <ActivityIndicator color="#fff" size="small" />
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.photoRemove}
+                          onPress={() => removeCompletionPhoto(photo.id)}
+                          disabled={verifying}>
+                          <Icon name="close" size={14} color="#fff" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                  {photos.length < MAX_COMPLETION_PHOTOS ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.addPhoto,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.background,
+                        },
+                      ]}
+                      onPress={pickCompletionPhoto}
+                      disabled={verifying || photosUploading}>
+                      <Icon name="camera" size={22} color={theme.primary} />
+                      <Text style={[styles.addPhotoText, {color: theme.primary}]}>
+                        {String(t('showcase.addPhoto') || t('common.add'))}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </ScrollView>
               </View>
 
               {/* Amount Section Toggle */}
@@ -335,7 +480,7 @@ const PINVerificationModal: React.FC<PINVerificationModalProps> = ({
                   },
                 ]}
                 onPress={handleVerify}
-                disabled={verifying || pin.length !== 4}>
+                disabled={verifying || photosUploading || pin.length !== 4}>
                 {verifying ? (
                   <Text style={styles.verifyButtonText}>{String(t('jobDetails.verifying'))}</Text>
                 ) : (
@@ -373,6 +518,62 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     maxHeight: 500,
+  },
+  photosSection: {
+    marginBottom: 8,
+  },
+  photosHint: {
+    fontSize: 12,
+    marginBottom: 10,
+    lineHeight: 16,
+  },
+  photosRow: {
+    flexGrow: 0,
+    marginBottom: 8,
+  },
+  photoWrap: {
+    width: 72,
+    height: 72,
+    marginRight: 8,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  photoThumb: {
+    width: 72,
+    height: 72,
+  },
+  photoBusy: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoRemove: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPhoto: {
+    width: 72,
+    height: 72,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  addPhotoText: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 4,
+    textAlign: 'center',
   },
   toggleSection: {
     paddingVertical: 12,

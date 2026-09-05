@@ -1,0 +1,103 @@
+.suggest-promo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1.5px dashed color-mix(in srgb, var(--primary) 42%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary) 5%, white);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.suggest-promo:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.suggest-promo:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.suggest-promo__art {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  object-fit: cover;
+  object-position: center;
+  background: transparent;
+  display: block;
+  overflow: hidden;
+}
+
+.suggest-promo__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.suggest-promo__copy strong {
+  font-size: 14px;
+  font-weight: 750;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.suggest-promo__copy em {
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--textSecondary);
+}
+
+.suggest-promo__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1.25;
+}
+
+.suggest-promo--compact {
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  gap: 10px;
+}
+
+.suggest-promo--compact .suggest-promo__art {
+  width: 52px;
+  height: 52px;
+}
+
+.suggest-promo--compact .suggest-promo__copy strong {
+  font-size: 13px;
+}
+
+.suggest-promo--compact .suggest-promo__copy em {
+  font-size: 11px;
+}
+
+.suggest-promo--compact .suggest-promo__cta {
+  font-size: 12px;
+}
+
+/* Desktop Home: sidebar already has Suggest — hide promo */
+@media (min-width: 861px) {
+  .suggest-promo--home {
+    display: none;
+  }
+}

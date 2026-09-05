@@ -1,0 +1,145 @@
+.collab-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Partner identity block */
+.collab-detail-partner {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+.collab-detail-partner-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.collab-detail-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 750;
+  color: var(--primaryDark);
+  background: color-mix(in srgb, var(--primary) 16%, white);
+}
+
+.collab-detail-partner-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.collab-detail-partner-copy strong {
+  display: block;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.collab-detail-partner-copy p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--textSecondary);
+}
+
+.collab-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Status section */
+.collab-detail-status-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.collab-detail-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin: 4px 0 0;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.collab-detail-status--pending {
+  color: #b45309;
+  background: #fff7ed;
+}
+
+.collab-detail-status--accepted {
+  color: #15803d;
+  background: #ecfdf3;
+}
+
+.collab-detail-status--completed {
+  color: #15803d;
+  background: #ecfdf3;
+}
+
+.collab-detail-status--rejected,
+.collab-detail-status--cancelled {
+  color: var(--error);
+  background: #fef2f2;
+}
+
+.collab-detail-subsection-title {
+  margin: 12px 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--textSecondary);
+}
+
+/* Customer job reference */
+.collab-detail-job {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.collab-detail-kicker {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--textSecondary);
+}
+
+.collab-detail-job strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.collab-detail-job-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+/* Actions */
+.collab-detail-actions {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.collab-detail-actions .hs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}

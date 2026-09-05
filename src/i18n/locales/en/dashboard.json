@@ -64,5 +64,13 @@
   "distanceLabel": "Distance:",
   "customerPhotos": "Customer photos",
   "newServiceRequest": "New Service Request",
-  "swipeHint": "Swipe right to accept • Swipe left to reject"
+  "swipeHint": "Swipe right to accept • Swipe left to reject",
+  "receiveRequestsOnTitle": "Customers can request you",
+  "receiveRequestsOffTitle": "Customers cannot request you",
+  "receiveRequestsOnSub": "People can send you work from the app.",
+  "receiveRequestsOffSub": "Your name can still show. Request a service stays hidden until you start receiving.",
+  "receiveRequestsStart": "Start receiving requests",
+  "receiveRequestsStop": "Stop receiving requests",
+  "receiveRequestsNowOn": "Customers can now send you requests.",
+  "receiveRequestsNowOff": "Customers will not see Request a service for you."
 }

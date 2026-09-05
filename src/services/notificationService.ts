@@ -1,8 +1,12 @@
 import PushNotification, {Importance} from 'react-native-push-notification';
 import messaging from '@react-native-firebase/messaging';
 import {Platform, PermissionsAndroid} from 'react-native';
+import {getUserId, readStoredUser} from './session';
+import {usersApi} from './api/usersApi';
 
 class NotificationService {
+  private listenersBound = false;
+
   constructor() {
     try {
       PushNotification.configure({
@@ -35,7 +39,6 @@ class NotificationService {
         () => {},
       );
 
-      // Chat Messages Channel
       PushNotification.createChannel(
         {
           channelId: 'chat-messages',
@@ -47,15 +50,22 @@ class NotificationService {
         () => {},
       );
 
+      PushNotification.createChannel(
+        {
+          channelId: 'service_requests',
+          channelName: 'Service Requests',
+          channelDescription: 'New jobs and job updates',
+          importance: Importance.HIGH,
+          vibrate: true,
+        },
+        () => {},
+      );
     }
 
     // Request Android notification permission for Android 13+ (API 33+)
     if (Platform.OS === 'android') {
       this.requestAndroidNotificationPermission();
     }
-
-    // Initialize FCM
-    this.initializeFCM();
   }
 
   /**
@@ -92,7 +102,7 @@ class NotificationService {
         PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
         {
           title: 'Notification Permission',
-          message: 'HomeServices needs permission to send you notifications about your services and appointments.',
+          message: 'Akanso Partner needs permission to send you notifications about new jobs and updates.',
           buttonNeutral: 'Ask Me Later',
           buttonNegative: 'Cancel',
           buttonPositive: 'Allow',
@@ -123,49 +133,45 @@ class NotificationService {
 
         // Get FCM token
         const token = await messaging().getToken();
+        await this.saveTokenToBackend(token);
 
-        // Listen for token refresh
-        messaging().onTokenRefresh(async token => {
-          // Update token in Firestore user document
-          await this.updateFCMTokenInFirestore(token);
-        });
+        if (!this.listenersBound) {
+          this.listenersBound = true;
+          messaging().onTokenRefresh(next => {
+            void this.saveTokenToBackend(next);
+          });
 
-        // Handle foreground messages
-        messaging().onMessage(async remoteMessage => {
-          this.handleFCMMessage(remoteMessage);
-        });
-
-        // Handle background messages
-        messaging().setBackgroundMessageHandler(async remoteMessage => {
-        });
+          messaging().onMessage(async remoteMessage => {
+            this.handleFCMMessage(remoteMessage);
+          });
+        }
       }
     } catch (error) {
     }
   }
 
   handleFCMMessage(remoteMessage: any) {
-    const {notification, data} = remoteMessage;
+    const {notification, data} = remoteMessage || {};
+    const title = notification?.title || data?.title || 'Akanso';
+    const message =
+      notification?.body || data?.body || data?.message || '';
+    if (!message && !title) return;
 
-    if (notification) {
-      // Determine channel based on notification type
-      let channelId = 'service_requests'; // Default to service requests
-      if (data?.type === 'chat') {
-        channelId = 'chat-messages';
-      } else if (data?.type === 'reminder') {
-        channelId = 'general-reminders';
-      } else if (data?.type === 'service') {
-        channelId = 'service_requests';
-      }
-
-      PushNotification.localNotification({
-        channelId,
-        title: notification.title || 'HomeServices',
-        message: notification.body || '',
-        playSound: true,
-        soundName: 'default',
-        userInfo: data,
-      });
+    let channelId = 'service_requests';
+    if (data?.type === 'chat') {
+      channelId = 'chat-messages';
+    } else if (data?.type === 'reminder') {
+      channelId = 'general-reminders';
     }
+
+    PushNotification.localNotification({
+      channelId,
+      title,
+      message,
+      playSound: true,
+      soundName: 'default',
+      userInfo: data,
+    });
   }
 
   async getFCMToken(): Promise<string | null> {
@@ -214,115 +220,23 @@ class NotificationService {
   }
 
 
-  /**
-   * Update FCM token in Firestore for current user
-   */
-  async updateFCMTokenInFirestore(token: string): Promise<void> {
-    try {
-      const auth = require('@react-native-firebase/auth').default;
-      const firestore = require('@react-native-firebase/firestore').default;
-      
-      const currentUser = auth().currentUser;
-      if (!currentUser) {
-        return;
-      }
-
-      // Use set with merge: true to create document if it doesn't exist
-      await firestore()
-        .collection('users')
-        .doc(currentUser.uid)
-        .set({
-          fcmToken: token,
-          updatedAt: firestore.FieldValue.serverTimestamp(),
-        }, {merge: true});
-
-      // Also check if user is a provider and update providers collection
-      try {
-        const userDoc = await firestore()
-          .collection('users')
-          .doc(currentUser.uid)
-          .get();
-        
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          if (userData?.role === 'provider') {
-            // Also update in providers collection if provider profile exists
-            const providerQuery = await firestore()
-              .collection('providers')
-              .where('email', '==', currentUser.email)
-              .limit(1)
-              .get();
-            
-            if (!providerQuery.empty) {
-              const providerDoc = providerQuery.docs[0];
-              await firestore()
-                .collection('providers')
-                .doc(providerDoc.id)
-                .set({
-                  fcmToken: token,
-                  updatedAt: firestore.FieldValue.serverTimestamp(),
-                }, {merge: true});
-            }
-          }
-        }
-      } catch (roleError) {
-        // Silently ignore role check errors - not critical
-        if (__DEV__) {
-        }
-      }
-
-      if (__DEV__) {
-      }
-    } catch (error: any) {
-      // Only log error, don't crash the app
-      const errorCode = error?.code || '';
-      if (errorCode !== 'firestore/not-found') {
-      } else if (__DEV__) {
-      }
-    }
+  /** PUT /users/:id/fcmToken — Mongo + FCM topics (not Firestore). */
+  async saveTokenToBackend(token?: string | null): Promise<void> {
+    const fcmToken = token || (await this.getFCMToken());
+    if (!fcmToken) return;
+    const user = await readStoredUser();
+    const userId = getUserId(user);
+    if (!userId) return;
+    await usersApi.updateFcmToken(userId, fcmToken);
   }
 
-  /**
-   * Update FCM token in Firestore for provider
-   */
-  async updateProviderFCMTokenInFirestore(providerId: string, token: string): Promise<void> {
-    try {
-      const firestore = require('@react-native-firebase/firestore').default;
-      
-      // Use set with merge: true to create document if it doesn't exist
-      await firestore()
-        .collection('providers')
-        .doc(providerId)
-        .set({
-          fcmToken: token,
-          updatedAt: firestore.FieldValue.serverTimestamp(),
-        }, {merge: true});
-
-      if (__DEV__) {
-        console.log('✅ FCM: Provider token saved');
-      }
-    } catch (error: any) {
-      // Only log error, don't crash the app
-      const errorCode = error?.code || '';
-      if (errorCode !== 'firestore/not-found') {
-        console.error('❌ FCM: Error saving provider token:', error?.message);
-      } else if (__DEV__) {
-        console.warn('⚠️ FCM: Provider document not found');
-      }
-    }
-  }
-
-  /**
-   * Initialize and save FCM token for current user
-   */
   async initializeAndSaveToken(): Promise<string | null> {
     try {
+      await this.initializeFCM();
       const token = await this.getFCMToken();
-      if (token) {
-        await this.updateFCMTokenInFirestore(token);
-      }
+      await this.saveTokenToBackend(token);
       return token;
-    } catch (error) {
+    } catch {
       return null;
     }
   }

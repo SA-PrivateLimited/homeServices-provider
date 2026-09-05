@@ -1,0 +1,73 @@
+.profile-page {
+  max-width: 640px;
+  min-width: 0;
+  overflow-x: hidden;
+  padding-bottom: calc(var(--tabbar-h, 52px) + var(--safe-bottom, 0px) + 16px);
+}
+
+.profile-identity {
+  text-align: center;
+  min-width: 0;
+}
+
+.profile-identity-name {
+  margin: 0 0 4px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.profile-identity-phone {
+  margin: 0;
+}
+
+.profile-edit-form {
+  min-width: 0;
+}
+
+.profile-edit-form .hs-input-wrap,
+.profile-edit-form .hs-input,
+.profile-name-input {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.profile-services-link {
+  margin-top: 12px;
+}
+
+.profile-services-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-decoration: none;
+  color: inherit;
+  min-height: 56px;
+}
+
+.profile-services-row strong {
+  display: block;
+  font-size: 16px;
+}
+
+.profile-services-row .muted {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+.profile-services-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--primary) 12%, var(--card));
+  color: var(--primaryDark);
+}
+
+.profile-services-row > .material-symbols-outlined:last-child {
+  margin-left: auto;
+  color: var(--textSecondary);
+}

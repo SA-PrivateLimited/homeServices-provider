@@ -27,6 +27,8 @@ export interface Provider {
   rating?: number;
   totalReviews?: number;
   isOnline?: boolean;
+  showRequestService?: boolean;
+  allowOfflineProviderOpenRequests?: boolean;
   languages?: string[];
   profileImage?: string;
   photo?: string;
@@ -174,6 +176,14 @@ export async function updateProviderStatus(data: {
   await apiPut('/providers/me/status', data);
 }
 
+export async function setShowRequestService(
+  showRequestService: boolean,
+): Promise<Provider> {
+  return apiPut<Provider>('/providers/me/show-request-service', {
+    showRequestService,
+  });
+}
+
 export const providersApi = {
   getAll: getProviders,
   getById: getProviderById,
@@ -182,4 +192,5 @@ export const providersApi = {
   getMyProfile,
   updateMyProfile,
   updateStatus: updateProviderStatus,
+  setShowRequestService,
 };

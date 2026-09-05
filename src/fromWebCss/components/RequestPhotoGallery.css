@@ -1,0 +1,39 @@
+.request-photo-gallery {
+  margin-top: 12px;
+}
+
+.request-photo-gallery__label {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.request-photo-gallery__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.request-photo-gallery__thumb {
+  width: 88px;
+  height: 88px;
+  border: 0;
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #e2e8f0;
+  display: block;
+  cursor: pointer;
+}
+
+.request-photo-gallery__thumb:focus-visible {
+  outline: 2px solid var(--primary, #2563eb);
+  outline-offset: 2px;
+}
+
+.request-photo-gallery__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}

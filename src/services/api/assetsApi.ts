@@ -14,6 +14,8 @@ export type AssetUploadPurpose =
   | 'provider-document'
   | 'customer-profile'
   | 'provider-profile'
+  | 'provider-showcase'
+  | 'job-completion-photo'
   | 'temp';
 
 export interface AssetRef {
@@ -56,6 +58,7 @@ export async function requestUploadUrl(input: {
   purpose: AssetUploadPurpose;
   requestId?: string;
   docKey?: string;
+  jobCardId?: string;
   fileSize?: number;
 }): Promise<UploadUrlResponse> {
   return apiPost<UploadUrlResponse>('/assets/upload-url', input);
@@ -110,6 +113,7 @@ export async function uploadAssetFromUri(
     fileName?: string;
     requestId?: string;
     docKey?: string;
+    jobCardId?: string;
   },
 ): Promise<AssetRef> {
   const contentType =
@@ -123,6 +127,7 @@ export async function uploadAssetFromUri(
     purpose: options.purpose,
     requestId: options.requestId,
     docKey: options.docKey,
+    jobCardId: options.jobCardId,
     fileSize: size,
   });
 

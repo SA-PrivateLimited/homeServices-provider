@@ -1,0 +1,117 @@
+.work-showcase-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.work-showcase-editor__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.work-showcase-editor__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.work-showcase-editor__sub,
+.work-showcase-editor__hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--textSecondary);
+}
+
+.work-showcase-editor__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.work-showcase-editor__slot {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--primary, #2563eb) 6%, white);
+  border: 1px dashed color-mix(in srgb, var(--primary, #2563eb) 35%, #cbd5e1);
+  min-width: 0;
+}
+
+.work-showcase-editor__slot.has-image {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--border, #e2e8f0) 80%, #94a3b8);
+}
+
+.work-showcase-editor__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.work-showcase-editor__actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.65));
+}
+
+.work-showcase-editor__actions .btn,
+.work-showcase-editor__actions button {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px !important;
+  padding: 4px 6px !important;
+  min-height: 28px !important;
+}
+
+.work-showcase-editor__add {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--textSecondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px;
+  text-align: center;
+}
+
+.work-showcase-editor__add:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.work-showcase-editor__busy {
+  font-size: 12px;
+}
+
+.work-showcase-editor__error {
+  margin: 0;
+  color: var(--error, #dc2626);
+  font-size: 13px;
+}
+
+@media (max-width: 360px) {
+  .work-showcase-editor__grid {
+    gap: 6px;
+  }
+
+  .work-showcase-editor__actions {
+    flex-direction: column;
+  }
+}

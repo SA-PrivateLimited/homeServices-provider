@@ -1,7 +1,7 @@
 /**
  * Provider Location Service
  * Manages provider's online/offline status and real-time location updates
- * Uses backend API (JWT). Firebase RTDB writes are optional and never block the UI.
+ * Uses backend API (JWT).
  */
 
 import GeolocationService from './geolocationService';
@@ -117,25 +117,6 @@ export const setProviderOnline = async (isOnline: boolean): Promise<void> => {
       } as any);
     }
 
-    // Optional Firebase RTDB mirror — JWT sessions usually lack Firebase auth,
-    // so permission-denied is expected and must not fail the toggle.
-    try {
-      const provider = await getMyProfile();
-      const providerId = getUserId(provider);
-      if (providerId) {
-        const database = require('@react-native-firebase/database').default;
-        await database()
-          .ref(`providers/${providerId}/status`)
-          .set({
-            isOnline,
-            isAvailable: isOnline,
-            lastSeen: Date.now(),
-          });
-      }
-    } catch {
-      // ignore RTDB failures
-    }
-
     console.log(`Provider ${isOnline ? 'online' : 'offline'}`);
   } catch (error: any) {
     console.error('Error setting provider online status:', error);
@@ -210,19 +191,6 @@ export const updateProviderLocation = async (): Promise<void> => {
         lastSeen: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       } as any);
-    }
-
-    // Optional RTDB mirror — never fail the call
-    try {
-      const providerId = getUserId(provider);
-      if (providerId) {
-        const database = require('@react-native-firebase/database').default;
-        await database()
-          .ref(`providers/${providerId}/location`)
-          .set(providerLocation);
-      }
-    } catch {
-      // ignore RTDB permission errors under JWT auth
     }
 
     console.log('Provider location updated:', providerLocation);

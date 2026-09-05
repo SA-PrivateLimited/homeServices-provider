@@ -18,6 +18,7 @@ import enJobDetails from './locales/en/jobDetails.json';
 import enOnboarding from './locales/en/onboarding.json';
 import enProviderProfile from './locales/en/providerProfile.json';
 import enRecommendations from './locales/en/recommendations.json';
+import enWeb from './locales/web/en.json';
 
 // Hindi translations
 import hiCommon from './locales/hi/common.json';
@@ -35,43 +36,51 @@ import hiJobDetails from './locales/hi/jobDetails.json';
 import hiOnboarding from './locales/hi/onboarding.json';
 import hiProviderProfile from './locales/hi/providerProfile.json';
 import hiRecommendations from './locales/hi/recommendations.json';
+import hiWeb from './locales/web/hi.json';
+import {mergeWebLocale} from '../utils/mergeWebI18n';
 
 // Merge all translations
-const en = {
-  common: enCommon,
-  auth: enAuth,
-  settings: enSettings,
-  jobs: enJobs,
-  jobCards: enJobCards,
-  jobDetails: enJobDetails,
-  profile: enProfile,
-  providerProfile: enProviderProfile,
-  errors: enErrors,
-  messages: enMessages,
-  notifications: enNotifications,
-  help: enHelp,
-  dashboard: enDashboard,
-  onboarding: enOnboarding,
-  recommendations: enRecommendations,
-};
+const en = mergeWebLocale(
+  {
+    common: enCommon,
+    auth: enAuth,
+    settings: enSettings,
+    jobs: enJobs,
+    jobCards: enJobCards,
+    jobDetails: enJobDetails,
+    profile: enProfile,
+    providerProfile: enProviderProfile,
+    errors: enErrors,
+    messages: enMessages,
+    notifications: enNotifications,
+    help: enHelp,
+    dashboard: enDashboard,
+    onboarding: enOnboarding,
+    recommendations: enRecommendations,
+  },
+  enWeb as Record<string, unknown>,
+);
 
-const hi = {
-  common: hiCommon,
-  auth: hiAuth,
-  settings: hiSettings,
-  jobs: hiJobs,
-  jobCards: hiJobCards,
-  jobDetails: hiJobDetails,
-  profile: hiProfile,
-  providerProfile: hiProviderProfile,
-  errors: hiErrors,
-  messages: hiMessages,
-  notifications: hiNotifications,
-  help: hiHelp,
-  dashboard: hiDashboard,
-  onboarding: hiOnboarding,
-  recommendations: hiRecommendations,
-};
+const hi = mergeWebLocale(
+  {
+    common: hiCommon,
+    auth: hiAuth,
+    settings: hiSettings,
+    jobs: hiJobs,
+    jobCards: hiJobCards,
+    jobDetails: hiJobDetails,
+    profile: hiProfile,
+    providerProfile: hiProviderProfile,
+    errors: hiErrors,
+    messages: hiMessages,
+    notifications: hiNotifications,
+    help: hiHelp,
+    dashboard: hiDashboard,
+    onboarding: hiOnboarding,
+    recommendations: hiRecommendations,
+  },
+  hiWeb as Record<string, unknown>,
+);
 
 const LANGUAGE_KEY = '@app_language';
 

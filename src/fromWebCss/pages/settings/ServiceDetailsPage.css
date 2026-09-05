@@ -1,0 +1,137 @@
+.service-details {
+  max-width: 720px;
+  padding-bottom: 24px;
+}
+
+.service-details-context,
+.service-details-identity {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+}
+
+.service-details-context p,
+.service-details-identity p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.service-details-reject {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #b42318 8%, var(--card));
+  border: 1px solid color-mix(in srgb, #b42318 28%, var(--border));
+}
+
+.service-details-reject p {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.service-details-card {
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.service-details-card h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.service-details-value {
+  margin: 8px 0 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.service-details-notes {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.service-details-docs {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.service-details-docs li {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.service-details-docs li:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.service-details-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.service-details-doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.service-details-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  bottom: 12px;
+  margin-top: 8px;
+}
+
+.service-details-success {
+  text-align: center;
+  padding: 28px 18px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.service-details-success h3 {
+  margin: 12px 0 0;
+}
+
+.service-details-success p {
+  margin: 8px 0 18px;
+  color: var(--textSecondary);
+  line-height: 1.45;
+}
+
+@media (min-width: 861px) {
+  .service-details-actions {
+    position: static;
+  }
+}

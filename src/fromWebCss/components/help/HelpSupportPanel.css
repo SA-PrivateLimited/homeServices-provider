@@ -1,0 +1,229 @@
+.help-support {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.help-support__intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.help-support__hero-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--primary) 12%, white);
+  color: var(--primary);
+}
+
+.help-support__intro p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--textSecondary);
+}
+
+.help-support__phone-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, white);
+}
+
+.help-support__phone-card strong {
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--textSecondary);
+}
+
+.help-support__phone-card a {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.help-support__phone-card small {
+  font-size: 12px;
+  color: var(--textSecondary);
+}
+
+.help-support__topics {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.help-support__topic {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card, #fff);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.help-support__topic:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.help-support__topic-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--primary) 12%, white);
+  color: var(--primary);
+}
+
+.help-support__topic-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.help-support__topic-copy strong {
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.help-support__topic-copy em {
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--textSecondary);
+}
+
+.help-support__wa {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, #25d366 35%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, #25d366 8%, white);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.help-support__wa span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.help-support__wa strong {
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.help-support__wa em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--textSecondary);
+}
+
+.help-support__wa-badge {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  overflow: hidden;
+}
+
+.help-support__wa-badge .wa-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+}
+
+.help-support__back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--textSecondary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+}
+
+.help-support__detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.help-support__detail-head h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.help-support__detail-head p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--textSecondary);
+}
+
+.help-support__tips {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--textSecondary);
+}
+
+.help-support__contact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 861px) {
+  .help-support__topics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}

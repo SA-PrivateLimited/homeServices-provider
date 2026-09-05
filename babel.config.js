@@ -9,13 +9,9 @@ module.exports = {
         safe: false,
         allowUndefined: true,
         blocklist: null,
-        allowlist: ['OPEN_AI_API_KEY', 'OPENAI_API_KEY', 'RAZORPAY_KEY_ID', 'PAYMENT_API_URL_DEV', 'PAYMENT_API_URL_PROD', 'APP_NAME', 'COPYRIGHT_OWNER', 'AGORA_APP_ID'],
+        allowlist: ['APP_NAME', 'COPYRIGHT_OWNER'],
         verbose: true,
       },
     ],
-  ],
-  // Exclude react-native-agora specs from codegen processing
-  exclude: [
-    /node_modules\/react-native-agora\/src\/specs\/.*\.tsx$/,
   ],
 };

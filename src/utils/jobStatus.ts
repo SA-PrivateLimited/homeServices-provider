@@ -108,20 +108,37 @@ export function formatJobStatusDate(
 ): string {
   const formatted = formatJobDate(date);
   if (!formatted) return '';
-  switch (normalizeJobStatusKey(status)) {
-    case 'completed':
-      return `Completed on ${formatted}`;
-    case 'cancelled':
-      return `Cancelled on ${formatted}`;
-    case 'rejected':
-      return `Rejected on ${formatted}`;
-    case 'accepted':
-      return `Accepted on ${formatted}`;
-    case 'in-progress':
-      return `Updated ${formatted}`;
-    case 'pending':
-      return `Requested ${formatted}`;
-    default:
-      return formatted;
+  try {
+    // Lazy import avoids circular init with i18n in some boot paths
+    const i18n = require('../i18n').default as {
+      t: (key: string, opts?: Record<string, string>) => string;
+    };
+    switch (normalizeJobStatusKey(status)) {
+      case 'completed':
+        return String(i18n.t('date.completedOn', {date: formatted}));
+      case 'cancelled':
+        return String(i18n.t('date.cancelledOn', {date: formatted}));
+      case 'rejected':
+        return String(i18n.t('date.cancelledOn', {date: formatted}));
+      case 'accepted':
+        return String(i18n.t('date.acceptedOn', {date: formatted}));
+      case 'in-progress':
+        return String(i18n.t('date.updated', {date: formatted}));
+      case 'pending':
+        return String(i18n.t('date.requested', {date: formatted}));
+      default:
+        return formatted;
+    }
+  } catch {
+    switch (normalizeJobStatusKey(status)) {
+      case 'completed':
+        return `Completed on ${formatted}`;
+      case 'cancelled':
+        return `Cancelled on ${formatted}`;
+      case 'in-progress':
+        return `Updated ${formatted}`;
+      default:
+        return formatted;
+    }
   }
 }

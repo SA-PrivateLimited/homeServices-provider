@@ -7,21 +7,24 @@ import React, {useEffect, useRef, useState} from 'react';
 import {
   View,
   Text,
-  TextInput,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Image,
+  Share,
+  Linking,
+  StatusBar,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useStore} from '../store';
-import {lightTheme, darkTheme} from '../utils/theme';
+import {loginFromWeb as web, WEB} from '../fromWebCss/loginFromWeb.styles';
 import {
   lookupPhone,
   loginPin,
+  enablePartnerProfile,
   registerWithOtp,
   resetPin,
 } from '../services/api/phoneAuthApi';
@@ -32,19 +35,24 @@ import {
   setSession,
   clearAllCredentials,
 } from '../services/session';
-import {
-  getBrandName,
-  getLogoUrl,
-  subscribeBranding,
-} from '../services/brandingService';
-import PinBoxesInput from '../components/PinBoxesInput';
+import {WebCodeBoxes} from '../components/login/WebCodeBoxes';
 import AlertModal from '../components/AlertModal';
 import useTranslation from '../hooks/useTranslation';
-import LanguageSwitcher from '../components/LanguageSwitcher';
-import {Banner, Button} from 'sapvt-ltd-app-packages';
+import {Banner} from 'sapvt-ltd-app-packages';
 import PhoneNumberInput from '../components/PhoneNumberInput';
+import {LoginStepIndicator} from '../components/login/LoginStepIndicator';
+import {LoginLangSwitcher} from '../components/login/LoginLangSwitcher';
+import {LoginTermsMini} from '../components/login/LoginTermsMini';
 import {INDIA_DIAL_CODE, localTenDigits} from '../utils/phone';
 import {useFirebasePhoneAuth} from '../hooks/useFirebasePhoneAuth';
+import {getCustomerWebUrl} from '../utils/customerWebUrl';
+import {
+  PRIVACY_POLICY_URL,
+  TERMS_OF_SERVICE_URL,
+  WHATSAPP_SUPPORT_URL,
+} from '../config/support';
+
+const PARTNER_WEB_URL = 'https://partner.akanso.in';
 
 interface LoginScreenProps {
   navigation: any;
@@ -66,6 +74,32 @@ function formatMmSs(totalSeconds: number): string {
   return `${m}:${r.toString().padStart(2, '0')}`;
 }
 
+function LoginPrimary({
+  title,
+  onPress,
+  loading,
+  disabled,
+}: {
+  title: string;
+  onPress: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[web.primaryFill, (loading || disabled) && {opacity: 0.65}]}
+      onPress={onPress}
+      disabled={loading || disabled}
+      activeOpacity={0.85}>
+      {loading ? (
+        <ActivityIndicator color="#fff" />
+      ) : (
+        <Text style={web.primaryFillText}>{title}</Text>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [pin, setPin] = useState('');
@@ -77,17 +111,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   const [loading, setLoading] = useState(false);
   const [booting, setBooting] = useState(true);
   const [inlineError, setInlineError] = useState<string | null>(null);
+  const [customerOnly, setCustomerOnly] = useState(false);
+  const [creatingPartner, setCreatingPartner] = useState(false);
   const [otpBanner, setOtpBanner] = useState<OtpBanner | null>(null);
   const [otpSecondsLeft, setOtpSecondsLeft] = useState(0);
   const [approvalNote, setApprovalNote] = useState<string | null>(null);
   const pinLoginInFlight = useRef(false);
   const firebasePhone = useFirebasePhoneAuth();
 
-  const {isDarkMode, setCurrentUser} = useStore();
-  const theme = isDarkMode ? darkTheme : lightTheme;
+  const {setCurrentUser} = useStore();
   const {t} = useTranslation();
-  const [brandName, setBrandName] = useState(getBrandName());
-  const [logoUrl, setLogoUrl] = useState(getLogoUrl());
+  const insets = useSafeAreaInsets();
 
   const [alertModal, setAlertModal] = useState<{
     visible: boolean;
@@ -100,13 +134,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     message: '',
     type: 'info',
   });
-
-  useEffect(() => {
-    return subscribeBranding(() => {
-      setBrandName(getBrandName());
-      setLogoUrl(getLogoUrl());
-    });
-  }, []);
 
   const fullPhone = () =>
     INDIA_DIAL_CODE + localTenDigits(phoneNumber);
@@ -222,19 +249,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       setOtp('');
       setNewPin('');
 
-      if (lookup.exists && lookup.roleMatch === false) {
-        setAlertModal({
-          visible: true,
-          title: t('common.error'),
-          message:
-            t('auth.numberRegisteredAsCustomer') ||
-            'This number is registered as a customer. Use a different number for the provider app.',
-          type: 'error',
-        });
-        return;
-      }
-
-      if (lookup.exists && lookup.hasPin && lookup.roleMatch !== false) {
+      if (lookup.exists && lookup.hasPin) {
         setStep('pin');
         return;
       }
@@ -284,11 +299,39 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       await applySession(result.token, result.user);
       goMain();
     } catch (error: any) {
-      setInlineError(error.message || t('auth.incorrectPin') || 'Incorrect PIN');
-      setPin('');
+      const msg = String(error?.message || '');
+      if (
+        error?.code === 'PARTNER_PROFILE_REQUIRED' ||
+        /Create a Partner account/i.test(msg)
+      ) {
+        setCustomerOnly(true);
+        setInlineError(null);
+      } else {
+        setInlineError(error.message || t('auth.incorrectPin') || 'Incorrect PIN');
+        setPin('');
+      }
     } finally {
       pinLoginInFlight.current = false;
       setLoading(false);
+    }
+  };
+
+  const handleCreatePartner = async () => {
+    const code = pin.trim();
+    if (!/^\d{6}$/.test(code)) {
+      setInlineError(t('auth.pinMustBeSixDigits') || 'PIN must be 6 digits');
+      return;
+    }
+    setCreatingPartner(true);
+    setInlineError(null);
+    try {
+      const result = await enablePartnerProfile(fullPhone(), code);
+      await applySession(result.token, result.user);
+      goMain();
+    } catch (error: any) {
+      setInlineError(error.message || t('auth.incorrectPin') || 'Incorrect PIN');
+    } finally {
+      setCreatingPartner(false);
     }
   };
 
@@ -379,306 +422,352 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     setStep('phone');
   };
 
+  const titleForStep = () => {
+    switch (step) {
+      case 'showPin':
+        return t('login.createPinTitle');
+      case 'pin':
+        return t('login.pinTitle');
+      case 'otp':
+        return t('login.otpTitle');
+      default:
+        return t('login.welcome');
+    }
+  };
+
   const subtitleForStep = () => {
     switch (step) {
       case 'showPin':
-        return (
-          t('auth.saveYourPinLead') ||
-          'Save this 6-digit PIN. You will use it with this number.'
-        );
+        return t('login.createPinSubtitle');
       case 'pin':
-        return (
-          t('auth.enterPinLead') ||
-          'Enter your 6-digit PIN to sign in as a provider.'
-        );
+        return t('login.pinSubtitle');
       case 'otp':
         return otpMode === 'signup'
-          ? t('auth.signupOtpLead') ||
-              'Verify this number with OTP, then set your own 6-digit PIN.'
-          : t('auth.enterOtpLead') ||
-              'Enter the OTP, then choose your new 6-digit PIN.';
+          ? t('login.otpSubtitle', {phone: fullPhone()})
+          : t('login.otpSubtitleForgot', {phone: fullPhone()});
       default:
-        return (
-          t('auth.providerLoginLead') ||
-          'Enter your mobile number. New providers need OTP + PIN. You appear to customers only after admin approval.'
-        );
+        return t('login.phoneSubtitle');
     }
   };
 
   if (booting) {
     return (
-      <View
-        style={[
-          styles.container,
-          styles.boot,
-          {backgroundColor: theme.background},
-        ]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={web.boot}>
+        <ActivityIndicator size="large" color={WEB.primary} />
       </View>
     );
   }
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, {backgroundColor: theme.background}]}
+      style={web.layout}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled">
-        <View style={styles.topRow}>
-          <View style={styles.backButton} />
-          <LanguageSwitcher compact />
+      <StatusBar barStyle="light-content" backgroundColor={WEB.navyBand} />
+      <View style={web.navyBand} />
+      <View
+        style={[
+          web.stage,
+          {
+            paddingTop: Math.max(16, 8 + insets.top),
+            paddingBottom: 12 + insets.bottom,
+          },
+        ]}>
+        <View style={web.authStack}>
+          <View style={web.card}>
+            <ScrollView
+              contentContainerStyle={web.cardScroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}>
+              <View style={web.cardTop}>
+                <View style={web.toolbar}>
+                  {step === 'phone' ? (
+                    <View style={web.toolbarSpacer} />
+                  ) : (
+                    <TouchableOpacity
+                      style={web.backToolbar}
+                      onPress={() => void handleUseAnotherNumber()}
+                      disabled={loading}>
+                      <Text style={web.backText}>{t('login.changeMobile')}</Text>
+                    </TouchableOpacity>
+                  )}
+                  <LoginLangSwitcher />
+                </View>
+
+                <LoginStepIndicator
+                  step={step}
+                  flow={
+                    step === 'pin'
+                      ? 'pinLogin'
+                      : step === 'otp' || step === 'showPin'
+                        ? 'otpFlow'
+                        : 'preview'
+                  }
+                />
+
+                <View style={web.brandRow}>
+                  <Image
+                    source={require('../assets/fromWeb/logo.png')}
+                    style={web.logo}
+                    resizeMode="contain"
+                    accessibilityLabel={String(t('login.productName'))}
+                  />
+                  <View style={web.brandCopy}>
+                    <Text style={web.brandName}>{t('login.productName')}</Text>
+                    <Text style={web.brandTag}>{t('login.tagline')}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {otpBanner && otpSecondsLeft > 0 ? (
+                <Banner
+                  variant="info"
+                  title={t('auth.otpBannerTitle', {phone: otpBanner.phone})}
+                  detail={t('auth.otpExpiresIn', {
+                    time: formatMmSs(otpSecondsLeft),
+                  })}
+                  meta={otpBanner.otp}
+                  onDismiss={() => setOtpBanner(null)}
+                />
+              ) : null}
+
+              <View style={web.cardBody}>
+                <View style={web.stepHeader}>
+                  {step === 'otp' ? (
+                    <View style={[web.stepIcon, web.stepIconOtp]}>
+                      <Icon name="chatbubble-ellipses" size={26} color={WEB.otpIcon} />
+                    </View>
+                  ) : null}
+                  {step === 'pin' || step === 'showPin' ? (
+                    <View style={[web.stepIcon, web.stepIconPin]}>
+                      <Icon name="key" size={26} color={WEB.primary} />
+                    </View>
+                  ) : null}
+                  <Text style={web.stepTitle}>{titleForStep()}</Text>
+                  <Text style={web.stepSub}>{subtitleForStep()}</Text>
+                </View>
+
+                {step === 'phone' ? (
+                  <View style={web.form}>
+                    <Text style={web.label}>{t('login.mobileLabel')}</Text>
+                    <PhoneNumberInput
+                      value={phoneNumber}
+                      onChangeText={setPhoneNumber}
+                      placeholder={t('login.mobilePlaceholder')}
+                      editable={!loading}
+                      borderColor={WEB.border}
+                      backgroundColor={WEB.card}
+                      prefixBackgroundColor="#F5F5F5"
+                      textColor={WEB.text}
+                      placeholderTextColor={WEB.textSecondary}
+                    />
+                    <LoginPrimary
+                      title={String(t('login.continue'))}
+                      onPress={() => void handleContinuePhone()}
+                      loading={loading}
+                    />
+                    <View style={web.trustBadge}>
+                      <Icon name="shield-checkmark" size={14} color={WEB.primary} />
+                      <Text style={web.trustBadgeText}>{t('login.phoneSafe')}</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                {step === 'pin' ? (
+                  <View style={web.form}>
+                    <View style={web.readonlyPhone}>
+                      <Text style={web.readonlyPhoneLabel}>
+                        {t('login.enterPinLabel')}
+                      </Text>
+                      <Text style={web.readonlyPhoneValue}>{fullPhone()}</Text>
+                    </View>
+                    <WebCodeBoxes
+                      value={pin}
+                      length={6}
+                      onChange={text => {
+                        setPin(text);
+                        setInlineError(null);
+                      }}
+                      onComplete={code => {
+                        void handleLoginWithPin(code);
+                      }}
+                      editable={!loading}
+                      autoFocus
+                    />
+                    {customerOnly ? (
+                      <View style={web.customerOnly}>
+                        <Text style={web.customerOnlyTitle}>
+                          {t('login.customerOnlyTitle')}
+                        </Text>
+                        <Text style={web.customerOnlyBody}>
+                          {t('login.customerOnlyBody')}
+                        </Text>
+                        <LoginPrimary
+                          title={String(
+                            creatingPartner
+                              ? t('login.creatingPartner')
+                              : t('login.createPartnerAccount'),
+                          )}
+                          loading={creatingPartner}
+                          disabled={loading || pin.length !== 6}
+                          onPress={() => void handleCreatePartner()}
+                        />
+                      </View>
+                    ) : (
+                      <>
+                        {inlineError ? (
+                          <Text style={web.fieldError}>{inlineError}</Text>
+                        ) : null}
+                        <LoginPrimary
+                          title={String(t('login.loginCta'))}
+                          onPress={() => void handleLoginWithPin()}
+                          loading={loading}
+                          disabled={pin.length !== 6}
+                        />
+                      </>
+                    )}
+                    <View style={web.linkRow}>
+                      <TouchableOpacity
+                        style={web.textLink}
+                        onPress={() => void handleForgotPin()}
+                        disabled={loading}>
+                        <Text style={web.textLinkLabel}>{t('login.forgotPin')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={web.textLink}
+                        onPress={() => void handleUseAnotherNumber()}
+                        disabled={loading}>
+                        <Text style={web.textLinkMuted}>
+                          {t('login.changeMobile')}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : null}
+
+                {step === 'otp' ? (
+                  <View style={web.form}>
+                    <Text style={web.label}>{t('login.otpLabel')}</Text>
+                    <WebCodeBoxes
+                      value={otp}
+                      length={6}
+                      onChange={text => {
+                        setOtp(text);
+                        setInlineError(null);
+                      }}
+                      editable={!loading}
+                      autoFocus
+                    />
+                    <Text style={web.label}>
+                      {otpMode === 'forgot'
+                        ? t('login.createPinTitleForgot')
+                        : t('login.createPinTitle')}
+                    </Text>
+                    <WebCodeBoxes
+                      value={newPin}
+                      length={6}
+                      onChange={text => {
+                        setNewPin(text);
+                        setInlineError(null);
+                      }}
+                      editable={!loading}
+                    />
+                    {inlineError ? (
+                      <Text style={web.fieldError}>{inlineError}</Text>
+                    ) : null}
+                    <LoginPrimary
+                      title={String(
+                        otpMode === 'signup'
+                          ? t('login.setPinCta')
+                          : t('login.verifyOtp'),
+                      )}
+                      onPress={() => void handleVerifyOtpAndSetPin()}
+                      loading={loading}
+                      disabled={otp.length !== 6 || newPin.length !== 6}
+                    />
+                    <TouchableOpacity
+                      style={[web.textLink, web.textLinkCenter]}
+                      onPress={() => void handleResendOtp()}
+                      disabled={loading}>
+                      <Text style={web.textLinkLabel}>{t('login.resendOtp')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
+                {step === 'showPin' && createdPin ? (
+                  <View style={web.form}>
+                    <View style={web.pinReveal}>
+                      <Text style={web.label}>{t('login.pinLabel')}</Text>
+                      <Text style={web.pinValue}>{createdPin}</Text>
+                    </View>
+                    {approvalNote ? (
+                      <Text style={web.stepSub}>{approvalNote}</Text>
+                    ) : null}
+                    <LoginPrimary
+                      title={String(t('login.continue'))}
+                      onPress={goMain}
+                    />
+                  </View>
+                ) : null}
+
+                <View style={web.extras}>
+                  <View style={web.utilRow}>
+                    <TouchableOpacity
+                      style={web.utilBtn}
+                      onPress={() => navigation.navigate('HelpSupport')}>
+                      <Icon name="help-circle-outline" size={20} color={WEB.primary} />
+                      <Text style={web.utilBtnText}>{t('nav.help')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={web.utilBtn}
+                      onPress={() => {
+                        void Share.share({
+                          message: String(
+                            t('ecosystem.shareMessageEn', {url: PARTNER_WEB_URL}),
+                          ),
+                          url: PARTNER_WEB_URL,
+                        });
+                      }}>
+                      <Icon name="share-social-outline" size={20} color={WEB.primary} />
+                      <Text style={web.utilBtnText}>{t('login.utilShareShort')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={web.utilBtn}
+                      onPress={() => void Linking.openURL(WHATSAPP_SUPPORT_URL)}>
+                      <Icon name="logo-whatsapp" size={20} color={WEB.primary} />
+                      <Text style={web.utilBtnText}>{t('login.whatsappCta')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={web.utilBtn}
+                      onPress={() => navigation.navigate('HelpSupport')}>
+                      <Icon name="chatbox-ellipses-outline" size={20} color={WEB.primary} />
+                      <Text style={web.utilBtnText}>{t('login.feedbackCta')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={web.extrasBottom}>
+                    <TouchableOpacity
+                      style={web.partnerLink}
+                      onPress={() => void Linking.openURL(getCustomerWebUrl())}>
+                      <Text style={web.partnerLinkTitle}>
+                        {t('login.customerBannerTitle')}
+                      </Text>
+                      <Text style={web.partnerLinkCta}>
+                        {t('login.useAsCustomer')}
+                      </Text>
+                    </TouchableOpacity>
+                    <View style={web.extrasFoot}>
+                      <Text style={web.extrasTrust}>{t('login.heroSafety')}</Text>
+                      <LoginTermsMini
+                        onTerms={() => void Linking.openURL(TERMS_OF_SERVICE_URL)}
+                        onPrivacy={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
         </View>
-
-        {otpBanner && otpSecondsLeft > 0 ? (
-          <Banner
-            variant="info"
-            title={
-              t('auth.otpBannerTitle', {phone: otpBanner.phone}) ||
-              `OTP for ${otpBanner.phone}`
-            }
-            detail={
-              t('auth.otpExpiresIn', {
-                time: formatMmSs(otpSecondsLeft),
-              }) || `Expires in ${formatMmSs(otpSecondsLeft)}`
-            }
-            meta={otpBanner.otp}
-            onDismiss={() => setOtpBanner(null)}
-          />
-        ) : null}
-
-        <View style={styles.header}>
-          {logoUrl ? (
-            <Image
-              source={{uri: logoUrl}}
-              style={styles.logo}
-              resizeMode="contain"
-              accessibilityLabel={brandName}
-            />
-          ) : (
-            <Icon name="construct-outline" size={56} color={theme.primary} />
-          )}
-          <Text style={[styles.title, {color: theme.text}]}>
-            {brandName}
-          </Text>
-          <Text style={[styles.subtitle, {color: theme.textSecondary}]}>
-            {subtitleForStep()}
-          </Text>
-        </View>
-
-        {step === 'phone' ? (
-          <View style={styles.form}>
-            <Text style={[styles.phoneLabel, {color: theme.textSecondary}]}>
-              {t('auth.phone') || 'Phone'}
-            </Text>
-            <PhoneNumberInput
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              placeholder={
-                t('auth.phoneTenDigitsHint') ||
-                t('auth.phonePlaceholder') ||
-                '10-digit mobile'
-              }
-              editable={!loading}
-              borderColor={theme.border}
-              backgroundColor={theme.card}
-              prefixBackgroundColor={isDarkMode ? theme.border : '#F5F5F5'}
-              textColor={theme.text}
-              placeholderTextColor={theme.textSecondary}
-              style={{marginBottom: 16}}
-            />
-            <Button
-              variant="primary"
-              block
-              title={String(t('auth.continue') || 'Continue')}
-              onPress={() => void handleContinuePhone()}
-              loading={loading}
-              disabled={loading}
-              style={styles.button}
-            />
-          </View>
-        ) : null}
-
-        {step === 'pin' ? (
-          <View style={styles.form}>
-            <Text style={[styles.codeHint, {color: theme.textSecondary}]}>
-              {t('auth.enterPinFor', {phone: fullPhone()}) ||
-                `Enter PIN for ${fullPhone()}`}
-            </Text>
-            <PinBoxesInput
-              value={pin}
-              length={6}
-              onChange={text => {
-                setPin(text);
-                setInlineError(null);
-              }}
-              onComplete={code => {
-                void handleLoginWithPin(code);
-              }}
-              editable={!loading}
-              autoFocus
-              secure={false}
-              cellBackground={theme.card}
-              cellBorder={theme.border}
-              textColor={theme.text}
-              focusedBorder={theme.primary}
-            />
-            {inlineError ? (
-              <Text style={styles.inlineError}>{inlineError}</Text>
-            ) : null}
-            <Button
-              variant="primary"
-              block
-              title={String(t('auth.login') || 'Login')}
-              onPress={() => void handleLoginWithPin()}
-              loading={loading}
-              disabled={loading}
-              style={styles.button}
-            />
-            <TouchableOpacity
-              style={styles.linkBtn}
-              onPress={() => void handleForgotPin()}
-              disabled={loading}>
-              <Text style={[styles.linkText, {color: theme.primary}]}>
-                {t('auth.forgotPin') || 'Forgot PIN?'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.linkBtn}
-              onPress={() => void handleUseAnotherNumber()}
-              disabled={loading}>
-              <Text style={[styles.linkText, {color: theme.textSecondary}]}>
-                {t('auth.useAnotherNumber') || 'Use another number'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {step === 'otp' ? (
-          <View style={styles.form}>
-            <Text style={[styles.codeHint, {color: theme.textSecondary}]}>
-              {t('auth.codeSentHint', {phone: fullPhone()}) ||
-                `Enter OTP for ${fullPhone()}`}
-            </Text>
-            <View
-              style={[
-                styles.inputContainer,
-                {backgroundColor: theme.card, borderColor: theme.border},
-              ]}>
-              <Icon
-                name="chatbubble-ellipses-outline"
-                size={20}
-                color={theme.textSecondary}
-              />
-              <TextInput
-                style={[styles.input, {color: theme.text, letterSpacing: 4}]}
-                placeholder={t('auth.verificationCode') || 'OTP'}
-                placeholderTextColor={theme.textSecondary}
-                value={otp}
-                onChangeText={text => {
-                  setOtp(text.replace(/\D/g, '').slice(0, 8));
-                  setInlineError(null);
-                }}
-                keyboardType="number-pad"
-                maxLength={8}
-                editable={!loading}
-                autoFocus
-              />
-            </View>
-            <Text style={[styles.pinLabel, {color: theme.textSecondary}]}>
-              {t('auth.chooseSixDigitPin') || 'Choose your 6-digit PIN'}
-            </Text>
-            <PinBoxesInput
-              value={newPin}
-              length={6}
-              onChange={text => {
-                setNewPin(text);
-                setInlineError(null);
-              }}
-              editable={!loading}
-              secure={false}
-              cellBackground={theme.card}
-              cellBorder={theme.border}
-              textColor={theme.text}
-              focusedBorder={theme.primary}
-            />
-            {inlineError ? (
-              <Text style={styles.inlineError}>{inlineError}</Text>
-            ) : null}
-            <Button
-              variant="primary"
-              block
-              title={String(
-                otpMode === 'signup'
-                  ? t('auth.verifyAndCreateAccount') ||
-                      'Verify & create account'
-                  : t('auth.verifyOtpAndSetPin') || 'Verify & set PIN',
-              )}
-              onPress={() => void handleVerifyOtpAndSetPin()}
-              loading={loading}
-              disabled={loading}
-              style={styles.button}
-            />
-            <TouchableOpacity
-              style={styles.linkBtn}
-              onPress={() => void handleResendOtp()}
-              disabled={loading}>
-              <Text style={[styles.linkText, {color: theme.primary}]}>
-                {t('auth.resendOtp') || 'Resend OTP'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.linkBtn}
-              onPress={() => {
-                if (otpMode === 'forgot') {
-                  setStep('pin');
-                  setInlineError(null);
-                  setOtp('');
-                  setNewPin('');
-                  setOtpBanner(null);
-                } else {
-                  void handleUseAnotherNumber();
-                }
-              }}
-              disabled={loading}>
-              <Text style={[styles.linkText, {color: theme.textSecondary}]}>
-                {otpMode === 'forgot'
-                  ? t('auth.backToPin') || 'Back to PIN'
-                  : t('auth.useAnotherNumber') || 'Use another number'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {step === 'showPin' && createdPin ? (
-          <View style={styles.form}>
-            <View
-              style={[
-                styles.pinReveal,
-                {backgroundColor: theme.card, borderColor: theme.primary},
-              ]}>
-              <Text style={[styles.pinLabel, {color: theme.textSecondary}]}>
-                {t('auth.yourPin') || 'Your PIN'}
-              </Text>
-              <Text style={[styles.pinValue, {color: theme.text}]}>
-                {createdPin}
-              </Text>
-            </View>
-            {approvalNote ? (
-              <Text style={[styles.approvalNote, {color: theme.textSecondary}]}>
-                {approvalNote}
-              </Text>
-            ) : null}
-            <Button
-              variant="primary"
-              block
-              title={String(t('auth.continue') || 'Continue')}
-              onPress={goMain}
-              style={styles.button}
-            />
-          </View>
-        ) : null}
-      </ScrollView>
+      </View>
 
       <AlertModal
         visible={alertModal.visible}
@@ -692,107 +781,5 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     </KeyboardAvoidingView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {flex: 1},
-  boot: {justifyContent: 'center', alignItems: 'center'},
-  scrollContent: {flexGrow: 1, padding: 24, paddingBottom: 40},
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  backButton: {width: 40, height: 40},
-  otpBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#1B6B4A',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 16,
-    gap: 10,
-  },
-  otpBannerTitle: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 13,
-    marginBottom: 4,
-  },
-  otpBannerCode: {
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: 6,
-    marginBottom: 4,
-  },
-  otpBannerExpiry: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  header: {alignItems: 'center', marginBottom: 28},
-  logo: {width: 72, height: 72, borderRadius: 12},
-  title: {fontSize: 26, fontWeight: 'bold', marginTop: 16, marginBottom: 8},
-  subtitle: {
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: 8,
-  },
-  form: {marginBottom: 8},
-  phoneInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
-  },
-  phoneLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  phoneInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 56,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 56,
-    marginBottom: 12,
-  },
-  input: {flex: 1, marginLeft: 8, fontSize: 16, paddingVertical: 0},
-  codeHint: {fontSize: 14, marginBottom: 12, textAlign: 'center'},
-  pinLabel: {fontSize: 13, marginBottom: 8, fontWeight: '600'},
-  inlineError: {
-    color: '#E53E3E',
-    fontSize: 14,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  button: {
-    marginBottom: 12,
-  },
-  linkBtn: {alignItems: 'center', paddingVertical: 10},
-  linkText: {fontSize: 14, fontWeight: '600'},
-  pinReveal: {
-    borderWidth: 2,
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  pinValue: {fontSize: 32, fontWeight: '800', letterSpacing: 8, marginTop: 8},
-  approvalNote: {fontSize: 13, textAlign: 'center', marginBottom: 16, lineHeight: 18},
-});
 
 export default LoginScreen;

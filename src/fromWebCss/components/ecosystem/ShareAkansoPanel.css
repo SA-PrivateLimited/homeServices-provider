@@ -1,0 +1,52 @@
+.share-akanso {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card, #fff);
+}
+
+.share-akanso__title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.share-akanso__lead {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--textSecondary);
+}
+
+.share-akanso__qr {
+  margin: 0 auto 16px;
+  text-align: center;
+  max-width: 200px;
+}
+
+.share-akanso__qr img {
+  display: block;
+  width: 180px;
+  height: 180px;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.share-akanso__qr figcaption {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--textSecondary);
+}
+
+.share-akanso__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.share-akanso__actions .hs-btn {
+  justify-content: center;
+}

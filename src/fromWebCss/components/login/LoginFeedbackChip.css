@@ -1,0 +1,318 @@
+/* Feedback sheet — utility form; keyboard-aware, single primary CTA */
+
+.hs-modal-backdrop:has(.login-feedback-sheet) {
+  align-items: flex-start;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+}
+
+.hs-modal.login-feedback-sheet {
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(var(--feedback-vv-h, 92dvh), 640px);
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--card, #fff);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  box-shadow: 0 12px 36px rgba(15, 28, 46, 0.18);
+}
+
+.feedback-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  max-height: min(var(--feedback-vv-h, 92dvh), 640px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.feedback-sheet__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.feedback-sheet__brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.feedback-sheet__brand img {
+  border-radius: 9px;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.feedback-sheet__brand h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.3;
+  color: #0f1c2e;
+}
+
+.feedback-sheet__title-accent {
+  color: var(--primary);
+}
+
+.feedback-sheet__brand p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--textSecondary);
+}
+
+.feedback-sheet__close {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--border) 30%, white);
+  color: var(--textSecondary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+
+.feedback-sheet__section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.feedback-sheet__section-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.feedback-sheet__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--primary) 12%, white);
+  color: var(--primary);
+}
+
+.feedback-sheet__section-label strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.feedback-sheet__section-label em {
+  display: block;
+  margin-top: 1px;
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--textSecondary);
+}
+
+.feedback-sheet__textarea-wrap {
+  position: relative;
+}
+
+.feedback-sheet__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 104px;
+  padding: 11px 11px 26px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--card, #fff);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+  resize: vertical;
+  max-height: 200px;
+}
+
+.feedback-sheet__textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.feedback-sheet__counter {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--textSecondary);
+  pointer-events: none;
+}
+
+.feedback-sheet__error {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--error);
+}
+
+.feedback-sheet__phone {
+  min-width: 0;
+}
+
+/* Compact trust line — not a heavy green card */
+.feedback-sheet__privacy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0 2px;
+  color: var(--textSecondary);
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 550;
+}
+
+.feedback-sheet__privacy .material-symbols-outlined {
+  color: color-mix(in srgb, var(--primary) 70%, var(--textSecondary));
+  flex-shrink: 0;
+}
+
+.feedback-sheet__actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.feedback-sheet__actions .hs-btn {
+  width: 100%;
+  min-height: 46px;
+  justify-content: center;
+  touch-action: manipulation;
+}
+
+.feedback-sheet__actions .hs-btn--primary .hs-btn__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.feedback-sheet__or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--textSecondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.feedback-sheet__or::before,
+.feedback-sheet__or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.feedback-sheet__wa-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, #25d366 28%, var(--border));
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  font: inherit;
+  touch-action: manipulation;
+}
+
+.feedback-sheet__wa-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.feedback-sheet__wa-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.feedback-sheet__wa-logo .wa-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+}
+
+.feedback-sheet__wa-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.feedback-sheet__wa-copy strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.feedback-sheet__wa-copy em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--textSecondary);
+  line-height: 1.3;
+}
+
+.feedback-sheet__wa-card .material-symbols-outlined:last-child {
+  color: #25d366;
+}
+
+@media (max-width: 380px) {
+  .feedback-sheet {
+    gap: 10px;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .feedback-sheet__brand h2 {
+    font-size: 15px;
+  }
+
+  .feedback-sheet__textarea {
+    min-height: 96px;
+  }
+}
+
+@media (min-width: 768px) {
+  .hs-modal-backdrop:has(.login-feedback-sheet) {
+    align-items: center;
+    padding-top: 16px;
+  }
+
+  .hs-modal.login-feedback-sheet {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+}

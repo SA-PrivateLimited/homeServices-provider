@@ -1,0 +1,61 @@
+.settings-account {
+  max-width: 560px;
+}
+
+.settings-account-card {
+  padding: 18px 20px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-account-card h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--textSecondary);
+}
+
+.settings-account-card p {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.settings-account-card .hs-btn {
+  margin-top: 8px;
+}
+
+.settings-account-logout {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-account-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  border: 1.5px solid color-mix(in srgb, var(--error) 40%, var(--border));
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--error);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) {
+  .settings-account-logout-btn:hover {
+    background: color-mix(in srgb, var(--error) 6%, white);
+  }
+}
