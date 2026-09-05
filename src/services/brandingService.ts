@@ -6,9 +6,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {API_BASE_URL} from '../config/api';
 import {apiGet} from './api/apiClient';
 import {applyColorPalette, type ColorPalette} from '../utils/theme';
+import {reapplyCurrentPartnerColorTheme} from '../utils/partnerColorTheme';
 
 const CACHE_KEY = '@hs_provider_branding_themeColors';
-const DEFAULT_BRAND_NAME = 'HomeServices Provider';
+const DEFAULT_BRAND_NAME = 'Akanso Partner';
+const LEGACY_BRAND_RE = /homeservice/i;
+
+function sanitizeBrandName(raw: string): string {
+  const name = raw.trim();
+  if (!name || LEGACY_BRAND_RE.test(name)) {
+    return DEFAULT_BRAND_NAME;
+  }
+  return name;
+}
 
 export interface BrandingResponse {
   clientId: string;
@@ -42,7 +52,7 @@ function notifyListeners(): void {
 }
 
 function setBrandingState(nextName: string, nextLogo: string): void {
-  const name = nextName.trim() || DEFAULT_BRAND_NAME;
+  const name = sanitizeBrandName(nextName);
   const logo = nextLogo.trim();
   if (name === brandName && logo === logoUrl) return;
   brandName = name;
@@ -60,10 +70,10 @@ export function resolveLogoUrl(rawLogoUrl?: string): string {
 }
 
 function productNameFrom(data: BrandingResponse): string {
-  return (
+  return sanitizeBrandName(
     (data.providerProductName || '').trim() ||
-    (data.clientName || '').trim() ||
-    DEFAULT_BRAND_NAME
+      (data.clientName || '').trim() ||
+      DEFAULT_BRAND_NAME,
   );
 }
 
@@ -119,6 +129,7 @@ export async function loadAndApplyBranding(): Promise<void> {
   const cached = await readCache();
   if (cached) {
     applyColorPalette(cached.themeColors);
+    reapplyCurrentPartnerColorTheme();
     setBrandingState(cached.brandName, cached.logoUrl);
   }
 
@@ -132,6 +143,7 @@ export async function loadAndApplyBranding(): Promise<void> {
 
     if (data.themeColors) {
       applyColorPalette(data.themeColors);
+      reapplyCurrentPartnerColorTheme();
     }
 
     setBrandingState(nextName, nextLogo);

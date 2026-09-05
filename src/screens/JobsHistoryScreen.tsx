@@ -1,378 +1,295 @@
 /**
- * Jobs History Screen
- * Provider app - View completed job cards
- * Replaces DoctorConsultationsScreen
+ * Job history — mapped from partner-web HistoryPage + HistoryPage.css.
  */
 
-import React, {useState, useEffect} from 'react';
+import React, {useCallback, useState} from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
+  FlatList,
   RefreshControl,
-  Linking,
-  Alert,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import {useFocusEffect} from '@react-navigation/native';
+import {Button, Chip, Chips, EmptyState, Icon} from 'sapvt-ltd-app-packages';
+import useTranslation from '../hooks/useTranslation';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
-import {getUserId} from '../services/session';
-import {fetchJobCardsByProvider, JobCard} from '../services/jobCardService';
-import useTranslation from '../hooks/useTranslation';
-import EmptyState from '../components/EmptyState';
 import {
-  formatJobStatusDate,
-  getJobStatusColor,
-  getJobStatusTitle,
-  normalizeJobStatusKey,
-} from '../utils/jobStatus';
+  getMyJobCards,
+  type ProviderJobCard,
+} from '../services/api/jobsApi';
+import {formatJobStatusDate, normalizeJobStatusKey} from '../utils/jobStatus';
+import {jobCustomerDisplayName} from '../utils/partnerDisplayName';
+import {historyFromWeb as s} from '../fromWebCss/historyFromWeb.styles';
+import {CrystalSurface} from '../components/CrystalSurface';
+
+const PAGE_SIZE = 50;
+const FILTERS = ['completed', 'cancelled'] as const;
+
+function jobId(job: ProviderJobCard): string {
+  return String(job._id || job.id || '');
+}
+
+function matchesHistoryFilter(
+  job: ProviderJobCard,
+  filter: (typeof FILTERS)[number],
+): boolean {
+  const key = normalizeJobStatusKey(job.status);
+  if (filter === 'completed') return key === 'completed';
+  return key === 'cancelled' || key === 'rejected';
+}
+
+function sortByUpdatedDesc(a: ProviderJobCard, b: ProviderJobCard): number {
+  const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+  const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+  return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
+}
+
+function openJobDetails(navigation: any, id: string) {
+  if (!id) return;
+  let nav = navigation;
+  while (nav?.getParent?.()) {
+    const parent = nav.getParent();
+    if (!parent) break;
+    nav = parent;
+  }
+  nav.navigate('JobDetails', {jobCardId: id});
+}
+
+/**
+ * Prefer status query (web parity); fall back to full list + client filter
+ * — same source Active tab uses when the filtered call fails.
+ */
+async function fetchHistoryRows(
+  filter: (typeof FILTERS)[number],
+): Promise<ProviderJobCard[]> {
+  try {
+    const filtered = await getMyJobCards({
+      status: filter,
+      limit: PAGE_SIZE,
+      offset: 0,
+    });
+    if (Array.isArray(filtered)) {
+      return filtered;
+    }
+  } catch (err) {
+    console.warn('[JobsHistory] status filter fetch failed, falling back', err);
+  }
+
+  const all = await getMyJobCards({limit: 100, offset: 0});
+  const list = Array.isArray(all) ? all : [];
+  return list
+    .filter(job => matchesHistoryFilter(job, filter))
+    .sort(sortByUpdatedDesc)
+    .slice(0, PAGE_SIZE);
+}
 
 export default function JobsHistoryScreen({navigation}: any) {
   const {t} = useTranslation();
-  const {isDarkMode, currentUser} = useStore();
+  const {isDarkMode, colorTheme} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const userId = getUserId(currentUser);
-
-  const [jobCards, setJobCards] = useState<JobCard[]>([]);
+  const primary = theme.primary;
+  const success = theme.success;
+  const errorColor = theme.error;
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>('completed');
+  const [rows, setRows] = useState<ProviderJobCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    if (userId) {
-      loadJobCards();
-    }
-  }, [userId]);
+  const load = useCallback(
+    async (nextFilter: (typeof FILTERS)[number], silent?: boolean) => {
+      if (!silent) setLoading(true);
+      setError(false);
+      try {
+        const batch = await fetchHistoryRows(nextFilter);
+        setRows(batch);
+      } catch (err) {
+        console.warn('[JobsHistory] load failed', err);
+        setRows([]);
+        setError(true);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [],
+  );
 
-  const loadJobCards = async () => {
-    if (!userId) return;
+  useFocusEffect(
+    useCallback(() => {
+      void load(filter);
+    }, [filter, load]),
+  );
 
-    try {
-      setLoading(true);
-      const jobs = await fetchJobCardsByProvider(userId);
-      // Filter only completed and cancelled jobs
-      const historyJobs = jobs.filter(
-        job => job.status === 'completed' || job.status === 'cancelled'
-      );
-      setJobCards(historyJobs);
-    } catch (error) {
-      console.error('Error loading job history:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadJobCards();
-  };
-
-  const formatDate = (date: Date | any) => {
-    if (!date) return 'N/A';
-    const d = date instanceof Date ? date : date.toDate?.() ? date.toDate() : new Date(date);
-    return d.toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
-  const statusDateLabel = (item: JobCard) => {
-    const key = normalizeJobStatusKey(item.status);
-    const formatted = formatDate(item.updatedAt || item.createdAt);
-    if (formatted === 'N/A') return '';
-    if (key === 'cancelled') {
-      return t('jobs.cancelledOn', {date: formatted}) || `Cancelled on ${formatted}`;
-    }
-    if (key === 'completed') {
-      return t('jobs.completedOn', {date: formatted}) || `Completed on ${formatted}`;
-    }
-    return formatJobStatusDate(item.status, item.updatedAt || item.createdAt);
-  };
-
-  const handleCallCustomer = (phoneNumber?: string) => {
-    if (!phoneNumber) {
-      Alert.alert(t('common.error'), t('jobs.customerPhoneNotAvailable'));
-      return;
-    }
-
-    const phone = phoneNumber.replace(/[^\d+]/g, ''); // Remove non-digit characters except +
-    const phoneUrl = `tel:${phone}`;
-
-    Linking.canOpenURL(phoneUrl)
-      .then(supported => {
-        if (supported) {
-          return Linking.openURL(phoneUrl);
-        } else {
-          Alert.alert(t('common.error'), t('jobs.unableToMakeCall'));
-        }
-      })
-      .catch(err => {
-        console.error('Error opening phone dialer:', err);
-        Alert.alert(t('common.error'), t('jobs.failedToOpenDialer'));
-      });
-  };
-
-  const renderJobCard = ({item}: {item: JobCard}) => {
-    const statusColor = getJobStatusColor(item.status);
-    const dateLine = statusDateLabel(item);
-    return (
-    <TouchableOpacity
-      style={[styles.jobCard, {backgroundColor: theme.card}]}
-      activeOpacity={0.85}
-      accessibilityRole="button"
-      accessibilityLabel={`${item.customerName || 'Customer'}, ${item.serviceType || 'Job'}, ${getJobStatusTitle(item.status)}. ${t('jobs.viewJobDetails')}`}
-      onPress={() => {
-        navigation.navigate('JobDetails', {jobCardId: item.id});
-      }}>
-      <View style={styles.jobCardHeader}>
-        <View style={styles.customerInfo}>
-          <View style={styles.customerAvatar}>
-            <Text style={styles.customerInitial}>
-              {item.customerName?.charAt(0).toUpperCase() || 'C'}
-            </Text>
-          </View>
-          <View style={styles.customerDetails}>
-            <Text style={[styles.customerName, {color: theme.text}]}>
-              {item.customerName || t('jobs.customerName')}
-            </Text>
-            <Text style={[styles.serviceType, {color: theme.textSecondary}]}>
-              {item.serviceType}
-            </Text>
-            {item.customerPhone && (
-              <View style={styles.customerPhoneRow}>
-                <Text style={[styles.customerPhone, {color: theme.textSecondary}]}>
-                  {item.customerPhone}
-                </Text>
-                <TouchableOpacity
-                  style={[styles.callButton, {backgroundColor: theme.primary}]}
-                  accessibilityRole="button"
-                  accessibilityLabel={String(t('jobs.callCustomer'))}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleCallCustomer(item.customerPhone);
-                  }}>
-                  <Icon name="phone" size={14} color="#fff" />
-                  <Text style={styles.callButtonText}>{t('jobs.callCustomer')}</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </View>
-        <View style={styles.statusColumn}>
-          <View
-            style={[
-              styles.statusBadge,
-              {backgroundColor: statusColor + '20'},
-            ]}>
-            <Text style={[styles.statusText, {color: statusColor}]}>
-              {item.status === 'completed'
-                ? t('jobCards.completed')
-                : t('jobCards.cancelled')}
-            </Text>
-          </View>
-          <Icon name="chevron-right" size={22} color={theme.textSecondary} />
-        </View>
-      </View>
-
-      {item.problem && (
-        <Text style={[styles.problemText, {color: theme.text}]} numberOfLines={2}>
-          {item.problem}
-        </Text>
-      )}
-
-      {item.customerAddress && (
-        <View style={styles.addressRow}>
-          <Icon name="location-on" size={16} color={theme.textSecondary} />
-          <Text
-            style={[styles.addressText, {color: theme.textSecondary}]}
-            numberOfLines={2}>
-            {item.customerAddress.address}
-            {item.customerAddress.pincode && `, ${item.customerAddress.pincode}`}
-          </Text>
-        </View>
-      )}
-
-      {dateLine ? (
-        <View style={styles.dateRow}>
-          <Icon name="calendar-today" size={16} color={theme.textSecondary} />
-          <Text style={[styles.dateText, {color: theme.textSecondary}]}>
-            {dateLine}
-          </Text>
-        </View>
-      ) : null}
-    </TouchableOpacity>
-    );
-  };
-
-  if (loading && !refreshing) {
-    return (
-      <View style={[styles.container, styles.loaderContainer, {backgroundColor: theme.background}]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={[styles.loadingText, {color: theme.textSecondary, marginTop: 16}]}>
-          {t('jobs.loadingJobHistory')}
-        </Text>
-      </View>
-    );
-  }
+  const emptyTitle = error
+    ? String(t('history.loadFailedTitle'))
+    : filter === 'cancelled'
+      ? String(t('history.emptyCancelledTitle'))
+      : String(t('history.emptyCompletedTitle'));
+  const emptyMessage = error
+    ? String(t('history.loadFailedMessage'))
+    : filter === 'cancelled'
+      ? String(t('history.emptyCancelledMessage'))
+      : String(t('history.emptyCompletedMessage'));
 
   return (
-    <View style={[styles.container, {backgroundColor: theme.background}]}>
-      <Text style={[styles.pageSub, {color: theme.textSecondary}]}>
-        {t('jobs.pastJobsDescription')}
+    <View style={[s.page, {backgroundColor: theme.background}]}>
+      <Text style={[s.pageSub, {color: theme.textSecondary}]}>
+        {String(t('history.pageSub'))}
       </Text>
-      {jobCards.length === 0 ? (
-        <EmptyState
-          icon="calendar-outline"
-          title={String(t('jobs.noJobHistory'))}
-          message={String(t('jobs.completedJobsWillAppearHere'))}
-        />
+      <Chips wrap={false} style={s.filters}>
+        {FILTERS.map(key => {
+          const active = filter === key;
+          const label =
+            key === 'completed'
+              ? String(t('status.filter.completed'))
+              : String(t('history.cancelledChip'));
+          return (
+            <Chip
+              key={key}
+              selected={active}
+              variant="default"
+              style={
+                active
+                  ? [s.chipOn, {backgroundColor: primary, borderColor: primary}]
+                  : [
+                      s.chipOff,
+                      {
+                        backgroundColor: theme.card,
+                        borderColor: theme.border,
+                      },
+                    ]
+              }
+              label={
+                <Text style={active ? s.chipOnText : [s.chipOffText, {color: theme.text}]}>
+                  {label}
+                </Text>
+              }
+              onPress={() => setFilter(key)}
+            />
+          );
+        })}
+      </Chips>
+
+      {loading && rows.length === 0 ? (
+        <View style={s.center}>
+          <ActivityIndicator color={primary} />
+          <Text style={[s.muted, {color: theme.textSecondary}]}>
+            {String(t('history.loading'))}
+          </Text>
+        </View>
       ) : (
         <FlatList
-          data={jobCards}
-          renderItem={renderJobCard}
-          keyExtractor={item => item.id || ''}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          style={{flex: 1}}
+          data={rows}
+          extraData={`${colorTheme}-${primary}-${success}-${isDarkMode}-${error}`}
+          keyExtractor={(item, index) => jobId(item) || `row-${index}`}
+          contentContainerStyle={
+            rows.length === 0 ? {flexGrow: 1} : s.list
           }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                void load(filter, true);
+              }}
+              tintColor={primary}
+            />
+          }
+          ListEmptyComponent={
+            <View style={{paddingHorizontal: 16, paddingTop: 24}}>
+              <EmptyState
+                iconGlyph="📋"
+                title={emptyTitle}
+                message={emptyMessage}
+                colors={{
+                  text: theme.text,
+                  textSecondary: theme.textSecondary,
+                  primary,
+                }}
+              />
+              {error ? (
+                <Button
+                  variant="secondary"
+                  block
+                  title={String(t('actions.tryAgain') || 'Try again')}
+                  onPress={() => void load(filter)}
+                  style={{marginTop: 16}}
+                />
+              ) : null}
+            </View>
+          }
+          renderItem={({item}) => {
+            const id = jobId(item);
+            const status = String(item.status || '');
+            const statusKey = normalizeJobStatusKey(status);
+            const dateLine = formatJobStatusDate(
+              status,
+              item.updatedAt || item.createdAt,
+            );
+            const customerName = jobCustomerDisplayName(
+              item.customerName,
+              String(t('jobs.unnamedCustomer')),
+            );
+            const serviceType = item.serviceType || String(t('jobs.service'));
+            const cancelReason = String(item.cancellationReason || '').trim();
+            const cancelled =
+              statusKey === 'cancelled' || statusKey === 'rejected';
+
+            return (
+              <TouchableOpacity
+                onPress={() => openJobDetails(navigation, id)}
+                accessibilityLabel={String(t('jobs.viewJobDetails'))}
+                accessibilityRole="button"
+                activeOpacity={0.88}>
+                <CrystalSurface
+                  primary={primary}
+                  card={theme.card}
+                  isDark={isDarkMode}
+                  statusColor={cancelled ? errorColor : success}
+                  style={[
+                    s.card,
+                    cancelled
+                      ? {borderLeftWidth: 4, borderLeftColor: errorColor}
+                      : {borderLeftWidth: 4, borderLeftColor: success},
+                  ]}
+                  contentStyle={s.row}>
+                  <View style={s.main}>
+                    <Text style={[s.title, {color: theme.text}]}>
+                      {serviceType}
+                    </Text>
+                    <Text style={[s.customer, {color: theme.textSecondary}]}>
+                      {customerName}
+                    </Text>
+                    {cancelled && cancelReason ? (
+                      <Text style={[s.reason, {color: errorColor}]}>
+                        {String(
+                          t('jobDetail.reason', {reason: cancelReason}),
+                        )}
+                      </Text>
+                    ) : null}
+                    {dateLine ? (
+                      <Text style={[s.meta, {color: theme.textSecondary}]}>
+                        {dateLine}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Icon
+                    name="chevron_right"
+                    size={22}
+                    color={theme.textSecondary}
+                    style={s.chevron}
+                  />
+                </CrystalSurface>
+              </TouchableOpacity>
+            );
+          }}
         />
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loaderContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    marginTop: 16,
-  },
-  listContent: {
-    padding: 16,
-    paddingTop: 8,
-  },
-  pageSub: {
-    fontSize: 14,
-    lineHeight: 20,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  jobCard: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.22,
-    shadowRadius: 2.22,
-  },
-  jobCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  customerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 12,
-  },
-  customerAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#007AFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  customerInitial: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  customerDetails: {
-    flex: 1,
-  },
-  customerName: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  serviceType: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  customerPhoneRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    gap: 8,
-  },
-  customerPhone: {
-    fontSize: 12,
-    flex: 1,
-  },
-  callButton: {
-    minHeight: 32,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  callButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statusColumn: {
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  problemText: {
-    fontSize: 14,
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  addressRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-    gap: 8,
-  },
-  addressText: {
-    flex: 1,
-    fontSize: 14,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dateText: {
-    fontSize: 14,
-  },
-});
-

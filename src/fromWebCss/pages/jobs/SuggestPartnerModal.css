@@ -1,0 +1,169 @@
+.suggest-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggest-lead {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--textSecondary);
+}
+
+.suggest-manual {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.suggest-phone-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.suggest-geo-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.suggest-pick-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.suggest-pick-link:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.suggest-char {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--textSecondary);
+  text-align: right;
+}
+
+.suggest-privacy-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--textSecondary);
+}
+
+.suggest-privacy-note a {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.suggest-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 12px 8px;
+  color: var(--success);
+}
+
+.suggest-success p {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.suggest-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+
+.suggest-actions .hs-btn {
+  width: 100%;
+}
+
+.suggest-dialog.hs-modal {
+  max-width: 560px;
+  max-height: min(86dvh, 680px);
+}
+
+.suggest-dialog textarea.hs-input,
+.suggest-sheet textarea.hs-input {
+  min-height: 48px;
+}
+
+.suggest-dialog .hs-dialog__header,
+.suggest-sheet .hs-drawer__header {
+  padding-bottom: 8px;
+}
+
+.suggest-dialog .hs-dialog__body,
+.suggest-sheet .hs-drawer__body {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.suggest-sheet.hs-drawer,
+.suggest-dialog.hs-modal {
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--card) 97%, var(--primary)),
+    color-mix(in srgb, var(--card) 92%, var(--primary))
+  ) !important;
+}
+
+.suggest-sheet .hs-drawer__footer,
+.suggest-dialog .hs-dialog__footer {
+  display: block;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: color-mix(in srgb, var(--card) 96%, var(--primary));
+}
+
+@media (max-width: 860px) {
+  .suggest-form {
+    gap: 8px;
+  }
+
+  .suggest-geo-row {
+    grid-template-columns: 1fr;
+  }
+
+  /* Keep selects aligned with Phone/Name inputs */
+  .suggest-sheet .hs-dd__trigger,
+  .suggest-dialog .hs-dd__trigger,
+  .suggest-sheet .hs-input,
+  .suggest-dialog .hs-input,
+  .suggest-sheet .hs-phone__input,
+  .suggest-dialog .hs-phone__input {
+    height: var(--hs-control-h, 36px);
+    min-height: var(--hs-control-h, 36px);
+    font-size: 16px;
+  }
+
+  .suggest-sheet textarea.hs-input,
+  .suggest-dialog textarea.hs-input {
+    height: auto;
+    min-height: 48px;
+  }
+}

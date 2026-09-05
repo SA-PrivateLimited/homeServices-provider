@@ -27,7 +27,7 @@ const ProviderHelpSupportModal: React.FC<ProviderHelpSupportModalProps> = ({
 
   const handleSendEmail = async () => {
     try {
-      const subject = 'HomeServices Provider Support Request';
+      const subject = 'Akanso Partner Support Request';
       const mailtoUrl = `mailto:${supportEmail}?subject=${encodeURIComponent(subject)}`;
 
       const canOpen = await Linking.canOpenURL(mailtoUrl);

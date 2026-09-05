@@ -64,5 +64,13 @@
   "distanceLabel": "दूरी:",
   "customerPhotos": "ग्राहक की तस्वीरें",
   "newServiceRequest": "नया सेवा अनुरोध",
-  "swipeHint": "स्वीकार करने के लिए दाईं ओर स्वाइप करें • अस्वीकार करने के लिए बाईं ओर"
+  "swipeHint": "स्वीकार करने के लिए दाईं ओर स्वाइप करें • अस्वीकार करने के लिए बाईं ओर",
+  "receiveRequestsOnTitle": "ग्राहक आपसे काम मांग सकते हैं",
+  "receiveRequestsOffTitle": "ग्राहक आपसे काम नहीं मांग सकते",
+  "receiveRequestsOnSub": "लोग ऐप से आपको काम भेज सकते हैं।",
+  "receiveRequestsOffSub": "आपका नाम दिख सकता है। अनुरोध तब तक छिपा रहता है जब तक आप लेना शुरू न करें।",
+  "receiveRequestsStart": "अनुरोध लेना शुरू करें",
+  "receiveRequestsStop": "अनुरोध लेना बंद करें",
+  "receiveRequestsNowOn": "अब ग्राहक आपको अनुरोध भेज सकते हैं।",
+  "receiveRequestsNowOff": "ग्राहकों को आप पर Request नहीं दिखेगा।"
 }

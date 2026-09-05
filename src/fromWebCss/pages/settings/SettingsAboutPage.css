@@ -1,0 +1,40 @@
+.settings-about {
+  max-width: 560px;
+}
+
+.settings-about-card {
+  padding: 18px 20px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.settings-about-card h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--textSecondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.settings-about-links {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.settings-about-copy {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.settings-about-update {
+  margin-top: 12px;
+}
+
+.settings-about-update-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+}

@@ -1,0 +1,166 @@
+.settings-page {
+  max-width: 640px;
+  padding-bottom: 8px;
+}
+
+.settings-page-head p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--textSecondary);
+}
+
+.settings-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: inherit;
+  min-height: 68px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .settings-row:hover {
+    background: color-mix(in srgb, var(--text) 2.5%, var(--card));
+  }
+}
+
+.settings-row:active {
+  background: color-mix(in srgb, var(--text) 4%, var(--card));
+}
+
+.settings-row-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--text) 6%, var(--card));
+  color: var(--textSecondary);
+}
+
+.settings-row-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-row-copy strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.settings-row-copy span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--textSecondary);
+}
+
+.settings-row-chevron {
+  flex-shrink: 0;
+  color: var(--textSecondary);
+}
+
+.settings-other {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-other .notifications-settings {
+  margin: 0;
+}
+
+.settings-other-title {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--textSecondary);
+}
+
+.settings-logout-wrap {
+  margin-top: 20px;
+  padding-top: 16px;
+  padding-bottom: 28px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-update-app {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 48px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-update-app strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.settings-update-app span {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--textSecondary);
+}
+
+.settings-logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  border: 1.5px solid color-mix(in srgb, var(--error) 40%, var(--border));
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--error);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) {
+  .settings-logout:hover {
+    background: color-mix(in srgb, var(--error) 6%, white);
+  }
+}

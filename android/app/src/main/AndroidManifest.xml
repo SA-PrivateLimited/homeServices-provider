@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
@@ -39,10 +40,10 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="false"
       android:networkSecurityConfig="@xml/network_security_config">
-      <!-- Google AdMob App ID (replace with your App ID for production) -->
       <meta-data
-        android:name="com.google.android.gms.ads.APPLICATION_ID"
-        android:value="ca-app-pub-3940256099942544~3347511713"/>
+        android:name="com.google.firebase.messaging.default_notification_channel_id"
+        android:value="service_requests"
+        tools:replace="android:value" />
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"
@@ -70,13 +71,7 @@
         </intent-filter>
       </receiver>
 
-      <service
-        android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationListenerService"
-        android:exported="false">
-        <intent-filter>
-          <action android:name="com.google.firebase.MESSAGING_EVENT" />
-        </intent-filter>
-      </service>
+      <!-- FCM is handled by @react-native-firebase/messaging. -->
 
       <!-- Hooter Foreground Service for job alerts -->
       <service

@@ -1,0 +1,337 @@
+.my-services {
+  max-width: 720px;
+}
+
+.my-services-info {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 4px 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+  background: color-mix(in srgb, var(--warning) 12%, var(--card));
+}
+
+.my-services-info strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.my-services-info p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--textSecondary);
+}
+
+.my-services-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.my-services-card {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.my-services-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.my-services-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  color: var(--primaryDark);
+  background: color-mix(in srgb, var(--primary) 14%, var(--card));
+}
+
+.my-services-icon .hs-icon,
+.my-services-icon .material-symbols-outlined {
+  max-width: 1.15em;
+  overflow: hidden;
+}
+
+.my-services-card-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.my-services-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.my-services-card-head strong,
+.my-services-title-row strong {
+  font-size: 17px;
+}
+
+.my-services-primary {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--primary) 14%, var(--card));
+  color: var(--primaryDark);
+}
+
+.my-services-verify {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--textSecondary);
+}
+
+.my-services-verify.is-approved {
+  color: var(--primaryDark);
+}
+
+.my-services-verify.is-rejected {
+  color: #b42318;
+}
+
+.my-services-verify.is-required {
+  color: #b54708;
+}
+
+.my-services-card-cta {
+  display: block;
+  margin-top: 12px;
+  text-decoration: none;
+}
+
+.my-services-status-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--textSecondary);
+}
+
+.my-services-badge {
+  margin: 10px 0 0 52px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--textSecondary);
+}
+
+.my-services-badge.is-active {
+  color: var(--primaryDark);
+}
+
+.my-services-toggle {
+  width: 52px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  padding: 3px;
+  flex-shrink: 0;
+  background: #cbd5e0;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.my-services-toggle.is-on {
+  background: var(--primary);
+}
+
+.my-services-toggle.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.my-services-toggle-knob {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s ease;
+}
+
+.my-services-toggle.is-on .my-services-toggle-knob {
+  transform: translateX(22px);
+}
+
+.my-services-add {
+  margin-top: 16px;
+}
+
+.my-services-edit-link {
+  display: block;
+  margin-top: 12px;
+  text-decoration: none;
+}
+
+.my-services-empty {
+  text-align: center;
+  padding: 28px 18px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.my-services-empty h3 {
+  margin: 12px 0 0;
+  font-size: 18px;
+}
+
+.my-services-empty p {
+  margin: 8px 0 18px;
+  color: var(--textSecondary);
+  line-height: 1.45;
+}
+
+.my-services-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.my-services-skel-card {
+  height: 118px;
+  border-radius: 14px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--border) 65%, var(--card)) 0%,
+    color-mix(in srgb, var(--border) 35%, var(--card)) 50%,
+    color-mix(in srgb, var(--border) 65%, var(--card)) 100%
+  );
+  background-size: 200% 100%;
+  animation: my-services-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes my-services-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.my-services-add-lead {
+  margin: 0 0 12px;
+  color: var(--textSecondary);
+  line-height: 1.45;
+}
+
+.my-services-catalog-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.my-services-catalog-search-icon {
+  flex-shrink: 0;
+  color: var(--textSecondary);
+}
+
+.my-services-catalog-search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.my-services-catalog-search-input::placeholder {
+  color: var(--textSecondary);
+}
+
+.my-services-catalog-search-clear {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+  color: var(--textSecondary);
+  cursor: pointer;
+}
+
+.my-services-catalog {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(60vh, 420px);
+  overflow: auto;
+}
+
+.my-services-catalog-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.my-services-catalog-row:disabled {
+  cursor: default;
+}
+
+.my-services-catalog-row.is-added {
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+}
+
+.my-services-catalog-name {
+  flex: 1;
+  font-weight: 650;
+}
+
+.my-services-catalog-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--textSecondary);
+}
+
+@media (min-width: 861px) {
+  .my-services-badge {
+    margin-left: 52px;
+  }
+}

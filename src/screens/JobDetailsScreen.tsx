@@ -1,66 +1,148 @@
 /**
- * Job Details Screen
- * Provider app - View and manage job card details
- * Replaces DoctorConsultationDetailScreen
+ * Job details — mapped from partner-web JobDetailPage + JobDetailPage.css.
  */
 
-import React, {useState, useEffect} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
+  Image,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import {Button, toast} from 'sapvt-ltd-app-packages';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
-import {getJobCardById, updateJobCardStatus, verifyPINAndCompleteTask, cancelTaskWithReason, subscribeToJobCardStatus, JobCard} from '../services/jobCardService';
+import {
+  getJobCardById,
+  updateJobCardStatus,
+  verifyPINAndCompleteTask,
+  cancelTaskWithReason,
+  subscribeToJobCardStatus,
+  type JobCard,
+} from '../services/jobCardService';
 import {getServiceCategoryByName} from '../services/api/serviceCategoriesApi';
 import PINVerificationModal from '../components/PINVerificationModal';
 import CancelTaskModal from '../components/CancelTaskModal';
+import StartTaskModal from '../components/StartTaskModal';
+import AlertModal from '../components/AlertModal';
+import JobCardComments from '../components/JobCardComments';
+import {JobHelpSection} from '../components/JobHelpSection';
+import RequestPhotoGallery from '../components/RequestPhotoGallery';
+import {jobCardsApi} from '../services/api/jobCardsApi';
+import {serviceRequestsApi} from '../services/api/serviceRequestsApi';
+import useTranslation from '../hooks/useTranslation';
+import {
+  formatJobStatusDate,
+  normalizeJobStatusKey,
+} from '../utils/jobStatus';
+import {jobCustomerDisplayName} from '../utils/partnerDisplayName';
+import {
+  formatFullAddressLine,
+  hasAnyAddress,
+} from '../utils/addressDisplay';
+import {formatJobRequirements} from '../utils/formatJobRequirements';
+import type {QuestionnaireItem} from '../services/api/serviceCategoriesApi';
+import {canCallCustomerOnJob} from '../utils/customerContact';
+import {getUserFacingErrorMessage} from '../utils/userFacingError';
+import {serviceCategoryIcon} from '../utils/serviceIcons';
+import type {RequestPhotoInput} from '../utils/requestPhotos';
 import {
   openCall,
   openWhatsApp,
   openNavigate,
 } from '../services/contactActions';
 import {speakNavigateToCustomer} from '../services/voicePromptService';
-import StartTaskModal from '../components/StartTaskModal';
-import AlertModal from '../components/AlertModal';
-import {Button, toast} from 'sapvt-ltd-app-packages';
-import JobCardComments from '../components/JobCardComments';
-import {jobCardsApi} from '../services/api/jobCardsApi';
-import useTranslation from '../hooks/useTranslation';
-import {
-  formatJobStatusDate,
-  getJobStatusColor,
-  normalizeJobStatusKey,
-} from '../utils/jobStatus';
-import {serviceRequestsApi} from '../services/api/serviceRequestsApi';
-import RequestPhotoGallery from '../components/RequestPhotoGallery';
-import {getUserFacingErrorMessage} from '../utils/userFacingError';
-import type {RequestPhotoInput} from '../utils/requestPhotos';
+import {jobDetailFromWeb as s} from '../fromWebCss/jobDetailFromWeb.styles';
+
+function statusLabelKey(status: string): string {
+  switch (normalizeJobStatusKey(status)) {
+    case 'pending':
+      return 'status.pending';
+    case 'accepted':
+      return 'status.accepted';
+    case 'in-progress':
+      return 'status.inProgress';
+    case 'completed':
+      return 'status.completed';
+    case 'cancelled':
+      return 'status.cancelled';
+    case 'rejected':
+      return 'status.rejected';
+    case 'expired':
+      return 'status.expired';
+    default:
+      return 'status.unknown';
+  }
+}
+
+function statusExplainKey(status: string): string {
+  switch (normalizeJobStatusKey(status)) {
+    case 'pending':
+      return 'status.explain.pending';
+    case 'accepted':
+      return 'status.explain.accepted';
+    case 'in-progress':
+      return 'status.explain.inProgress';
+    case 'completed':
+      return 'status.explain.completed';
+    case 'cancelled':
+      return 'status.explain.customerCancelled';
+    default:
+      return '';
+  }
+}
+
+function statusHeroIcon(statusKey: string): string {
+  switch (statusKey) {
+    case 'pending':
+      return 'schedule';
+    case 'accepted':
+      return 'check-circle';
+    case 'in-progress':
+      return 'build';
+    case 'completed':
+      return 'task-alt';
+    case 'cancelled':
+    case 'rejected':
+      return 'cancel';
+    default:
+      return 'info';
+  }
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
 
 export default function JobDetailsScreen({navigation, route}: any) {
   const {jobCardId} = route.params;
-  const {isDarkMode} = useStore();
+  const {isDarkMode, colorTheme} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
+  const tx = (key: string, opts?: any) => String(t(key, opts));
+  void colorTheme;
 
   const [jobCard, setJobCard] = useState<JobCard | null>(null);
-  const [requestPhotos, setRequestPhotos] = useState<RequestPhotoInput[] | null>(
-    null,
-  );
+  const [requestContact, setRequestContact] = useState<{
+    canCallCustomer?: boolean;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [showPINModal, setShowPINModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
-  const [questionnaireQuestions, setQuestionnaireQuestions] = useState<Record<string, string>>({});
+  const [questionnaire, setQuestionnaire] = useState<QuestionnaireItem[]>([]);
   const [timeStarted, setTimeStarted] = useState<Date | undefined>(undefined);
-
-  // Alert modal state
+  const [requestPhotos, setRequestPhotos] = useState<RequestPhotoInput[] | null>(
+    null,
+  );
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{
     title: string;
@@ -68,28 +150,19 @@ export default function JobDetailsScreen({navigation, route}: any) {
     type: 'success' | 'error' | 'info' | 'warning';
   }>({title: '', message: '', type: 'info'});
 
-  const showAlert = (title: string, message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+  const showAlert = (
+    title: string,
+    message: string,
+    type: 'success' | 'error' | 'info' | 'warning' = 'info',
+  ) => {
     setAlertConfig({title, message, type});
     setAlertVisible(true);
   };
 
-  useEffect(() => {
-    loadJobCard();
-    
-    // Subscribe to real-time status updates
-    const unsubscribe = subscribeToJobCardStatus(
-      jobCardId,
-      (status, updatedAt) => {
-        setJobCard(prev => prev ? {...prev, status} : null);
-      }
-    );
-    
-    return () => unsubscribe();
-  }, [jobCardId]);
-
-  const loadJobCard = async () => {
+  const loadJobCard = async (opts?: {silent?: boolean}) => {
     try {
-      setLoading(true);
+      if (opts?.silent) setRefreshing(true);
+      else setLoading(true);
       const job = await getJobCardById(jobCardId);
       setJobCard(job);
 
@@ -98,6 +171,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
         try {
           const request = await serviceRequestsApi.getById(requestId);
           setRequestPhotos(request?.photos || null);
+          setRequestContact((request as any)?.contact || null);
         } catch {
           setRequestPhotos(null);
         }
@@ -105,58 +179,44 @@ export default function JobDetailsScreen({navigation, route}: any) {
         setRequestPhotos(null);
       }
 
-      // Fetch questionnaire questions if available
-      if (job?.questionnaireAnswers && job?.serviceType) {
-        await loadQuestionnaireQuestions(job.serviceType);
+      if (job?.serviceType) {
+        try {
+          const category = await getServiceCategoryByName(job.serviceType);
+          setQuestionnaire(category?.questionnaire || []);
+        } catch {
+          setQuestionnaire([]);
+        }
       }
     } catch (error) {
       console.error('Error loading job card:', error);
-      showAlert(t('common.error'), t('jobDetails.failedToLoad'), 'error');
+      showAlert(tx('common.error'), tx('jobDetail.loading'), 'error');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const loadQuestionnaireQuestions = async (serviceType: string) => {
-    try {
-      // Fetch service category to get questionnaire questions via API
-      const category = await getServiceCategoryByName(serviceType);
-
-      if (category && category.questionnaire) {
-        // Create a map of questionId -> question text
-        const questionsMap: Record<string, string> = {};
-        category.questionnaire.forEach((q: any) => {
-          if (q.id && q.question) {
-            questionsMap[q.id] = q.question;
-          }
-        });
-
-        setQuestionnaireQuestions(questionsMap);
-      }
-    } catch (error) {
-      console.error('Error loading questionnaire questions:', error);
-      // Continue without questions - not critical
-    }
-  };
+  useEffect(() => {
+    void loadJobCard();
+    const unsubscribe = subscribeToJobCardStatus(jobCardId, status => {
+      setJobCard(prev => (prev ? {...prev, status} : null));
+    });
+    return () => unsubscribe();
+  }, [jobCardId]);
 
   const handleStartTask = async () => {
     if (!jobCard) return;
-
     try {
       setUpdating(true);
       setShowStartModal(false);
-      const startTime = new Date();
-      setTimeStarted(startTime);
+      setTimeStarted(new Date());
       await updateJobCardStatus(jobCardId, 'in-progress');
-      // Reload job card to get updated data (including PIN if generated)
       const updatedJob = await getJobCardById(jobCardId);
-      if (updatedJob) {
-        setJobCard(updatedJob);
-      }
-      toast.success(String(t('jobDetails.serviceStarted')));
+      if (updatedJob) setJobCard(updatedJob);
+      toast.success(tx('jobDetail.startedToast'));
     } catch (error: any) {
       toast.error(
-        getUserFacingErrorMessage(error) || String(t('jobDetails.failedToStart')),
+        getUserFacingErrorMessage(error) || tx('jobDetail.startedToast'),
       );
     } finally {
       setUpdating(false);
@@ -172,48 +232,43 @@ export default function JobDetailsScreen({navigation, route}: any) {
       unitPrice?: number;
       total?: number;
     }>,
-    timeStarted?: Date,
-    timeCompleted?: Date,
+    started?: Date,
+    completed?: Date,
+    completionPhotos?: Array<{key: string; url: string}>,
   ) => {
-    try {
-      await verifyPINAndCompleteTask(jobCardId, pin, amount, materials, timeStarted, timeCompleted);
-      // Reload job card
-      const updatedJob = await getJobCardById(jobCardId);
-      if (updatedJob) {
-        setJobCard(updatedJob);
-      }
-      setShowPINModal(false);
-      setTimeStarted(undefined);
-      toast.success(String(t('jobDetails.taskCompleted')));
-    } catch (error: any) {
-      throw error; // Let the modal handle the error
-    }
+    await verifyPINAndCompleteTask(
+      jobCardId,
+      pin,
+      amount,
+      materials,
+      started,
+      completed,
+      completionPhotos,
+    );
+    const updatedJob = await getJobCardById(jobCardId);
+    if (updatedJob) setJobCard(updatedJob);
+    setShowPINModal(false);
+    setTimeStarted(undefined);
+    toast.success(tx('jobDetail.completedToast'));
   };
 
   const handleCancelTask = async (reason: string) => {
-    try {
-      await cancelTaskWithReason(jobCardId, reason);
-      // Reload job card
-      const updatedJob = await getJobCardById(jobCardId);
-      if (updatedJob) {
-        setJobCard(updatedJob);
-      }
-      setShowCancelModal(false);
-      toast.success(String(t('jobDetails.taskCancelled')));
-    } catch (error: any) {
-      throw error; // Let the modal handle the error
-    }
+    await cancelTaskWithReason(jobCardId, reason);
+    const updatedJob = await getJobCardById(jobCardId);
+    if (updatedJob) setJobCard(updatedJob);
+    setShowCancelModal(false);
+    toast.success(tx('jobDetail.cancelledToast'));
   };
 
   const handleCallCustomer = () => {
     openCall(jobCard?.customerPhone).catch(() => {
-      showAlert(t('common.error'), t('jobDetails.phoneNotAvailable'), 'warning');
+      showAlert(tx('common.error'), tx('jobDetail.addressUnavailable'), 'warning');
     });
   };
 
   const handleWhatsAppCustomer = () => {
     openWhatsApp(jobCard?.customerPhone).catch(() => {
-      showAlert(t('common.error'), t('jobDetails.phoneNotAvailable'), 'warning');
+      showAlert(tx('common.error'), tx('jobDetail.addressUnavailable'), 'warning');
     });
   };
 
@@ -228,50 +283,30 @@ export default function JobDetailsScreen({navigation, route}: any) {
       });
     } catch {
       showAlert(
-        t('common.error'),
-        t('jobDetails.navigateUnavailable') || 'Location not available',
+        tx('common.error'),
+        tx('jobDetail.addressUnavailable'),
         'warning',
       );
     }
   };
 
-  const getStatusColor = (status: string) => getJobStatusColor(status);
-
-  const getStatusTitle = (status: string) => {
-    switch (normalizeJobStatusKey(status)) {
-      case 'pending':
-        return t('jobDetails.statusPending');
-      case 'accepted':
-        return t('jobDetails.statusAccepted');
-      case 'in-progress':
-        return t('jobDetails.statusInProgress');
-      case 'completed':
-        return t('jobDetails.statusCompleted');
-      case 'cancelled':
-        return t('jobDetails.statusCancelled');
-      default:
-        return status;
-    }
-  };
-
-  const formatDate = (date: Date | any) => {
-    if (!date) return 'N/A';
-    const d = date instanceof Date ? date : date.toDate();
-    return d.toLocaleString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const statusKey = normalizeJobStatusKey(jobCard?.status);
+  const requirements = useMemo(
+    () =>
+      formatJobRequirements(
+        jobCard?.questionnaireAnswers,
+        questionnaire,
+        jobCard?.serviceType,
+      ),
+    [jobCard?.questionnaireAnswers, jobCard?.serviceType, questionnaire],
+  );
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.loaderContainer, {backgroundColor: theme.background}]}>
+      <View style={[s.page, s.center, {backgroundColor: theme.background}]}>
         <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={[styles.loadingText, {color: theme.textSecondary, marginTop: 16}]}>
-          {t('jobDetails.loadingJobDetails')}
+        <Text style={[s.loadingText, {color: theme.textSecondary}]}>
+          {tx('jobDetail.loading')}
         </Text>
       </View>
     );
@@ -279,17 +314,57 @@ export default function JobDetailsScreen({navigation, route}: any) {
 
   if (!jobCard) {
     return (
-      <View style={[styles.container, {backgroundColor: theme.background}]}>
-        <Text style={[styles.errorText, {color: theme.text}]}>
-          {t('jobDetails.jobNotFound')}
-        </Text>
+      <View style={[s.page, s.center, {backgroundColor: theme.background}]}>
+        <Text style={{color: theme.text}}>{tx('jobs.emptyTitle')}</Text>
+        <Button
+          variant="ghost"
+          title={tx('jobDetail.backToJobs')}
+          onPress={() => navigation.goBack()}
+        />
       </View>
     );
   }
 
+  const customerName = jobCustomerDisplayName(
+    jobCard.customerName,
+    tx('jobs.unnamedCustomer'),
+  );
+  const photoUrl = String(
+    (jobCard as {customerProfileImage?: string}).customerProfileImage || '',
+  ).trim();
+  const addressLine = formatFullAddressLine(jobCard.customerAddress);
+  const hasAddress = hasAnyAddress(jobCard.customerAddress);
+  const problemText = String(jobCard.problem || '').trim();
+  const dateLine = formatJobStatusDate(
+    jobCard.status,
+    jobCard.updatedAt || jobCard.createdAt,
+  );
+  const canCall = canCallCustomerOnJob({
+    status: jobCard.status,
+    customerPhone: jobCard.customerPhone,
+    contact: requestContact || jobCard.contact || undefined,
+  });
+  const actionable = ['pending', 'accepted', 'in-progress'].includes(statusKey);
+  const showHelp = actionable;
+  const explainKey = statusExplainKey(jobCard.status);
+  const serviceIconName = serviceCategoryIcon(
+    null,
+    jobCard.serviceType,
+  ).replace(/_/g, '-');
+
+  const heroTint =
+    statusKey === 'in-progress'
+      ? theme.secondary
+      : statusKey === 'pending'
+        ? theme.warning
+        : statusKey === 'cancelled' || statusKey === 'rejected'
+          ? theme.error
+          : theme.primary;
+  const heroBg = `${heroTint}12`;
+  const heroBorder = `${heroTint}47`;
+
   return (
     <>
-      {/* Custom Alert Modal */}
       <AlertModal
         visible={alertVisible}
         title={alertConfig.title}
@@ -299,322 +374,305 @@ export default function JobDetailsScreen({navigation, route}: any) {
       />
 
       <ScrollView
-        style={[styles.container, {backgroundColor: theme.background}]}
+        style={[s.page, {backgroundColor: theme.background}]}
+        contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}>
-        {/* Status Card */}
-      <View style={[styles.statusCard, {backgroundColor: theme.card}]}>
-        <View style={styles.statusHeader}>
+        {/* Status hero */}
+        <View
+          style={[
+            s.hero,
+            {
+              backgroundColor: isDarkMode ? theme.card : heroBg,
+              borderColor: heroBorder,
+            },
+          ]}>
+          <View style={[s.heroIcon, {backgroundColor: `${heroTint}24`}]}>
+            <Icon
+              name={statusHeroIcon(statusKey)}
+              size={22}
+              color={heroTint}
+            />
+          </View>
+          <View style={s.heroCopy}>
+            <View style={s.heroTitleRow}>
+              <Text style={[s.heroTitle, {color: theme.text}]}>
+                {tx(statusLabelKey(jobCard.status))}
+              </Text>
+              <TouchableOpacity
+                style={[
+                  s.heroRefresh,
+                  {backgroundColor: `${theme.primary}1A`},
+                ]}
+                disabled={refreshing}
+                onPress={() => void loadJobCard({silent: true})}
+                accessibilityLabel={tx('jobDetail.refreshStatus')}>
+                {refreshing ? (
+                  <ActivityIndicator size="small" color={theme.primary} />
+                ) : (
+                  <Icon name="refresh" size={20} color={theme.primary} />
+                )}
+              </TouchableOpacity>
+            </View>
+            {statusKey === 'pending' && explainKey ? (
+              <Text style={[s.heroMessage, {color: theme.textSecondary}]}>
+                {tx(explainKey)}
+              </Text>
+            ) : null}
+            {dateLine ? (
+              <Text style={[s.heroDate, {color: theme.text}]}>{dateLine}</Text>
+            ) : null}
+            {statusKey === 'cancelled' && jobCard.cancellationReason ? (
+              <Text style={[s.heroReason, {color: theme.textSecondary}]}>
+                {tx('jobDetail.reason', {reason: jobCard.cancellationReason})}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+
+        {/* Customer information */}
+        <View
+          style={[
+            s.card,
+            {backgroundColor: theme.card, borderColor: theme.border},
+          ]}>
+          <Text style={[s.sectionTitle, {color: theme.text}]}>
+            {tx('jobDetail.customerInfo')}
+          </Text>
+          <View style={s.customerRow}>
+            <View style={[s.avatar, {backgroundColor: theme.primary}]}>
+              {photoUrl ? (
+                <Image source={{uri: photoUrl}} style={s.avatar} />
+              ) : (
+                <Text style={s.avatarText}>{initials(customerName)}</Text>
+              )}
+            </View>
+            <Text style={[s.customerName, {color: theme.text}]}>
+              {customerName}
+            </Text>
+          </View>
+          {statusKey === 'pending' && !canCall ? (
+            <Text style={[s.hint, {color: theme.textSecondary}]}>
+              {tx('contact.afterAcceptCustomer')}
+            </Text>
+          ) : null}
+        </View>
+
+        {/* This work */}
+        <View
+          style={[
+            s.card,
+            {backgroundColor: theme.card, borderColor: theme.border},
+          ]}>
+          <Text style={[s.sectionTitle, {color: theme.text}]}>
+            {tx('jobDetail.jobInfo')}
+          </Text>
+
+          <View style={[s.field, {marginTop: 0}]}>
+            <Text style={[s.fieldLabel, {color: theme.textSecondary}]}>
+              {tx('jobDetail.service')}
+            </Text>
+            <View style={s.serviceRow}>
+              <View
+                style={[
+                  s.serviceIcon,
+                  {backgroundColor: `${theme.primary}1F`},
+                ]}>
+                <Icon
+                  name={serviceIconName || 'handyman'}
+                  size={20}
+                  color={theme.primaryDark}
+                />
+              </View>
+              <Text style={[s.serviceName, {color: theme.text}]}>
+                {jobCard.serviceType || tx('jobs.service')}
+              </Text>
+            </View>
+          </View>
+
+          <View style={s.field}>
+            <Text style={[s.fieldLabel, {color: theme.textSecondary}]}>
+              {tx('jobs.problemLabel')}
+            </Text>
+            <Text
+              style={[
+                s.fieldValue,
+                {
+                  color: problemText ? theme.text : theme.textSecondary,
+                  fontWeight: problemText ? '600' : '500',
+                },
+              ]}>
+              {problemText || tx('jobs.problemMissing')}
+            </Text>
+          </View>
+
+          <View style={s.field}>
+            <View style={s.fieldLabelRow}>
+              <Icon name="location-on" size={14} color={theme.textSecondary} />
+              <Text style={[s.fieldLabel, {color: theme.textSecondary, marginBottom: 0}]}>
+                {tx('jobs.serviceAddressLabel')}
+              </Text>
+            </View>
+            <Text
+              style={[
+                s.fieldValue,
+                {
+                  color: hasAddress ? theme.text : theme.textSecondary,
+                  fontWeight: hasAddress ? '600' : '500',
+                },
+              ]}>
+              {hasAddress ? addressLine : tx('jobs.addressMissing')}
+            </Text>
+            {actionable && hasAddress ? (
+              <Button
+                variant="secondary"
+                block
+                title={tx('jobDetail.viewDirections')}
+                onPress={() => void handleNavigateCustomer()}
+                style={s.directionsBtn}
+              />
+            ) : null}
+          </View>
+
+          <RequestPhotoGallery
+            photos={requestPhotos}
+            theme={theme}
+            title={tx('request.photos')}
+          />
+          <RequestPhotoGallery
+            photos={jobCard.completionPhotos}
+            theme={theme}
+            title={tx('jobDetail.completionPhotosOptional')}
+          />
+
+          <JobCardComments
+            comments={jobCard.comments || []}
+            theme={{...theme, background: theme.background}}
+            canComment={
+              statusKey === 'accepted' ||
+              statusKey === 'in-progress' ||
+              statusKey === 'completed'
+            }
+            title={tx('comments.title')}
+            placeholder={tx('comments.placeholder')}
+            emptyText={tx('comments.empty')}
+            postLabel={tx('comments.send')}
+            onSubmit={async text => {
+              const updated = await jobCardsApi.addComment(jobCardId, text);
+              setJobCard(prev =>
+                prev
+                  ? {...prev, comments: (updated as any).comments || []}
+                  : prev,
+              );
+            }}
+          />
+        </View>
+
+        {requirements.length ? (
           <View
             style={[
-              styles.statusIndicator,
-              {backgroundColor: getStatusColor(jobCard.status)},
-            ]}
-          />
-          <View style={styles.statusTextContainer}>
-            <Text style={[styles.statusText, {color: theme.text}]}>
-              {String(getStatusTitle(jobCard.status)).toUpperCase()}
+              s.card,
+              {backgroundColor: theme.card, borderColor: theme.border},
+            ]}>
+            <Text style={[s.sectionTitle, {color: theme.text}]}>
+              {tx('jobDetail.requirements')}
             </Text>
-            <Text style={[styles.statusSubtext, {color: theme.textSecondary}]}>
-              {jobCard.status === 'pending'
-                ? t('jobDetails.waitingForAction')
-                : jobCard.status === 'accepted'
-                ? t('jobDetails.jobAccepted')
-                : jobCard.status === 'in-progress'
-                ? t('jobDetails.serviceInProgress')
-                : jobCard.status === 'completed'
-                ? t('jobDetails.serviceCompleted')
-                : t('jobDetails.jobCancelled')}
-            </Text>
-            {(jobCard.status === 'completed' ||
-              jobCard.status === 'cancelled') && (
-              <Text style={[styles.statusDate, {color: theme.text}]}>
-                {formatJobStatusDate(
-                  jobCard.status,
-                  jobCard.updatedAt || jobCard.createdAt,
-                )}
-              </Text>
-            )}
-          </View>
-        </View>
-      </View>
-
-      {/* Customer Details */}
-      <View style={[styles.card, {backgroundColor: theme.card}]}>
-        <Text style={[styles.cardTitle, {color: theme.text}]}>Customer</Text>
-        <View style={styles.customerInfo}>
-          <View style={styles.customerAvatar}>
-            <Text style={styles.customerInitial}>
-              {jobCard.customerName?.charAt(0).toUpperCase() || 'C'}
-            </Text>
-          </View>
-          <View style={styles.customerDetails}>
-            <Text style={[styles.customerName, {color: theme.text}]}>
-              {jobCard.customerName || 'Name not available'}
-            </Text>
-            {jobCard.customerPhone ? (
-              <Text style={[styles.phoneText, {color: theme.textSecondary}]}>
-                {jobCard.customerPhone}
-              </Text>
-            ) : jobCard.status === 'pending' ? (
-              <Text style={[styles.phoneText, {color: theme.textSecondary}]}>
-                {t('jobDetails.contactAfterAcceptCustomer')}
-              </Text>
-            ) : (
-              <Text style={[styles.phoneText, {color: theme.textSecondary}]}>
-                {t('jobDetails.contactUnavailable')}
-              </Text>
-            )}
-          </View>
-        </View>
-      </View>
-
-      {/* Service Details */}
-      <View style={[styles.card, {backgroundColor: theme.card}]}>
-        <Text style={[styles.cardTitle, {color: theme.text}]}>
-          {t('jobDetails.serviceDetails')}
-        </Text>
-        <View style={styles.detailRow}>
-          <Icon name="build" size={20} color={theme.primary} />
-          <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
-            {t('jobDetails.serviceType')}
-          </Text>
-          <Text style={[styles.detailValue, {color: theme.text}]}>
-            {jobCard.serviceType}
-          </Text>
-        </View>
-        {jobCard.problem && (
-          <View style={styles.detailRow}>
-            <Icon name="description" size={20} color={theme.primary} />
-            <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
-              {t('jobDetails.problem')}
-            </Text>
-            <Text style={[styles.detailValue, {color: theme.text}]}>
-              {jobCard.problem}
-            </Text>
-          </View>
-        )}
-        {jobCard.scheduledTime && (
-          <View style={styles.detailRow}>
-            <Icon name="schedule" size={20} color={theme.primary} />
-            <Text style={[styles.detailLabel, {color: theme.textSecondary}]}>
-              {t('jobDetails.scheduled')}
-            </Text>
-            <Text style={[styles.detailValue, {color: theme.text}]}>
-              {formatDate(jobCard.scheduledTime)}
-            </Text>
-          </View>
-        )}
-        <RequestPhotoGallery
-          photos={requestPhotos}
-          theme={theme}
-          title={String(t('jobDetails.customerPhotos'))}
-        />
-      </View>
-
-      {/* Questionnaire Answers */}
-      {jobCard.questionnaireAnswers && Object.keys(jobCard.questionnaireAnswers).length > 0 && (
-        <View style={[styles.card, {backgroundColor: theme.card}]}>
-          <View style={styles.questionnaireHeader}>
-            <Icon name="quiz" size={24} color={theme.primary} />
-            <Text style={[styles.cardTitle, {color: theme.text, marginLeft: 8}]}>
-              {t('jobDetails.serviceRequirements')}
-            </Text>
-          </View>
-          <View style={styles.questionnaireContainer}>
-            {Object.entries(jobCard.questionnaireAnswers).map(([questionId, answer], index) => {
-              const questionNumber = index + 1;
-              const questionText = questionnaireQuestions[questionId] || `${t('jobDetails.question')} ${questionNumber}`;
-              
-              // Format answer based on type
-              let formattedAnswer: string;
-              if (typeof answer === 'boolean') {
-                formattedAnswer = answer ? t('jobDetails.yes') : t('jobDetails.no');
-              } else if (Array.isArray(answer)) {
-                formattedAnswer = answer.join(', ');
-              } else if (answer === null || answer === undefined || answer === '') {
-                formattedAnswer = t('jobDetails.notProvided');
-              } else {
-                formattedAnswer = String(answer);
-              }
-              
-              return (
-                <View key={questionId} style={styles.questionnaireItem}>
-                  <View style={styles.questionNumberBadge}>
-                    <Text style={[styles.questionNumber, {color: theme.primary}]}>
-                      {questionNumber}
-                    </Text>
-                  </View>
-                  <View style={styles.questionnaireContent}>
-                    <Text style={[styles.questionnaireQuestion, {color: theme.text}]}>
-                      {questionText}
-                    </Text>
-                    <Text style={[styles.questionnaireAnswer, {color: theme.textSecondary}]}>
-                      {formattedAnswer}
-                    </Text>
-                  </View>
+            <View style={s.reqList}>
+              {requirements.map(row => (
+                <View key={`${row.label}-${row.value}`} style={s.reqRow}>
+                  <Text style={[s.reqLabel, {color: theme.textSecondary}]}>
+                    {row.label}
+                  </Text>
+                  <Text style={[s.reqValue, {color: theme.text}]}>
+                    {row.value}
+                  </Text>
                 </View>
-              );
-            })}
-          </View>
-          <View style={[styles.questionnaireNote, {backgroundColor: theme.primary + '10'}]}>
-            <Icon name="info-outline" size={16} color={theme.primary} />
-            <Text style={[styles.questionnaireNoteText, {color: theme.primary}]}>
-              {t('jobDetails.customerProvidedDetails', {
-                count: Object.keys(jobCard.questionnaireAnswers).length,
-                plural: Object.keys(jobCard.questionnaireAnswers).length !== 1 ? 's' : ''
-              })}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Customer Address */}
-      {jobCard.customerAddress && (
-        <View style={[styles.card, {backgroundColor: theme.card}]}>
-          <Text style={[styles.cardTitle, {color: theme.text}]}>
-            {t('jobDetails.serviceAddress')}
-          </Text>
-          <View style={styles.addressContainer}>
-            <Icon name="location-on" size={20} color={theme.primary} />
-            <View style={styles.addressText}>
-              <Text style={[styles.addressLine, {color: theme.text}]}>
-                {jobCard.customerAddress.address}
-              </Text>
-              {jobCard.customerAddress.pincode && (
-                <Text style={[styles.addressDetails, {color: theme.textSecondary}]}>
-                  {t('jobDetails.pincode')} {jobCard.customerAddress.pincode}
-                </Text>
-              )}
-              {jobCard.customerAddress.city && (
-                <Text style={[styles.addressDetails, {color: theme.textSecondary}]}>
-                  {jobCard.customerAddress.city}
-                  {jobCard.customerAddress.state && `, ${jobCard.customerAddress.state}`}
-                </Text>
-              )}
+              ))}
             </View>
           </View>
-        </View>
-      )}
+        ) : null}
 
-      <JobCardComments
-        comments={(jobCard as any).comments || []}
-        theme={theme}
-        canComment={
-          jobCard.status === 'accepted' ||
-          jobCard.status === 'in-progress' ||
-          jobCard.status === 'completed'
-        }
-        title={String(t('jobDetails.comments') || 'Comments')}
-        placeholder={String(
-          t('jobDetails.commentPlaceholder') || 'Write a comment…',
-        )}
-        emptyText={String(t('jobDetails.noComments') || 'No comments yet')}
-        postLabel={String(t('jobDetails.postComment') || 'Post')}
-        onSubmit={async text => {
-          const updated = await jobCardsApi.addComment(jobCardId, text);
-          setJobCard(prev =>
-            prev
-              ? {...prev, comments: (updated as any).comments || []}
-              : prev,
-          );
-        }}
-      />
-
-      {/* One-handed contact / navigate — Call/WhatsApp only when phone available */}
-      {(jobCard.status === 'accepted' ||
-        jobCard.status === 'in-progress' ||
-        jobCard.status === 'pending') && (
-        <View style={[styles.thumbActions, {backgroundColor: theme.card}]}>
-          {jobCard.customerPhone ? (
-            <>
-              <TouchableOpacity
-                style={styles.thumbBtn}
-                onPress={handleCallCustomer}>
-                <View style={[styles.thumbIcon, {backgroundColor: '#34C75920'}]}>
-                  <Icon name="call" size={26} color="#34C759" />
+        {/* Actions rail */}
+        <View style={s.rail}>
+          {canCall && jobCard.customerPhone ? (
+            <View style={s.railRow}>
+              <View style={{flex: 1}}>
+                <Button
+                  variant="primary"
+                  block
+                  title={tx('contact.callCustomer')}
+                  onPress={handleCallCustomer}
+                />
+              </View>
+              {actionable ? (
+                <View style={{flex: 1}}>
+                  <Button
+                    variant="secondary"
+                    block
+                    title={tx('jobDetail.whatsapp')}
+                    onPress={handleWhatsAppCustomer}
+                  />
                 </View>
-                <Text style={[styles.thumbLabel, {color: theme.text}]}>
-                  {t('jobDetails.callCustomer')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.thumbBtn}
-                onPress={handleWhatsAppCustomer}>
-                <View style={[styles.thumbIcon, {backgroundColor: '#25D36620'}]}>
-                  <Icon name="chat" size={26} color="#25D366" />
-                </View>
-                <Text style={[styles.thumbLabel, {color: theme.text}]}>
-                  {t('dashboard.whatsapp')}
-                </Text>
-              </TouchableOpacity>
-            </>
+              ) : null}
+            </View>
+          ) : statusKey === 'pending' ? (
+            <Text style={[s.hint, {color: theme.textSecondary, marginTop: 0}]}>
+              {tx('contact.afterAcceptCustomer')}
+            </Text>
           ) : null}
-          <TouchableOpacity
-            style={styles.thumbBtn}
-            onPress={() => void handleNavigateCustomer()}>
-            <View style={[styles.thumbIcon, {backgroundColor: '#007AFF20'}]}>
-              <Icon name="navigation" size={26} color="#007AFF" />
-            </View>
-            <Text style={[styles.thumbLabel, {color: theme.text}]}>
-              {t('dashboard.navigate')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
-      {/* Actions */}
-      {jobCard.status !== 'completed' && jobCard.status !== 'cancelled' && (
-        <View style={styles.actionsContainer}>
-          {jobCard.status === 'accepted' && (
+          {statusKey === 'accepted' ? (
             <Button
               variant="primary"
               block
-              title={String(t('jobDetails.startService'))}
+              title={tx('jobDetail.startService')}
               onPress={() => setShowStartModal(true)}
               disabled={updating}
               loading={updating}
-              style={styles.actionButton}
             />
-          )}
+          ) : null}
 
-          {jobCard.status === 'in-progress' && (
+          {statusKey === 'in-progress' ? (
             <Button
               variant="primary"
               block
-              title={String(t('jobDetails.markAsCompleted'))}
+              title={tx('jobDetail.markCompleted')}
               onPress={() => setShowPINModal(true)}
               disabled={updating}
-              style={styles.actionButton}
-              colors={{primary: '#34C759'}}
             />
-          )}
+          ) : null}
 
-          {(jobCard.status === 'pending' ||
-            jobCard.status === 'accepted' ||
-            jobCard.status === 'in-progress') && (
+          {showHelp ? (
+            <JobHelpSection theme={theme} job={jobCard} canHelp />
+          ) : null}
+
+          {actionable ? (
             <Button
               variant="danger"
               block
-              title={String(t('jobDetails.cancelTask'))}
+              title={tx('jobDetail.cancelTask')}
               onPress={() => setShowCancelModal(true)}
               disabled={updating}
-              style={styles.actionButton}
+            />
+          ) : (
+            <Button
+              variant="ghost"
+              block
+              title={tx('jobDetail.backToJobs')}
+              onPress={() => navigation.goBack()}
             />
           )}
         </View>
-      )}
+      </ScrollView>
 
-      {/* Start Task Modal */}
       <StartTaskModal
         visible={showStartModal}
         onConfirm={handleStartTask}
         onCancel={() => setShowStartModal(false)}
         loading={updating}
       />
-
-      {/* PIN Verification Modal */}
       <PINVerificationModal
         visible={showPINModal}
+        jobCardId={jobCardId}
         onVerify={handleCompleteTask}
         onCancel={() => {
           setShowPINModal(false);
@@ -622,236 +680,11 @@ export default function JobDetailsScreen({navigation, route}: any) {
         }}
         timeStarted={timeStarted}
       />
-
-      {/* Cancel Task Modal */}
       <CancelTaskModal
         visible={showCancelModal}
         onCancel={handleCancelTask}
         onClose={() => setShowCancelModal(false)}
       />
-      </ScrollView>
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    marginTop: 16,
-  },
-  statusCard: {
-    padding: 16,
-    margin: 16,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.22,
-    shadowRadius: 2.22,
-  },
-  statusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  statusIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  statusTextContainer: {
-    flex: 1,
-  },
-  statusText: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  statusSubtext: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  statusDate: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  card: {
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.22,
-    shadowRadius: 2.22,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  customerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  customerAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#007AFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  customerInitial: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  customerDetails: {
-    flex: 1,
-  },
-  customerName: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  phoneButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 4,
-  },
-  phoneText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-    gap: 12,
-  },
-  detailLabel: {
-    fontSize: 14,
-    minWidth: 100,
-  },
-  detailValue: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  addressContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  addressText: {
-    flex: 1,
-  },
-  addressLine: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  addressDetails: {
-    fontSize: 14,
-  },
-  actionsContainer: {
-    padding: 16,
-    gap: 12,
-  },
-  thumbActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginHorizontal: 16,
-    marginBottom: 8,
-    paddingVertical: 16,
-    borderRadius: 16,
-  },
-  thumbBtn: {
-    alignItems: 'center',
-    gap: 6,
-    minWidth: 88,
-  },
-  thumbIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thumbLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  actionButton: {
-    marginBottom: 8,
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 40,
-  },
-  questionnaireHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  questionnaireContainer: {
-    gap: 12,
-  },
-  questionnaireItem: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingVertical: 8,
-  },
-  questionNumberBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#007AFF20',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  questionNumber: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  questionnaireContent: {
-    flex: 1,
-  },
-  questionnaireQuestion: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  questionnaireAnswer: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '400',
-  },
-  questionnaireNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 16,
-  },
-  questionnaireNoteText: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-});
-

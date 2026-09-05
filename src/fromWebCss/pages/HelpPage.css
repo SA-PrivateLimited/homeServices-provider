@@ -1,0 +1,62 @@
+.help-page {
+  max-width: 560px;
+}
+
+.help-page-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.help-page-brand .help-page-lead {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.help-page-lead {
+  margin: 0 0 16px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--textSecondary);
+}
+
+.help-page-card {
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+.help-page-card h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.help-page-card--urgent {
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, white);
+}
+
+.help-page-phone {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.help-page-list {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.55;
+  color: var(--textSecondary);
+}
+
+.help-page-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.help-page-actions .hs-btn {
+  min-height: 48px;
+}

@@ -1,13 +1,12 @@
 import React, {useState, useEffect} from 'react';
 import {
   NavigationContainer,
-  createNavigationContainerRef,
   CommonActions,
 } from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {View, ActivityIndicator, StyleSheet} from 'react-native';
 import {useStore} from '../store';
-import {lightTheme, darkTheme} from '../utils/theme';
+import {resolveTheme} from '../utils/theme';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import useTranslation from '../hooks/useTranslation';
 import {
@@ -16,24 +15,26 @@ import {
   readStoredUser,
 } from '../services/session';
 import {onSessionExpired} from '../services/sessionExpiry';
+import {navigationRef} from './rootNavigation';
 
 import LoginScreen from '../screens/LoginScreen';
-import SignUpScreen from '../screens/SignUpScreen';
 import ProviderTabNavigator from './ProviderTabNavigator';
 import JobDetailsScreen from '../screens/JobDetailsScreen';
 import ServiceProviderProfileSetupScreen from '../screens/ServiceProviderProfileSetupScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
 import PhoneVerificationScreen from '../screens/PhoneVerificationScreen';
 import ShareContactRecommendationScreen from '../screens/ShareContactRecommendationScreen';
+import PartnerDirectoryScreen from '../screens/PartnerDirectoryScreen';
+import AuthHandoffScreen from '../screens/AuthHandoffScreen';
 
 const Stack = createNativeStackNavigator();
-const navigationRef = createNavigationContainerRef();
 
 export default function AppNavigator() {
   const [initializing, setInitializing] = useState(true);
   const [hasSession, setHasSession] = useState(false);
-  const {isDarkMode, setCurrentUser} = useStore();
-  const theme = isDarkMode ? darkTheme : lightTheme;
+  const {isDarkMode, setCurrentUser, colorTheme} = useStore();
+  const theme = resolveTheme(isDarkMode);
+  void colorTheme;
   const {t} = useTranslation();
 
   useEffect(() => {
@@ -114,7 +115,7 @@ export default function AppNavigator() {
         initialRouteName={hasSession ? 'ProviderMain' : 'Login'}
         screenOptions={{headerShown: false}}>
         <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="SignUp" component={SignUpScreen} />
+        <Stack.Screen name="AuthHandoff" component={AuthHandoffScreen} />
         <Stack.Screen
           name="PhoneVerification"
           component={PhoneVerificationScreen}
@@ -126,7 +127,7 @@ export default function AppNavigator() {
           component={JobDetailsScreen}
           options={{
             headerShown: true,
-            title: String(t('jobCard.title') || 'Job Details'),
+            title: String(t('shell.jobDetails') || 'Job details'),
             headerStyle: {backgroundColor: theme.card},
             headerTintColor: theme.text,
           }}
@@ -147,6 +148,16 @@ export default function AppNavigator() {
                 <LanguageSwitcher compact />
               </View>
             ),
+          }}
+        />
+        <Stack.Screen
+          name="PartnerDirectory"
+          component={PartnerDirectoryScreen}
+          options={{
+            headerShown: true,
+            title: String(t('collab.findPartner') || 'Find partner'),
+            headerStyle: {backgroundColor: theme.card},
+            headerTintColor: theme.text,
           }}
         />
         <Stack.Screen

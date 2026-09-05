@@ -23,29 +23,48 @@ import {
   startLocationTracking,
   stopLocationTracking,
 } from '../services/providerLocationService';
-import {getMyProfile} from '../services/api/providersApi';
+import {getMyProfile, setShowRequestService} from '../services/api/providersApi';
 import websocketService from '../services/websocketService';
 import {getProviderJobCards} from '../services/jobCardService';
 import AlertModal from '../components/AlertModal';
-import {Button, toast} from 'sapvt-ltd-app-packages';
+import {toast, ConfirmDialog} from 'sapvt-ltd-app-packages';
 import useTranslation from '../hooks/useTranslation';
 import {useIncomingBooking} from '../components/IncomingBookingContext';
-import {
-  openNavigate,
-} from '../services/contactActions';
-import {speakNavigateToCustomer} from '../services/voicePromptService';
 import {formatDistanceKm} from '../utils/distance';
-import RequestPhotoGallery from '../components/RequestPhotoGallery';
+import {ReceiveRequestsCard} from '../components/ReceiveRequestsCard';
+import {AvailabilityCard} from '../components/AvailabilityCard';
+import {CrystalSurface} from '../components/CrystalSurface';
+import {IncomingRequestCard} from '../components/IncomingRequestCard';
+import {IncomingWaitingList} from '../components/IncomingWaitingList';
+import {PartnerIncomingCard} from '../components/PartnerIncomingCard';
+import {AssistingCollaborationCard} from '../components/AssistingCollaborationCard';
+import {ProfileCta, EmptyRequest} from '../components/ProfileCta';
+import {NotificationsSettingsCard} from '../components/NotificationsSettingsCard';
+import {isProfileIncomplete} from '../utils/partnerProfile';
+import {AppHeader} from '../components/account/AppHeader';
+import {
+  dismissReceiveRequestsPrompt,
+  isReceiveRequestsPromptDismissed,
+} from '../utils/receiveRequestsPrompt';
 import {getUserFacingErrorMessage} from '../utils/userFacingError';
+import {
+  acceptPartnerRequest,
+  listAssistingCollaborations,
+  listIncomingPartnerRequests,
+  rejectPartnerRequest,
+  type PartnerCollaborationRequest,
+} from '../services/api/partnerCollaborationApi';
 
 export default function ProviderDashboardScreen({navigation}: any) {
-  const {isDarkMode, currentUser} = useStore();
+  const {isDarkMode, currentUser, colorTheme} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const userId = getUserId(currentUser);
   const {t} = useTranslation();
   const tx = (key: string, opts?: any) => String(t(key, opts));
+  void colorTheme;
   const {
     incomingBooking,
+    waitingNearby,
     secondsLeft,
     acceptBooking,
     rejectBooking,
@@ -53,9 +72,20 @@ export default function ProviderDashboardScreen({navigation}: any) {
   } = useIncomingBooking();
 
   const [isOnline, setIsOnline] = useState(false);
+  const [showRequestService, setShowRequest] = useState(true);
+  const [togglingOnline, setTogglingOnline] = useState(false);
+  const [togglingRequests, setTogglingRequests] = useState(false);
+  const [partnerIncoming, setPartnerIncoming] =
+    useState<PartnerCollaborationRequest | null>(null);
+  const [assisting, setAssisting] = useState<PartnerCollaborationRequest | null>(
+    null,
+  );
+  const [collabBusy, setCollabBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
+  const [profile, setProfile] = useState<any>(null);
+  const [receivePromptOpen, setReceivePromptOpen] = useState(false);
 
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{
@@ -88,7 +118,9 @@ export default function ProviderDashboardScreen({navigation}: any) {
     try {
       const provider = await getMyProfile();
       if (provider) {
+        setProfile(provider);
         setIsOnline(provider.isOnline || false);
+        setShowRequest(provider.showRequestService !== false);
       }
     } catch (error) {
       console.error('Error loading provider status:', error);
@@ -114,6 +146,19 @@ export default function ProviderDashboardScreen({navigation}: any) {
       );
 
       setActiveJobsCount(activeJobs.length);
+
+      try {
+        const [incomingCollab, assistingRows] = await Promise.all([
+          listIncomingPartnerRequests('pending'),
+          listAssistingCollaborations('accepted'),
+        ]);
+        setPartnerIncoming(incomingCollab[0] || null);
+        setAssisting(assistingRows[0] || null);
+      } catch {
+        setPartnerIncoming(null);
+        setAssisting(null);
+      }
+
       setLoading(false);
     } catch (error: any) {
       console.error('Error loading dashboard data:', error);
@@ -155,6 +200,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const handleToggleOnline = async () => {
     try {
       isTogglingStatus.current = true;
+      setTogglingOnline(true);
       const newStatus = !isOnline;
       await setProviderOnline(newStatus);
       setIsOnline(newStatus);
@@ -167,7 +213,9 @@ export default function ProviderDashboardScreen({navigation}: any) {
         getUserFacingErrorMessage(error) || tx('dashboard.updateStatusError'),
         'error',
       );
+    } finally {
       isTogglingStatus.current = false;
+      setTogglingOnline(false);
     }
   };
 
@@ -180,22 +228,40 @@ export default function ProviderDashboardScreen({navigation}: any) {
     }
   };
 
-  const fee =
-    incomingBooking?.consultationFee ??
-    incomingBooking?.serviceFee ??
-    null;
   const serviceType =
     incomingBooking?.serviceType || tx('dashboard.serviceFallback');
   const distanceLabel = formatDistanceKm(incomingBooking?.distanceKm);
+  const showCta = isProfileIncomplete(profile);
+  const showEmpty =
+    !incomingBooking &&
+    !partnerIncoming &&
+    showRequestService &&
+    activeJobsCount === 0 &&
+    !assisting;
+
+  useEffect(() => {
+    if (!profile) return;
+    const approved =
+      String(profile.approvalStatus || '').toLowerCase() === 'approved' ||
+      profile.verified === true;
+    if (!approved || profile.showRequestService !== false) {
+      setReceivePromptOpen(false);
+      return;
+    }
+    void isReceiveRequestsPromptDismissed().then(dismissed => {
+      if (!dismissed) setReceivePromptOpen(true);
+    });
+  }, [profile]);
 
   if (loading && !refreshing) {
     return (
       <View
         style={[
           styles.container,
-          styles.loaderContainer,
           {backgroundColor: theme.background},
         ]}>
+        <AppHeader navigation={navigation} />
+        <View style={[styles.loaderContainer, {flex: 1}]}>
         <ActivityIndicator size="large" color={theme.primary} />
         <Text
           style={[
@@ -204,12 +270,14 @@ export default function ProviderDashboardScreen({navigation}: any) {
           ]}>
           {tx('dashboard.loadingDashboard')}
         </Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={[styles.container, {backgroundColor: theme.background}]}>
+      <AppHeader navigation={navigation} />
       <AlertModal
         visible={alertVisible}
         title={alertConfig.title}
@@ -223,187 +291,286 @@ export default function ProviderDashboardScreen({navigation}: any) {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }>
-        {/* AVAILABLE toggle */}
-        <TouchableOpacity
-          style={[
-            styles.onlineToggle,
-            {backgroundColor: isOnline ? '#34C759' : '#8E8E93'},
-          ]}
-          onPress={handleToggleOnline}
-          activeOpacity={0.9}>
-          <Icon
-            name={isOnline ? 'check-circle' : 'cancel'}
-            size={44}
-            color="#fff"
-          />
-          <Text style={styles.toggleText}>
-            {isOnline
-              ? tx('dashboard.available')
-              : tx('dashboard.offline')}
-          </Text>
-          <Text style={styles.toggleSubtext}>
-            {isOnline
-              ? tx('dashboard.tapToGoOffline')
-              : tx('dashboard.tapToGoOnline')}
-          </Text>
-        </TouchableOpacity>
+        <AvailabilityCard
+          online={isOnline}
+          toggling={togglingOnline}
+          onToggle={() => void handleToggleOnline()}
+        />
 
-        {/* NEW JOB card */}
+        <ReceiveRequestsCard
+          enabled={showRequestService}
+          toggling={togglingRequests}
+          onToggle={() => {
+            const next = !showRequestService;
+            setTogglingRequests(true);
+            void setShowRequestService(next)
+              .then(updated => {
+                setShowRequest(updated.showRequestService !== false);
+                toast.success(
+                  next
+                    ? tx('dashboard.receiveRequestsNowOn')
+                    : tx('dashboard.receiveRequestsNowOff'),
+                );
+              })
+              .catch(err => {
+                showAlert(
+                  tx('common.error'),
+                  getUserFacingErrorMessage(err),
+                  'error',
+                );
+              })
+              .finally(() => setTogglingRequests(false));
+          }}
+        />
+
+        <NotificationsSettingsCard
+          theme={theme}
+          prompt
+          title={tx('notifications.settingsTitle') || tx('notifications.title')}
+          body={tx('notifications.settingsBody') || tx('notifications.enableHint')}
+          enableLabel={
+            tx('notifications.settingsEnable') ||
+            tx('notifications.enable') ||
+            'Turn on notifications'
+          }
+          onLabel={tx('notifications.settingsOn')}
+          offLabel={tx('notifications.settingsOff')}
+          blockedLabel={tx('notifications.settingsBlocked')}
+        />
+
         {incomingBooking ? (
-          <View style={[styles.newJobCard, {backgroundColor: theme.card}]}>
-            <View style={styles.newJobHeader}>
-              <Text style={[styles.newJobBadge, {color: theme.primary}]}>
-                {tx('dashboard.newJob')}
-              </Text>
-              <Text style={[styles.countdown, {color: '#FF3B30'}]}>
-                {secondsLeft}s
-              </Text>
-            </View>
-            {incomingBooking.createdAt ? (
-              <Text style={[styles.newJobDist, {color: theme.textSecondary}]}>
-                Requested{' '}
-                {new Date(incomingBooking.createdAt).toLocaleString(undefined, {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </Text>
-            ) : null}
-            <Text style={[styles.newJobService, {color: theme.text}]}>
-              {serviceType}
-            </Text>
-            {fee != null && fee !== '' ? (
-              <Text style={[styles.newJobFee, {color: theme.text}]}>
-                ₹{fee}
-              </Text>
-            ) : null}
-            {distanceLabel ? (
-              <Text style={[styles.newJobDist, {color: theme.textSecondary}]}>
-                📍 {distanceLabel}
-              </Text>
-            ) : null}
-            {incomingBooking.problem ? (
-              <Text
-                style={[styles.newJobProblem, {color: theme.textSecondary}]}
-                numberOfLines={2}>
-                {incomingBooking.problem}
-              </Text>
-            ) : null}
-            <RequestPhotoGallery
-              photos={incomingBooking.photos}
-              theme={theme}
-              title={tx('dashboard.customerPhotos')}
-            />
-
-            <View style={styles.newJobActions}>
-              <Button
-                variant="danger"
-                title={tx('dashboard.decline')}
-                onPress={() => void rejectBooking()}
-                style={styles.declineBtn}
-              />
-              <Button
-                variant="primary"
-                title={tx('dashboard.accept')}
-                onPress={() => void acceptBooking()}
-                style={styles.acceptBtn}
-                colors={{primary: '#34C759'}}
-              />
-            </View>
-
-            <View style={styles.newJobQuickRow}>
-              <TouchableOpacity
-                style={styles.miniAction}
-                onPress={async () => {
-                  const addr =
-                    incomingBooking.customerAddress ||
-                    incomingBooking.patientAddress;
-                  try {
-                    await speakNavigateToCustomer();
-                    await openNavigate({
-                      latitude: addr?.latitude,
-                      longitude: addr?.longitude,
-                      address: addr?.address,
-                    });
-                  } catch {
-                    /* ignore */
-                  }
-                }}>
-                <Icon name="navigation" size={20} color="#007AFF" />
-                <Text style={styles.miniActionText}>
-                  {tx('dashboard.navigate')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          <IncomingRequestCard
+            theme={theme}
+            request={incomingBooking}
+            secondsLeft={secondsLeft}
+            serviceType={serviceType}
+            distanceLabel={distanceLabel || undefined}
+            onAccept={() => void acceptBooking()}
+            onDecline={() => void rejectBooking()}
+            acceptLabel={tx('dashboard.accept')}
+            declineLabel={tx('dashboard.decline')}
+            newRequestLabel={tx('home.newRequest') || tx('dashboard.newJob')}
+            photosTitle={tx('dashboard.customerPhotos')}
+          />
         ) : null}
 
-        {/* Active Jobs */}
-        <TouchableOpacity
-          style={[styles.activeJobsCard, {backgroundColor: theme.card}]}
-          onPress={() => navigation.navigate('Jobs')}
-          activeOpacity={0.85}>
-          <View>
-            <Text style={[styles.activeJobsLabel, {color: theme.textSecondary}]}>
-              {tx('dashboard.activeJobs')}
-            </Text>
-            <Text style={[styles.activeJobsValue, {color: theme.text}]}>
-              {activeJobsCount}
-            </Text>
-          </View>
-          <Icon name="chevron-right" size={28} color={theme.textSecondary} />
-        </TouchableOpacity>
+        <IncomingWaitingList
+          theme={theme}
+          title={tx('home.moreNearbyTitle')}
+          hint={tx('home.moreNearbyHint')}
+          acceptLabel={tx('dashboard.accept')}
+          declineLabel={tx('dashboard.decline')}
+          busy={false}
+          requests={waitingNearby.map((row: any) => ({
+            id: String(
+              row.serviceRequestId || row.id || row._id || row.consultationId || '',
+            ),
+            serviceType: row.serviceType || tx('dashboard.serviceFallback'),
+            customerName: row.customerName || row.patientName || '',
+          }))}
+          onAccept={id => {
+            const row = waitingNearby.find(
+              (item: any) =>
+                String(
+                  item.serviceRequestId ||
+                    item.id ||
+                    item._id ||
+                    item.consultationId ||
+                    '',
+                ) === id,
+            );
+            if (row) void acceptBooking(row);
+          }}
+          onDecline={id => {
+            const row = waitingNearby.find(
+              (item: any) =>
+                String(
+                  item.serviceRequestId ||
+                    item.id ||
+                    item._id ||
+                    item.consultationId ||
+                    '',
+                ) === id,
+            );
+            if (row) void rejectBooking(row);
+          }}
+        />
 
-        {/* Quick Actions */}
-        <Text style={[styles.sectionTitle, {color: theme.text}]}>
-          {tx('dashboard.quickActions')}
-        </Text>
+        {partnerIncoming ? (
+          <PartnerIncomingCard
+            theme={theme}
+            request={partnerIncoming}
+            busy={collabBusy}
+            title={tx('collab.incomingTitle')}
+            lead={tx('collab.incomingLead', {
+              name:
+                partnerIncoming.requestingProviderName ||
+                tx('collab.partnerFallback'),
+            })}
+            customerLabel={tx('jobDetail.customer')}
+            acceptLabel={tx('collab.acceptRequest')}
+            declineLabel={tx('collab.declineRequest')}
+            onAccept={() => {
+              setCollabBusy(true);
+              void acceptPartnerRequest(partnerIncoming.id)
+                .then(() => loadDashboardData())
+                .catch(err =>
+                  showAlert(
+                    tx('common.error'),
+                    getUserFacingErrorMessage(err),
+                    'error',
+                  ),
+                )
+                .finally(() => setCollabBusy(false));
+            }}
+            onDecline={() => {
+              setCollabBusy(true);
+              void rejectPartnerRequest(partnerIncoming.id)
+                .then(() => loadDashboardData())
+                .catch(err =>
+                  showAlert(
+                    tx('common.error'),
+                    getUserFacingErrorMessage(err),
+                    'error',
+                  ),
+                )
+                .finally(() => setCollabBusy(false));
+            }}
+          />
+        ) : null}
 
-        <TouchableOpacity
-          style={[styles.actionButton, {backgroundColor: theme.card}]}
-          onPress={() => navigation.navigate('Jobs')}>
-          <Icon name="list-alt" size={24} color="#FF3B30" />
-          <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            {tx('dashboard.viewActiveJobs')}
-          </Text>
-          <Icon name="chevron-right" size={24} color={theme.textSecondary} />
-        </TouchableOpacity>
+        {assisting ? (
+          <AssistingCollaborationCard
+            theme={theme}
+            collab={assisting}
+            title={tx('collab.assistingTitle')}
+            lead={tx('collab.assistingLead', {
+              name:
+                assisting.requestingProviderName || tx('collab.partnerFallback'),
+            })}
+            customerLabel={tx('jobDetail.customer')}
+            primaryLabel={tx('collab.primaryPartner')}
+            contactLabel={tx('collab.contactPrimary')}
+            directionsLabel={tx('jobDetail.directions')}
+            completeLabel={tx('collab.completePortion')}
+            onComplete={() => void loadDashboardData()}
+          />
+        ) : null}
 
-        <TouchableOpacity
-          style={[styles.actionButton, {backgroundColor: theme.card}]}
-          onPress={() => navigation.navigate('History')}>
-          <Icon name="history" size={24} color={theme.primary} />
-          <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            {tx('dashboard.viewJobHistory')}
-          </Text>
-          <Icon name="chevron-right" size={24} color={theme.textSecondary} />
-        </TouchableOpacity>
+        {/* Active Jobs — matches web ActiveServicesSection */}
+        {activeJobsCount > 0 ? (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Jobs')}
+            activeOpacity={0.85}>
+            <CrystalSurface
+              primary={theme.primary}
+              card={theme.card}
+              isDark={isDarkMode}
+              accent
+              style={styles.activeJobsCard}
+              contentStyle={styles.activeJobsInner}>
+              <View style={{flex: 1, minWidth: 0}}>
+                <Text style={[styles.activeJobsLabel, {color: theme.text}]}>
+                  {tx('home.activeJobsRow', {count: activeJobsCount})}
+                </Text>
+                <Text
+                  style={[
+                    styles.activeJobsValue,
+                    {color: theme.textSecondary},
+                  ]}>
+                  {tx('home.activeJobsHint')}
+                </Text>
+              </View>
+              <Text
+                style={{
+                  color: theme.primary,
+                  fontWeight: '700',
+                  fontSize: 13,
+                }}>
+                {tx('home.openActive')}
+              </Text>
+            </CrystalSurface>
+          </TouchableOpacity>
+        ) : null}
 
-        <TouchableOpacity
-          style={[styles.actionButton, {backgroundColor: theme.card}]}
-          onPress={() => {
-            const parent = navigation.getParent();
-            if (parent) parent.navigate('HelpSupport');
-            else navigation.navigate('HelpSupport');
-          }}>
-          <Icon name="support-agent" size={24} color="#007AFF" />
-          <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            {tx('dashboard.helpCenter')}
-          </Text>
-          <Icon name="chevron-right" size={24} color={theme.textSecondary} />
-        </TouchableOpacity>
+        {showEmpty ? (
+          <EmptyRequest
+            theme={theme}
+            online={isOnline}
+            title={tx('home.emptyTitle')}
+            body={tx('home.emptyOnline')}
+          />
+        ) : null}
+
+        {showCta ? (
+          <ProfileCta
+            theme={theme}
+            title={tx('home.ctaTitle')}
+            body={tx('home.ctaBody')}
+            action={tx('home.ctaAction')}
+            onPress={() =>
+              navigation.navigate('Settings', {screen: 'SettingsProfile'})
+            }
+          />
+        ) : null}
 
         {!isOnline ? (
-          <View style={[styles.infoBanner, {backgroundColor: '#FFF3CD'}]}>
-            <Icon name="info" size={20} color="#856404" />
-            <Text style={[styles.infoText, {color: '#856404'}]}>
+          <View
+            style={[
+              styles.infoBanner,
+              {
+                backgroundColor: isDarkMode
+                  ? `${theme.warning}33`
+                  : '#FFF3CD',
+              },
+            ]}>
+            <Icon name="info" size={20} color={theme.warning} />
+            <Text
+              style={[
+                styles.infoText,
+                {color: isDarkMode ? theme.text : '#856404'},
+              ]}>
               {tx('dashboard.goOnlineMessage')}
             </Text>
           </View>
         ) : null}
       </ScrollView>
+      <ConfirmDialog
+        visible={receivePromptOpen}
+        type="info"
+        title={tx('home.receiveRequestsPromptTitle')}
+        message={tx('home.receiveRequestsPromptBody')}
+        confirmText={tx('home.receiveRequestsStart')}
+        cancelText={tx('home.receiveRequestsLater')}
+        onConfirm={() => {
+          setReceivePromptOpen(false);
+          setTogglingRequests(true);
+          void setShowRequestService(true)
+            .then(updated => {
+              setShowRequest(updated.showRequestService !== false);
+              setProfile((prev: any) =>
+                prev
+                  ? {
+                      ...prev,
+                      showRequestService: updated.showRequestService !== false,
+                    }
+                  : prev,
+              );
+            })
+            .catch(err =>
+              showAlert(
+                tx('common.error'),
+                getUserFacingErrorMessage(err),
+                'error',
+              ),
+            )
+            .finally(() => setTogglingRequests(false));
+        }}
+        onCancel={() => {
+          void dismissReceiveRequestsPrompt();
+          setReceivePromptOpen(false);
+        }}
+      />
     </View>
   );
 }
@@ -413,7 +580,7 @@ const styles = StyleSheet.create({
   loaderContainer: {justifyContent: 'center', alignItems: 'center'},
   loadingText: {fontSize: 16},
   scrollView: {flex: 1},
-  scrollContent: {padding: 16, paddingBottom: 32},
+  scrollContent: {padding: 14, paddingBottom: 32, gap: 12},
   onlineToggle: {
     width: '100%',
     paddingVertical: 28,
@@ -469,16 +636,18 @@ const styles = StyleSheet.create({
   miniAction: {alignItems: 'center', gap: 4, padding: 8},
   miniActionText: {fontSize: 12, fontWeight: '600', color: '#555'},
   activeJobsCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+    marginBottom: 12,
+  },
+  activeJobsInner: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    elevation: 1,
+    gap: 12,
   },
-  activeJobsLabel: {fontSize: 14, fontWeight: '600'},
-  activeJobsValue: {fontSize: 32, fontWeight: '800', marginTop: 4},
+  activeJobsLabel: {fontSize: 15, fontWeight: '700'},
+  activeJobsValue: {fontSize: 13, marginTop: 4, lineHeight: 18},
   sectionTitle: {fontSize: 18, fontWeight: '700', marginBottom: 12},
   actionButton: {
     flexDirection: 'row',

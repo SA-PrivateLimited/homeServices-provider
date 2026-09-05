@@ -16,8 +16,10 @@ import {useStore} from '../store';
 import {getUserId} from '../services/session';
 import websocketService from '../services/websocketService';
 import {getMyProfile} from '../services/api/providersApi';
+import {canReceiveOpenServiceRequests} from '../utils/providerOpenRequests';
 import {serviceRequestsApi} from '../services/api/serviceRequestsApi';
 import {createJobCard} from '../services/jobCardService';
+import {navigationRef} from '../navigation/rootNavigation';
 import BookingAlertModal from './BookingAlertModal';
 import AlertModal from './AlertModal';
 import {toast} from 'sapvt-ltd-app-packages';
@@ -25,7 +27,7 @@ import useTranslation from '../hooks/useTranslation';
 import {speakNewJobReceived} from '../services/voicePromptService';
 import {getUserFacingErrorMessage} from '../utils/userFacingError';
 
-export const ACCEPT_TIMEOUT_SEC = 40;
+export const ACCEPT_TIMEOUT_SEC = 5 * 60;
 
 function bookingIdOf(data: any): string {
   if (!data) return '';
@@ -70,10 +72,11 @@ function toBookingShape(latest: any) {
 
 type IncomingBookingContextValue = {
   incomingBooking: any | null;
+  waitingNearby: any[];
   secondsLeft: number;
   loading: boolean;
-  acceptBooking: () => Promise<void>;
-  rejectBooking: () => Promise<void>;
+  acceptBooking: (booking?: any) => Promise<void>;
+  rejectBooking: (booking?: any) => Promise<void>;
   dismissBooking: () => void;
   /** When true, modal is hidden (Home shows inline card). */
   setPreferInlineCard: (prefer: boolean) => void;
@@ -88,6 +91,7 @@ export function useIncomingBooking(): IncomingBookingContextValue {
   if (!ctx) {
     return {
       incomingBooking: null,
+      waitingNearby: [],
       secondsLeft: ACCEPT_TIMEOUT_SEC,
       loading: false,
       acceptBooking: async () => {},
@@ -109,6 +113,7 @@ export function IncomingBookingProvider({
   const {t} = useTranslation();
 
   const [incomingBooking, setIncomingBooking] = useState<any>(null);
+  const [waitingNearby, setWaitingNearby] = useState<any[]>([]);
   const [secondsLeft, setSecondsLeft] = useState(ACCEPT_TIMEOUT_SEC);
   const [loading, setLoading] = useState(false);
   const [preferInlineCard, setPreferInlineCard] = useState(false);
@@ -123,6 +128,7 @@ export function IncomingBookingProvider({
   const acceptingRef = useRef(false);
   const timeoutFiredRef = useRef(false);
   const incomingRef = useRef<any>(null);
+  const receiveOpenRef = useRef(true);
   incomingRef.current = incomingBooking;
 
   const showAlert = (
@@ -136,6 +142,7 @@ export function IncomingBookingProvider({
 
   const presentBooking = useCallback((bookingData: any) => {
     if (!bookingData) return;
+    if (!receiveOpenRef.current) return;
     const id = bookingIdOf(bookingData);
     if (!id) return;
     if (handledIdsRef.current.has(id)) return;
@@ -169,7 +176,12 @@ export function IncomingBookingProvider({
     const poll = async () => {
       try {
         const profile = await getMyProfile();
-        if (!profile?.isOnline || cancelled) return;
+        receiveOpenRef.current = canReceiveOpenServiceRequests(profile);
+        if (!receiveOpenRef.current || cancelled) {
+          setWaitingNearby([]);
+          setIncomingBooking(null);
+          return;
+        }
 
         const [pending, nearby] = await Promise.all([
           serviceRequestsApi.getMyPending(),
@@ -192,6 +204,7 @@ export function IncomingBookingProvider({
         }
 
         const current = incomingRef.current;
+        const list = [...byId.values()].map(toBookingShape);
         if (current) {
           const extra = byId.get(bookingIdOf(current));
           if (extra) {
@@ -210,14 +223,22 @@ export function IncomingBookingProvider({
               return {...prev, distanceKm, photos};
             });
           }
+          setWaitingNearby(
+            list.filter(item => bookingIdOf(item) !== bookingIdOf(current)),
+          );
           return;
         }
 
-        const next = [...byId.values()].find(
+        const next = list.find(
           item => !handledIdsRef.current.has(bookingIdOf(item)),
         );
         if (next) {
-          presentBooking(toBookingShape(next));
+          presentBooking(next);
+          setWaitingNearby(
+            list.filter(item => bookingIdOf(item) !== bookingIdOf(next)),
+          );
+        } else {
+          setWaitingNearby([]);
         }
       } catch (e) {
         console.warn('[BOOKING] poll failed', e);
@@ -232,15 +253,18 @@ export function IncomingBookingProvider({
     };
   }, [userId, presentBooking]);
 
-  const handleAcceptBooking = useCallback(async () => {
-    if (!incomingBooking || !userId || acceptingRef.current) return;
+  const handleAcceptBooking = useCallback(async (bookingArg?: any) => {
+    const bookingData = bookingArg || incomingBooking;
+    if (!bookingData || !userId || acceptingRef.current) return;
     acceptingRef.current = true;
-    const bookingData = incomingBooking;
     const id = bookingIdOf(bookingData);
     if (id) handledIdsRef.current.add(id);
 
     websocketService.stopSound();
-    setIncomingBooking(null);
+    if (!bookingArg || bookingIdOf(incomingBooking) === id) {
+      setIncomingBooking(null);
+    }
+    setWaitingNearby(prev => prev.filter(item => bookingIdOf(item) !== id));
 
     try {
       setLoading(true);
@@ -263,8 +287,6 @@ export function IncomingBookingProvider({
         provider._id || provider.id || userId,
         provider,
       );
-      // Backend accept is the source of truth. Local job-card create is
-      // fallback only if the API did not already create/sync a card.
       try {
         await createJobCard(bookingData, (provider as any).address);
       } catch (cardError: any) {
@@ -274,6 +296,12 @@ export function IncomingBookingProvider({
         );
       }
       toast.success(String(t('dashboard.requestAccepted')));
+      if (navigationRef.isReady()) {
+        navigationRef.navigate(
+          'JobDetails' as never,
+          {jobCardId: id} as never,
+        );
+      }
     } catch (error: any) {
       showAlert(
         String(t('common.error')),
@@ -287,14 +315,17 @@ export function IncomingBookingProvider({
     }
   }, [incomingBooking, userId, t]);
 
-  const handleRejectBooking = useCallback(async () => {
-    if (!incomingBooking || acceptingRef.current) return;
-    const bookingData = incomingBooking;
+  const handleRejectBooking = useCallback(async (bookingArg?: any) => {
+    const bookingData = bookingArg || incomingBooking;
+    if (!bookingData || acceptingRef.current) return;
     const id = bookingIdOf(bookingData);
     if (id) handledIdsRef.current.add(id);
 
     websocketService.stopSound();
-    setIncomingBooking(null);
+    if (!bookingArg || bookingIdOf(incomingBooking) === id) {
+      setIncomingBooking(null);
+    }
+    setWaitingNearby(prev => prev.filter(item => bookingIdOf(item) !== id));
     try {
       setLoading(true);
       await websocketService.rejectBooking(bookingData);
@@ -351,6 +382,7 @@ export function IncomingBookingProvider({
   const value = useMemo(
     () => ({
       incomingBooking,
+      waitingNearby,
       secondsLeft,
       loading,
       acceptBooking: handleAcceptBooking,
@@ -360,6 +392,7 @@ export function IncomingBookingProvider({
     }),
     [
       incomingBooking,
+      waitingNearby,
       secondsLeft,
       loading,
       handleAcceptBooking,

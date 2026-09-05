@@ -5,9 +5,9 @@
  * Providers cannot edit reviews
  */
 
-import auth from '@react-native-firebase/auth';
 import {reviewsApi, Review as ApiReview} from './api/reviewsApi';
 import {jobCardsApi} from './api/jobCardsApi';
+import {getUserId, readStoredUser} from './session';
 
 export interface Review {
   id?: string;
@@ -57,8 +57,9 @@ export const createReview = async (
   photos?: string[],
 ): Promise<string> => {
   try {
-    const currentUser = auth().currentUser;
-    if (!currentUser) {
+    const currentUser = await readStoredUser();
+    const userId = getUserId(currentUser);
+    if (!userId) {
       throw new Error('User not authenticated');
     }
 
@@ -75,7 +76,7 @@ export const createReview = async (
     }
 
     // Verify the current user is the customer
-    if (jobCard.customerId !== currentUser.uid) {
+    if (jobCard.customerId !== userId) {
       throw new Error('Only the customer can create a review');
     }
 
@@ -166,8 +167,9 @@ export const canCustomerReview = async (
   jobCardId: string,
 ): Promise<boolean> => {
   try {
-    const currentUser = auth().currentUser;
-    if (!currentUser) {
+    const currentUser = await readStoredUser();
+    const userId = getUserId(currentUser);
+    if (!userId) {
       return false;
     }
 
@@ -184,7 +186,7 @@ export const canCustomerReview = async (
     }
 
     // Check if customer matches
-    if (jobCard.customerId !== currentUser.uid) {
+    if (jobCard.customerId !== userId) {
       return false;
     }
 

@@ -1,11 +1,9 @@
 /**
  * Job Card Service (Provider App)
- * Uses backend API for CRUD operations
- * Uses Firebase Realtime Database for real-time subscriptions (intentional)
+ * Uses backend API for CRUD operations.
+ * Live updates poll the API (Socket.IO handles incoming jobs).
  */
 
-import database from '@react-native-firebase/database';
-import storage from '@react-native-firebase/storage';
 import RNFS from 'react-native-fs';
 import fcmNotificationService from './fcmNotificationService';
 import {generatePIN} from '../utils/pinGenerator';
@@ -59,6 +57,8 @@ export interface JobCard {
     text: string;
     createdAt?: string | Date;
   }>;
+  contact?: {canCallCustomer?: boolean};
+  completionPhotos?: Array<string | {key?: string; url?: string}>;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -177,26 +177,6 @@ export const createJobCard = async (
       throw new Error('Job card created but no id returned');
     }
 
-    // Side effects must not fail accept — API is source of truth.
-    // Customer/admin push is sent by the backend accept endpoint (Mongo FCM tokens).
-    void (async () => {
-      try {
-        await database()
-          .ref(`jobCards/${jobCardId}`)
-          .set({
-            providerId: providerId,
-            customerId: customerId,
-            status: 'accepted',
-            updatedAt: Date.now(),
-          });
-      } catch (rtdbError: any) {
-        console.warn(
-          'RTDB jobCards mirror skipped:',
-          rtdbError?.message || rtdbError,
-        );
-      }
-    })();
-
     return jobCardId;
   } catch (error: any) {
     console.error('Error creating job card:', error);
@@ -251,7 +231,6 @@ export const getProviderJobCards = async (providerId: string): Promise<JobCard[]
 
 /**
  * Update job card status via API
- * Also updates Realtime Database for real-time sync
  */
 export const updateJobCardStatus = async (
   jobCardId: string,
@@ -290,22 +269,6 @@ export const updateJobCardStatus = async (
     console.error('Error updating job card status via API:', apiError);
     throw new Error(
       apiError?.message || 'Failed to update job card status',
-    );
-  }
-
-  // Best-effort RTDB mirror (Firebase rules often deny provider writes)
-  try {
-    await database()
-      .ref(`jobCards/${jobCardId}`)
-      .update({
-        status: status,
-        updatedAt: Date.now(),
-        providerId: providerId,
-      });
-  } catch (rtdbError: any) {
-    console.warn(
-      'RTDB jobCards status mirror skipped:',
-      rtdbError?.message || rtdbError,
     );
   }
 
@@ -369,123 +332,51 @@ export const updateJobCardStatus = async (
   }
 };
 
-/**
- * Subscribe to real-time job card status updates
- * Uses Firebase Realtime Database for real-time sync (intentional)
- * Returns unsubscribe function
- */
 export const subscribeToJobCardStatus = (
   jobCardId: string,
   callback: (status: JobCard['status'], updatedAt: number) => void,
 ): (() => void) => {
-  const jobCardRef = database().ref(`jobCards/${jobCardId}`);
-
-  const onStatusChange = jobCardRef.on('value', (snapshot) => {
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      if (data && data.status) {
-        callback(data.status, data.updatedAt || Date.now());
-      }
+  let cancelled = false;
+  const tick = async () => {
+    const card = await getJobCardById(jobCardId);
+    if (!cancelled && card?.status) {
+      callback(card.status, Date.now());
     }
-  });
-
+  };
+  void tick();
+  const id = setInterval(() => void tick(), 8000);
   return () => {
-    jobCardRef.off('value', onStatusChange);
+    cancelled = true;
+    clearInterval(id);
   };
 };
 
-/**
- * Subscribe to all job card status updates for a provider
- * Uses Firebase Realtime Database for real-time sync (intentional)
- * Returns unsubscribe function
- */
 export const subscribeToProviderJobCardStatuses = (
   providerId: string,
   callback: (jobCardId: string, status: JobCard['status'], updatedAt: number) => void,
 ): (() => void) => {
-  const providerJobCardsRef = database().ref('jobCards');
-
-  const onStatusChange = providerJobCardsRef.on('child_changed', (snapshot) => {
-    const jobCardId = snapshot.key;
-    const jobCardData = snapshot.val();
-
-    if (jobCardData && jobCardData.providerId === providerId) {
-      const status = jobCardData.status;
-      const updatedAt = jobCardData.updatedAt || Date.now();
-      callback(jobCardId || '', status, updatedAt);
+  let cancelled = false;
+  const tick = async () => {
+    const cards = await getProviderJobCards(providerId);
+    if (cancelled) return;
+    for (const card of cards) {
+      const id = card.id || card._id;
+      if (id && card.status) callback(String(id), card.status, Date.now());
     }
-  });
-
-  const onJobCardAdded = providerJobCardsRef.on('child_added', (snapshot) => {
-    const jobCardId = snapshot.key;
-    const jobCardData = snapshot.val();
-
-    if (jobCardData && jobCardData.providerId === providerId) {
-      const status = jobCardData.status;
-      const updatedAt = jobCardData.updatedAt || Date.now();
-      callback(jobCardId || '', status, updatedAt);
-    }
-  });
-
+  };
+  void tick();
+  const id = setInterval(() => void tick(), 8000);
   return () => {
-    providerJobCardsRef.off('child_changed', onStatusChange);
-    providerJobCardsRef.off('child_added', onJobCardAdded);
+    cancelled = true;
+    clearInterval(id);
   };
 };
 
 /**
- * Subscribe to all job card status updates for a customer
- * Uses Firebase Realtime Database for real-time sync (intentional)
- * Returns unsubscribe function
+ * PDF upload is not used (no Firebase Storage).
  */
-export const subscribeToCustomerJobCardStatuses = (
-  customerId: string,
-  callback: (jobCardId: string, status: JobCard['status'], updatedAt: number) => void,
-): (() => void) => {
-  const customerJobCardsRef = database().ref('jobCards');
-
-  const onStatusChange = customerJobCardsRef.on('child_changed', (snapshot) => {
-    const jobCardId = snapshot.key;
-    const statusData = snapshot.child('status').val();
-
-    if (statusData && statusData.customerId === customerId) {
-      callback(jobCardId || '', statusData.status, statusData.updatedAt);
-    }
-  });
-
-  const onJobCardAdded = customerJobCardsRef.on('child_added', (snapshot) => {
-    const jobCardId = snapshot.key;
-    const statusData = snapshot.child('status').val();
-
-    if (statusData && statusData.customerId === customerId) {
-      callback(jobCardId || '', statusData.status, statusData.updatedAt);
-    }
-  });
-
-  return () => {
-    customerJobCardsRef.off('child_changed', onStatusChange);
-    customerJobCardsRef.off('child_added', onJobCardAdded);
-  };
-};
-
-/**
- * Upload PDF to Firebase Storage and return URL
- */
-const uploadPDFToStorage = async (pdfPath: string, jobCardId: string): Promise<string> => {
-  try {
-    const filename = `jobCards/${jobCardId}/jobCard_${Date.now()}.pdf`;
-    const reference = storage().ref(filename);
-
-    // Upload file
-    await reference.putFile(pdfPath);
-
-    // Get download URL
-    const url = await reference.getDownloadURL();
-    return url;
-  } catch (error: any) {
-    console.error('Error uploading PDF to storage:', error);
-    throw new Error('Failed to upload job card PDF');
-  }
+const uploadPDFToStorage = async (_pdfPath: string, _jobCardId: string): Promise<string> => {
+  return '';
 };
 
 /**
@@ -504,6 +395,7 @@ export const verifyPINAndCompleteTask = async (
   }>,
   timeStarted?: Date,
   timeCompleted?: Date,
+  completionPhotos?: Array<{key: string; url: string}>,
 ): Promise<void> => {
   try {
     const {requireSessionUser} = await import('./session');
@@ -562,23 +454,11 @@ export const verifyPINAndCompleteTask = async (
       materialsUsed: materials,
       jobCardPdfUrl: pdfUrl,
       verificationPIN: enteredPIN,
+      completionPhotos:
+        completionPhotos && completionPhotos.length > 0
+          ? completionPhotos
+          : undefined,
     });
-
-    // Best-effort RTDB mirror
-    try {
-      await database()
-        .ref(`jobCards/${jobCardId}`)
-        .update({
-          status: 'completed',
-          updatedAt: Date.now(),
-          completedAt: timeCompleted ? timeCompleted.getTime() : Date.now(),
-        });
-    } catch (rtdbError: any) {
-      console.warn(
-        'RTDB jobCards complete mirror skipped:',
-        rtdbError?.message || rtdbError,
-      );
-    }
 
     // Clear PIN by updating via API (PIN will be cleared by backend)
     // The backend should handle clearing the PIN after successful completion
@@ -617,21 +497,6 @@ export const cancelTaskWithReason = async (
     await jobCardsApi.updateStatus(jobCardId, 'cancelled', {
       cancellationReason: cancellationReason.trim(),
     });
-
-    // Best-effort RTDB mirror
-    try {
-      await database()
-        .ref(`jobCards/${jobCardId}`)
-        .update({
-          status: 'cancelled',
-          updatedAt: Date.now(),
-        });
-    } catch (rtdbError: any) {
-      console.warn(
-        'RTDB jobCards cancel mirror skipped:',
-        rtdbError?.message || rtdbError,
-      );
-    }
 
     // Send notification to customer
     if (customerId) {

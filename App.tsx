@@ -29,13 +29,13 @@ import NotificationService from './src/services/notificationService';
 import GeolocationService from './src/services/geolocationService';
 import WebSocketService from './src/services/websocketService';
 import {loadAndApplyBranding} from './src/services/brandingService';
-import {lightTheme, darkTheme} from './src/utils/theme';
+import {resolveTheme} from './src/utils/theme';
 import './src/i18n'; // Initialize i18n
 
 const App = () => {
-  const {isDarkMode, hydrate, currentUser} = useStore();
+  const {isDarkMode, hydrate, currentUser, colorTheme} = useStore();
   const [bootReady, setBootReady] = useState(false);
-  const theme = isDarkMode ? darkTheme : lightTheme;
+  const theme = resolveTheme(isDarkMode);
   const appThemeColors = useMemo(
     () => ({
       primary: theme.primary,
@@ -44,14 +44,29 @@ const App = () => {
       text: theme.text,
       textSecondary: theme.textSecondary,
       border: theme.border,
+      danger: theme.error,
+      success: theme.success,
+      warning: theme.warning,
+      controlH: 36,
+      controlHLg: 44,
+      controlPx: 12,
+      radiusSm: 8,
+      radius: 10,
+      radiusCard: 12,
     }),
+    // colorTheme forces refresh when Brand/Cool/Warm mutates theme.primary in place
     [
+      colorTheme,
+      isDarkMode,
       theme.primary,
       theme.background,
       theme.card,
       theme.text,
       theme.textSecondary,
       theme.border,
+      theme.error,
+      theme.success,
+      theme.warning,
     ],
   );
 
@@ -149,8 +164,10 @@ const App = () => {
     };
   }, [hydrate]);
 
-  // FCM tokens are automatically saved to Firestore via NotificationService.initializeAndSaveToken()
-  // No need to manually set user IDs - FCM uses Firebase Auth UID automatically
+  useEffect(() => {
+    if (!currentUser) return;
+    void NotificationService.saveTokenToBackend();
+  }, [currentUser]);
 
   // Initialize WebSocket connection for real-time booking notifications
   useEffect(() => {

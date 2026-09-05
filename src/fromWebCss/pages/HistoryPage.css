@@ -1,0 +1,64 @@
+.history-page {
+  min-width: 0;
+}
+
+/* Completed vs didn't-happen — same idea as Customer history cards. */
+.history-list-cards .hs-card.list-card-wrap--completed {
+  --job-card-status: var(--success);
+  box-shadow:
+    inset 4px 0 0 var(--success),
+    inset 0 1px 0 color-mix(in srgb, var(--card) 82%, transparent),
+    0 6px 18px
+      color-mix(in srgb, var(--success) 16%, rgba(30, 60, 90, 0.05)) !important;
+  background-image:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--success) 4%, transparent) 0%,
+      color-mix(in srgb, var(--success) 18%, transparent) 42%,
+      color-mix(in srgb, var(--success) 28%, transparent) 100%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(
+        in srgb,
+        var(--success) 18%,
+        color-mix(in srgb, var(--card) 55%, transparent)
+      ),
+      color-mix(
+        in srgb,
+        var(--success) 28%,
+        color-mix(in srgb, var(--card) 28%, transparent)
+      )
+    ) !important;
+}
+
+.history-list-cards .hs-card.list-card-wrap--cancelled,
+.history-list-cards .hs-card.list-card-wrap--canceled,
+.history-list-cards .hs-card.list-card-wrap--rejected {
+  --job-card-status: color-mix(in srgb, var(--error) 70%, #64748b);
+  box-shadow:
+    inset 4px 0 0 var(--error),
+    inset 0 1px 0 color-mix(in srgb, var(--card) 82%, transparent),
+    0 6px 18px
+      color-mix(in srgb, var(--error) 12%, rgba(30, 60, 90, 0.05)) !important;
+  background-image:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--error) 2%, transparent) 0%,
+      color-mix(in srgb, var(--error) 14%, transparent) 42%,
+      color-mix(in srgb, var(--error) 22%, transparent) 100%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(
+        in srgb,
+        var(--error) 14%,
+        color-mix(in srgb, var(--card) 62%, transparent)
+      ),
+      color-mix(
+        in srgb,
+        var(--error) 22%,
+        color-mix(in srgb, var(--card) 32%, transparent)
+      )
+    ) !important;
+}

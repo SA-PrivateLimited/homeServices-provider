@@ -5,6 +5,17 @@
 import {API_BASE_URL, API_TIMEOUT} from '../../config/api';
 import {forceLogoutExpiredSession, getStoredJwt} from '../session';
 
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -98,17 +109,21 @@ export async function apiRequest<T>(
 
       if (response.status === 401 && !skipAuth && authToken) {
         void handleUnauthorized();
-        throw new Error(
+        throw new ApiError(
           errorData.message ||
             errorData.error ||
             'Session expired. Please sign in again.',
+          401,
+          errorData.code,
         );
       }
 
-      throw new Error(
+      throw new ApiError(
         errorData.message ||
           errorData.error ||
           `HTTP ${response.status}: ${response.statusText}`,
+        response.status,
+        errorData.code,
       );
     }
 

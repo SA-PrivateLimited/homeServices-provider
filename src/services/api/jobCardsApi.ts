@@ -47,6 +47,7 @@ export interface JobCard {
     text: string;
     createdAt?: string | Date;
   }>;
+  completionPhotos?: Array<string | {key?: string; url?: string}>;
   createdAt: string | Date;
   updatedAt: string | Date;
 }
@@ -83,6 +84,7 @@ export interface UpdateJobCardStatusData {
     total?: number;
   }>;
   jobCardPdfUrl?: string;
+  completionPhotos?: Array<string | {key?: string; url?: string}>;
 }
 
 /**

@@ -7,6 +7,13 @@ import type {
   ChatMessage,
   Prescription,
 } from '../types/consultation';
+import {
+  loadPartnerColorTheme,
+  persistPartnerColorTheme,
+  setPartnerNightVisionFlag,
+} from '../utils/partnerColorTheme';
+import {applyNightVisionMode} from '../utils/theme';
+import {changeLanguage} from '../i18n';
 
 export interface AppNotification {
   id: string;
@@ -24,6 +31,8 @@ interface AppState {
   // Theme
   isDarkMode: boolean;
   toggleTheme: () => void;
+  colorTheme: 'brand' | 'cool' | 'warm';
+  setColorTheme: (id: 'brand' | 'cool' | 'warm') => Promise<void>;
 
   // Language
   language: 'en' | 'hi';
@@ -83,6 +92,7 @@ interface AppState {
 
 export const useStore = create<AppState>((set, get) => ({
   isDarkMode: false,
+  colorTheme: 'brand',
   isLoading: false,
   language: 'en',
 
@@ -100,14 +110,19 @@ export const useStore = create<AppState>((set, get) => ({
   toggleTheme: async () => {
     const newTheme = !get().isDarkMode;
     set({isDarkMode: newTheme});
+    setPartnerNightVisionFlag(newTheme);
+    applyNightVisionMode(newTheme);
     await AsyncStorage.setItem('theme', JSON.stringify(newTheme));
+  },
+
+  setColorTheme: async (id: 'brand' | 'cool' | 'warm') => {
+    await persistPartnerColorTheme(id);
+    set({colorTheme: id});
   },
 
   setLanguage: async (language: 'en' | 'hi') => {
     set({language});
     await AsyncStorage.setItem('language', language);
-    // Change i18n language
-    const {changeLanguage} = await import('../i18n');
     await changeLanguage(language);
   },
 
@@ -245,6 +260,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   hydrate: async () => {
     try {
+      const colorTheme = await loadPartnerColorTheme();
+
       const [
         theme,
         language,
@@ -264,13 +281,15 @@ export const useStore = create<AppState>((set, get) => ({
       ]);
 
       const storedLanguage = (language || 'en') as 'en' | 'hi';
-      
-      // Initialize i18n with stored language
-      const {changeLanguage} = await import('../i18n');
       await changeLanguage(storedLanguage);
 
+      const isDarkMode = theme ? JSON.parse(theme) : false;
+      setPartnerNightVisionFlag(isDarkMode);
+      applyNightVisionMode(isDarkMode);
+
       set({
-        isDarkMode: theme ? JSON.parse(theme) : false,
+        isDarkMode,
+        colorTheme,
         language: storedLanguage,
         currentUser: currentUser ? JSON.parse(currentUser) : null,
         doctors: doctors ? JSON.parse(doctors) : [],

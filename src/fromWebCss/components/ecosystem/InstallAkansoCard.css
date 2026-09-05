@@ -1,0 +1,124 @@
+.install-akanso {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary) 6%, var(--card, #fff));
+}
+
+.install-akanso--compact {
+  position: relative;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 4px 4px 4px 0;
+  margin: 0;
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.install-akanso__hit {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 8px 10px 14px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 12px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.install-akanso__icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 6%, var(--card));
+  color: var(--textSecondary);
+  margin-top: 1px;
+}
+
+.install-akanso__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.install-akanso__copy strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+  line-height: 1.3;
+}
+
+.install-akanso__copy p,
+.install-akanso__copy > span:not(.install-akanso__footer) {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--textSecondary);
+}
+
+.install-akanso__footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.install-akanso__env {
+  display: block;
+  margin: 0 !important;
+  font-size: 11px !important;
+  font-weight: 600;
+  color: var(--primaryDark, var(--primary)) !important;
+  min-width: 0;
+}
+
+.install-akanso__cta-label {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.install-akanso__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+@media (hover: hover) {
+  .install-akanso__hit:hover {
+    background: color-mix(in srgb, var(--text) 2.5%, transparent);
+  }
+}
+
+.install-akanso__ios-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.install-akanso__ios-steps li + li {
+  margin-top: 8px;
+}

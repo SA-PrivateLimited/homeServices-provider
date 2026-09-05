@@ -1,0 +1,205 @@
+.login-below {
+  width: 100%;
+  background: var(--background);
+  padding: 28px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+}
+
+.login-below__inner {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.login-utils {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.login-util-card {
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card, #fff);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.login-util-card__icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 12%, white);
+  color: var(--primary);
+}
+
+.login-util-card h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.login-util-card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--textSecondary);
+}
+
+.login-util-qr {
+  display: block;
+  width: 120px;
+  height: 120px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.login-util-share-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.login-util-share-actions .hs-btn {
+  justify-content: center;
+  min-height: 40px;
+}
+
+.login-util-ios-steps {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.5;
+  color: var(--textSecondary);
+}
+
+/* Compact customer row — no stretched empty middle */
+.login-partner-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 14px;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, white);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.login-partner-banner__icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 16%, white);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.login-partner-banner__copy {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.login-partner-banner__copy strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 2px;
+  color: var(--text);
+}
+
+.login-partner-banner__copy p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--textSecondary);
+}
+
+.login-partner-banner__cta {
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 40px;
+  margin-left: auto;
+}
+
+.login-partner-banner__cta .hs-btn__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.login-trust-strip {
+  list-style: none;
+  margin: 0;
+  padding: 12px 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--border) 35%, white);
+  color: var(--textSecondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.login-trust-strip li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (min-width: 861px) {
+  .login-below {
+    padding: 32px 40px 44px;
+  }
+
+  .login-below__inner {
+    max-width: 720px;
+  }
+
+  /* Fill available columns from actual card count (2 or 3) — no empty third lane */
+  .login-utils {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+
+  .login-partner-banner {
+    flex-wrap: nowrap;
+    gap: 14px;
+    padding: 14px 18px;
+  }
+
+  .login-partner-banner__copy {
+    flex: 1 1 auto;
+  }
+
+  .login-partner-banner__cta {
+    margin-left: 0;
+    min-width: 140px;
+  }
+
+  .login-trust-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 14px 16px;
+    gap: 10px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 860px) {
+  .login-layout--phone .login-below {
+    display: none;
+  }
+}
