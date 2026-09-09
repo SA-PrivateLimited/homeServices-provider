@@ -102,7 +102,7 @@ class NotificationService {
         PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
         {
           title: 'Notification Permission',
-          message: 'Akanso Partner needs permission to send you notifications about new jobs and updates.',
+          message: 'Akansho Partner needs permission to send you notifications about new jobs and updates.',
           buttonNeutral: 'Ask Me Later',
           buttonNegative: 'Cancel',
           buttonPositive: 'Allow',
@@ -152,7 +152,7 @@ class NotificationService {
 
   handleFCMMessage(remoteMessage: any) {
     const {notification, data} = remoteMessage || {};
-    const title = notification?.title || data?.title || 'Akanso';
+    const title = notification?.title || data?.title || 'Akansho';
     const message =
       notification?.body || data?.body || data?.message || '';
     if (!message && !title) return;

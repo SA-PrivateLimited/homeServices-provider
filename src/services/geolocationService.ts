@@ -74,7 +74,7 @@ class GeolocationService {
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           {
             title: 'Location Permission',
-            message: 'Akanso Partner needs your location to show nearby job requests.',
+            message: 'Akansho Partner needs your location to show nearby job requests.',
             buttonNeutral: 'Ask Me Later',
             buttonNegative: 'Cancel',
             buttonPositive: 'OK',
@@ -92,7 +92,7 @@ class GeolocationService {
               PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
               {
                 title: 'Location Permission',
-                message: 'Akanso Partner needs approximate location to show nearby job requests.',
+                message: 'Akansho Partner needs approximate location to show nearby job requests.',
                 buttonNeutral: 'Ask Me Later',
                 buttonNegative: 'Cancel',
                 buttonPositive: 'OK',

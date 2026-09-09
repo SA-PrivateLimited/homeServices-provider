@@ -9,7 +9,7 @@ import {applyColorPalette, type ColorPalette} from '../utils/theme';
 import {reapplyCurrentPartnerColorTheme} from '../utils/partnerColorTheme';
 
 const CACHE_KEY = '@hs_provider_branding_themeColors';
-const DEFAULT_BRAND_NAME = 'Akanso Partner';
+const DEFAULT_BRAND_NAME = 'Akansho Partner';
 const LEGACY_BRAND_RE = /homeservice/i;
 
 function sanitizeBrandName(raw: string): string {

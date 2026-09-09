@@ -24,7 +24,7 @@ export default function SettingsAboutScreen({navigation}: {navigation: any}) {
           {t('settings.aboutApp')}
         </Text>
         <Text style={[styles.p, {color: theme.text}]}>
-          <Text style={styles.strong}>Akanso</Text> · v1.0.0
+          <Text style={styles.strong}>Akansho</Text> · v1.0.0
         </Text>
         <Text style={[styles.muted, {color: theme.textSecondary}]}>
           {t('settings.aboutCopy')}
@@ -52,7 +52,7 @@ export default function SettingsAboutScreen({navigation}: {navigation: any}) {
         </Button>
       </CrystalSurface>
       <Text style={[styles.muted, {color: theme.textSecondary}]}>
-        © Akanso Pvt Ltd
+        © Akansho Pvt Ltd
       </Text>
     </ScrollView>
   );

@@ -23,11 +23,11 @@ const ProviderHelpSupportModal: React.FC<ProviderHelpSupportModalProps> = ({
 }) => {
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const supportEmail = 'support@sa-privatelimited.com';
+  const supportEmail = 'support@akansho.com';
 
   const handleSendEmail = async () => {
     try {
-      const subject = 'Akanso Partner Support Request';
+      const subject = 'Akansho Partner Support Request';
       const mailtoUrl = `mailto:${supportEmail}?subject=${encodeURIComponent(subject)}`;
 
       const canOpen = await Linking.canOpenURL(mailtoUrl);

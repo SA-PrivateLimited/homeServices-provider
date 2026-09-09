@@ -158,11 +158,11 @@ export function SuggestPartnerModal({
       setDone(true);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        if (/already registered as an Akanso Partner/i.test(err.message)) {
+        if (/already registered as an Akan(?:so|sho) Partner/i.test(err.message)) {
           setError(String(t('collab.suggestAlreadyPartner')));
         } else if (/already been suggested/i.test(err.message)) {
           setError(String(t('collab.suggestAlreadySuggested')));
-        } else if (/existing Akanso customer/i.test(err.message)) {
+        } else if (/existing Akan(?:so|sho) customer/i.test(err.message)) {
           setError(String(t('collab.suggestAlreadyCustomer')));
         } else {
           setError(getUserFacingErrorMessage(err));
