@@ -16,10 +16,10 @@
   "english": "English",
   "hindi": "हिंदी",
   "languageChanged": "Language changed successfully",
-  "aboutHomeServices": "About Akanso Partner",
-  "aboutMessage": "Akanso Partner helps you receive service requests, manage jobs, and grow your work in your city.",
-  "privacyMessage": "Akanso respects your privacy. We use your information only to run Partner features such as jobs, support, and account security.",
-  "termsMessage": "By using Akanso Partner, you agree to use the app for genuine home-service work and to follow Akanso's terms.",
+  "aboutHomeServices": "About Akansho Partner",
+  "aboutMessage": "Akansho Partner helps you receive service requests, manage jobs, and grow your work in your city.",
+  "privacyMessage": "Akansho respects your privacy. We use your information only to run Partner features such as jobs, support, and account security.",
+  "termsMessage": "By using Akansho Partner, you agree to use the app for genuine home-service work and to follow Akansho's terms.",
   "restartAppTour": "Restart App Tour",
   "restartAppTourMessage": "This will show you the interactive guide again when you visit different screens. Would you like to restart the app tour?",
   "restartTour": "Restart Tour",
@@ -34,7 +34,7 @@
   "appTourSubtitle": "Restart the interactive guide",
   "information": "INFORMATION",
   "aboutSubtitle": "App version and information",
-  "appName": "Akanso Partner",
+  "appName": "Akansho Partner",
   "allRightsReserved": "All rights reserved",
-  "disclaimer": "Akanso connects customers with local Partners. Always confirm job details with the customer."
+  "disclaimer": "Akansho connects customers with local Partners. Always confirm job details with the customer."
 }

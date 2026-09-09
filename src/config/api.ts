@@ -7,7 +7,7 @@
 import {Platform} from 'react-native';
 
 /** Same production host as Partner / Customer web (`runtime.ts`). */
-const PRODUCTION_URL = 'https://api.akanso.in/api';
+const PRODUCTION_URL = 'https://api.akansho.com/api';
 
 // Local backend: Android emulator must use 10.0.2.2 (emulator's alias for host), not localhost
 const getApiBaseUrl = (): string => {

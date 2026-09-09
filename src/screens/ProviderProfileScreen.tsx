@@ -1054,11 +1054,11 @@ export default function ProviderProfileScreen({navigation}: any) {
                   Alert.alert(
                     String(
                       t('settings.aboutHomeServices') ||
-                        'Akanso Partner',
+                        'Akansho Partner',
                     ),
                     `${String(t('profile.version'))} 1.0.0\n\n${String(
                       t('settings.aboutMessage') ||
-                        'Akanso Partner helps you receive jobs and grow your work.',
+                        'Akansho Partner helps you receive jobs and grow your work.',
                     )}`,
                   );
                 }}

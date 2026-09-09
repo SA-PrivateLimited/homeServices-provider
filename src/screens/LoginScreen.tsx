@@ -52,7 +52,7 @@ import {
   WHATSAPP_SUPPORT_URL,
 } from '../config/support';
 
-const PARTNER_WEB_URL = 'https://partner.akanso.in';
+const PARTNER_WEB_URL = 'https://partner.akansho.com';
 
 interface LoginScreenProps {
   navigation: any;

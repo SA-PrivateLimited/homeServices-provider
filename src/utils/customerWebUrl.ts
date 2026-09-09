@@ -1,5 +1,5 @@
 /** Customer web origin for “Use as Customer” — Play Store uses the live site until App Links. */
-export const CUSTOMER_WEB_URL = 'https://akanso.in';
+export const CUSTOMER_WEB_URL = 'https://akansho.com';
 
 export function getCustomerWebUrl(): string {
   return CUSTOMER_WEB_URL;
