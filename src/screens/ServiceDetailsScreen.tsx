@@ -57,7 +57,7 @@ export default function ServiceDetailsScreen({route}: any) {
   };
 
   const pickDoc = (reqKey: string, label?: string) => {
-    launchImageLibrary({mediaType: 'mixed', quality: 0.8}, async response => {
+    launchImageLibrary({mediaType: 'mixed', quality: 0.75}, async response => {
       const asset = response.assets?.[0];
       if (!asset?.uri) return;
       setUploadingKey(reqKey);
