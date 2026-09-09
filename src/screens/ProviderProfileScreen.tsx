@@ -511,7 +511,7 @@ export default function ProviderProfileScreen({navigation}: any) {
   };
 
   const pickProfilePhoto = () => {
-    launchImageLibrary({mediaType: 'photo', quality: 0.8}, async response => {
+    launchImageLibrary({mediaType: 'photo', quality: 0.75}, async response => {
       const asset = response.assets?.[0];
       if (!asset?.uri) return;
       setPhotoBusy(true);

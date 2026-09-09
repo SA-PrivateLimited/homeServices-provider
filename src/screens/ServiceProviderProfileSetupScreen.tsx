@@ -225,7 +225,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   };
 
   const pickImage = () => {
-    launchImageLibrary({mediaType: 'photo', quality: 0.8}, async response => {
+    launchImageLibrary({mediaType: 'photo', quality: 0.75}, async response => {
       const asset = response.assets?.[0];
       if (!asset?.uri) return;
       setImageError(false);
@@ -307,7 +307,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     launchImageLibrary(
       {
         mediaType: 'photo',
-        quality: 0.8,
+        quality: 0.75,
       },
       async response => {
         if (response.assets && response.assets[0].uri) {
