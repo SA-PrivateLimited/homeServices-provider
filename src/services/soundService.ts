@@ -204,7 +204,7 @@ class SoundService {
       console.log('🔊 [PLAY] Calling sound.play()...');
 
       // Play the sound - try even if not marked as loaded
-      this.hooterSound.play((success) => {
+      this.hooterSound.play((success: boolean) => {
         if (success) {
           console.log('✅ [PLAY] Sound played successfully');
           // Mark as loaded after successful play

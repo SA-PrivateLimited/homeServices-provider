@@ -8,11 +8,13 @@
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "module": "esnext",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     }
   },
+  "include": ["App.tsx", "index.js", "src/**/*"],
   "exclude": [
     "node_modules",
     "babel.config.js",

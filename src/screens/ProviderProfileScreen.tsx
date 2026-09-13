@@ -8,10 +8,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Image,
-  Switch,
-  Animated,
-  Dimensions,
-  Pressable,
   Alert,
   TextInput,
 } from 'react-native';
@@ -23,7 +19,6 @@ import {uploadAssetFromUri} from '../services/api/assetsApi';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {getUserId} from '../services/session';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
-import ProviderHelpSupportModal from '../components/ProviderHelpSupportModal';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
 import ProviderServiceAddressFields, {
   type ProviderServiceAddressValue,
@@ -32,8 +27,6 @@ import ReviewsList from '../components/ReviewsList';
 import {WorkShowcaseEditor} from '../components/WorkShowcaseEditor';
 import {KycDocumentsCard} from '../components/KycDocumentsCard';
 import useTranslation from '../hooks/useTranslation';
-
-const DRAWER_WIDTH = Math.min(320, Dimensions.get('window').width * 0.82);
 
 const SERVICE_TYPES = [
   'Carpenter',
@@ -157,10 +150,7 @@ export default function ProviderProfileScreen({navigation}: any) {
   const [profile, setProfile] = useState<ProviderProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false);
-  const [sidebarX] = useState(() => new Animated.Value(DRAWER_WIDTH));
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -180,7 +170,7 @@ export default function ProviderProfileScreen({navigation}: any) {
     pincode: '',
   });
 
-  const {currentUser, setCurrentUser, isDarkMode, toggleTheme, language, setLanguage} =
+  const {currentUser, setCurrentUser, isDarkMode} =
     useStore();
   const userId = getUserId(currentUser);
   const theme = isDarkMode ? darkTheme : lightTheme;
@@ -279,25 +269,6 @@ export default function ProviderProfileScreen({navigation}: any) {
       }
     }, [loadProviderProfile, isEditing]),
   );
-
-  const openSidebar = () => {
-    setShowSidebar(true);
-    Animated.timing(sidebarX, {
-      toValue: 0,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const closeSidebar = () => {
-    Animated.timing(sidebarX, {
-      toValue: DRAWER_WIDTH,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(({finished}) => {
-      if (finished) setShowSidebar(false);
-    });
-  };
 
   const handleSaveProfile = async () => {
     if (!profile) return;
@@ -548,10 +519,6 @@ export default function ProviderProfileScreen({navigation}: any) {
 
   return (
     <View style={[styles.root, {backgroundColor: theme.background}]}>
-      <ProviderHelpSupportModal
-        visible={showHelpModal}
-        onClose={() => setShowHelpModal(false)}
-      />
       <LogoutConfirmationModal
         visible={showLogoutModal}
         onConfirm={handleConfirmLogout}
@@ -566,9 +533,6 @@ export default function ProviderProfileScreen({navigation}: any) {
         <Text style={[styles.topBarTitle, {color: theme.text}]}>
           {String(t('common.profile') || t('profile.title') || 'Profile')}
         </Text>
-        <TouchableOpacity onPress={openSidebar} style={styles.menuBtn}>
-          <Icon name="menu" size={26} color={theme.text} />
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -951,6 +915,21 @@ export default function ProviderProfileScreen({navigation}: any) {
             {String(t('profile.account')).toUpperCase()}
           </Text>
           <SettingItem
+            icon="handyman-outline"
+            title={String(t('nav.myServices'))}
+            subtitle={String(t('settings.myServicesLinkSub'))}
+            onPress={() =>
+              navigation.navigate('Settings', {screen: 'MyServices'})
+            }
+          />
+          <SettingItem
+            icon="help-circle-outline"
+            title={String(t('profile.helpSupport'))}
+            onPress={() =>
+              navigation.navigate('Settings', {screen: 'HelpSupport'})
+            }
+          />
+          <SettingItem
             icon="log-out-outline"
             title={String(t('profile.logout'))}
             subtitle={String(
@@ -965,108 +944,6 @@ export default function ProviderProfileScreen({navigation}: any) {
           {String(t('profile.version'))} 1.0.0
         </Text>
       </ScrollView>
-
-      {showSidebar ? (
-        <View style={styles.sidebarRoot} pointerEvents="box-none">
-          <Pressable style={styles.sidebarBackdrop} onPress={closeSidebar} />
-          <Animated.View
-            style={[
-              styles.sidebar,
-              {
-                backgroundColor: theme.card,
-                transform: [{translateX: sidebarX}],
-              },
-            ]}>
-            <View style={styles.sidebarHeader}>
-              <Text style={[styles.sidebarTitle, {color: theme.text}]}>
-                {String(t('settings.menu') || 'Menu')}
-              </Text>
-              <TouchableOpacity onPress={closeSidebar}>
-                <Icon name="close" size={24} color={theme.text} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              <Text
-                style={[styles.sidebarSection, {color: theme.textSecondary}]}>
-                {String(t('settings.appearance') || 'APPEARANCE').toUpperCase()}
-              </Text>
-              <SettingItem
-                icon="moon"
-                title={String(t('settings.darkMode') || 'Dark Mode')}
-                rightComponent={
-                  <Switch
-                    value={isDarkMode}
-                    onValueChange={toggleTheme}
-                    trackColor={{false: theme.border, true: theme.primary}}
-                    thumbColor="#FFFFFF"
-                  />
-                }
-              />
-              <SettingItem
-                icon="language"
-                title={String(t('settings.language') || 'Language')}
-                subtitle={
-                  language === 'en'
-                    ? String(t('settings.english') || 'English')
-                    : String(t('settings.hindi') || 'Hindi')
-                }
-                onPress={async () => {
-                  if (setLanguage) {
-                    await setLanguage(language === 'en' ? 'hi' : 'en');
-                  }
-                }}
-              />
-
-              <Text
-                style={[styles.sidebarSection, {color: theme.textSecondary}]}>
-                {String(t('settings.support') || 'SUPPORT').toUpperCase()}
-              </Text>
-              <SettingItem
-                icon="person-add"
-                title={String(
-                  t('recommendations.shareContact') || 'Share a contact',
-                )}
-                onPress={() => {
-                  closeSidebar();
-                  navigation.navigate('ShareContactRecommendation');
-                }}
-              />
-              <SettingItem
-                icon="help-circle"
-                title={String(t('profile.helpSupport'))}
-                onPress={() => {
-                  closeSidebar();
-                  setShowHelpModal(true);
-                }}
-              />
-
-              <Text
-                style={[styles.sidebarSection, {color: theme.textSecondary}]}>
-                {String(
-                  t('settings.information') || 'INFORMATION',
-                ).toUpperCase()}
-              </Text>
-              <SettingItem
-                icon="information-circle"
-                title={String(t('profile.about'))}
-                onPress={() => {
-                  closeSidebar();
-                  Alert.alert(
-                    String(
-                      t('settings.aboutHomeServices') ||
-                        'Akansho Partner',
-                    ),
-                    `${String(t('profile.version'))} 1.0.0\n\n${String(
-                      t('settings.aboutMessage') ||
-                        'Akansho Partner helps you receive jobs and grow your work.',
-                    )}`,
-                  );
-                }}
-              />
-            </ScrollView>
-          </Animated.View>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -1258,35 +1135,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     paddingVertical: 12,
-  },
-  sidebarRoot: {...StyleSheet.absoluteFillObject, zIndex: 40},
-  sidebarBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  sidebar: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    width: DRAWER_WIDTH,
-    paddingTop: 16,
-    paddingBottom: 24,
-  },
-  sidebarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  sidebarTitle: {fontSize: 18, fontWeight: '700'},
-  sidebarSection: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    paddingHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 6,
   },
 });

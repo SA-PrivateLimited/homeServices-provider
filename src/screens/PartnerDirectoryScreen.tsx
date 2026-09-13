@@ -143,12 +143,12 @@ export default function PartnerDirectoryScreen({route}: any) {
 
   return (
     <View style={[styles.root, {backgroundColor: theme.background}]}>
-      <SearchBar value={q} onChange={setQ} placeholder={t('collab.searchPartners')} />
+      <SearchBar value={q} onChange={setQ} placeholder={String(t('collab.searchPartners'))} />
       <Chips wrap style={{marginVertical: 8}}>
         {FILTERS.map(f => (
           <Chip
             key={f.key}
-            label={t(f.labelKey)}
+            label={String(t(f.labelKey))}
             selected={place === f.key}
             onPress={() => setPlace(f.key)}
           />
@@ -159,7 +159,7 @@ export default function PartnerDirectoryScreen({route}: any) {
         variant="secondary"
         onPress={() => setSuggestOpen(true)}
         style={{marginBottom: 10}}>
-        {t('collab.suggestCta')}
+        {String(t('collab.suggestCta'))}
       </Button>
       {visible.length === 0 ? (
         <EmptyState
@@ -194,11 +194,11 @@ export default function PartnerDirectoryScreen({route}: any) {
                         toast.info(getUserFacingErrorMessage(err, 'generic')),
                       );
                   }}>
-                  {t('collab.contact')}
+                  {String(t('collab.contact'))}
                 </Button>
                 {jobId ? (
                   <Button size="sm" onPress={() => setTarget(item)}>
-                    {t('collab.requestForJob')}
+                    {String(t('collab.requestForJob'))}
                   </Button>
                 ) : null}
               </View>

@@ -16,13 +16,13 @@ import {
 } from '../services/session';
 import {onSessionExpired} from '../services/sessionExpiry';
 import {navigationRef} from './rootNavigation';
+import {partnerLinking} from './linking';
 
 import LoginScreen from '../screens/LoginScreen';
 import ProviderTabNavigator from './ProviderTabNavigator';
 import JobDetailsScreen from '../screens/JobDetailsScreen';
 import ServiceProviderProfileSetupScreen from '../screens/ServiceProviderProfileSetupScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
-import PhoneVerificationScreen from '../screens/PhoneVerificationScreen';
 import ShareContactRecommendationScreen from '../screens/ShareContactRecommendationScreen';
 import PartnerDirectoryScreen from '../screens/PartnerDirectoryScreen';
 import AuthHandoffScreen from '../screens/AuthHandoffScreen';
@@ -100,6 +100,7 @@ export default function AppNavigator() {
   return (
     <NavigationContainer
       ref={navigationRef}
+      linking={partnerLinking}
       theme={{
         dark: isDarkMode,
         colors: {
@@ -116,11 +117,6 @@ export default function AppNavigator() {
         screenOptions={{headerShown: false}}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="AuthHandoff" component={AuthHandoffScreen} />
-        <Stack.Screen
-          name="PhoneVerification"
-          component={PhoneVerificationScreen}
-          options={{headerShown: false, gestureEnabled: false}}
-        />
         <Stack.Screen name="ProviderMain" component={ProviderTabNavigator} />
         <Stack.Screen
           name="JobDetails"

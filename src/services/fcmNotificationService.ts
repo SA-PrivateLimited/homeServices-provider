@@ -69,6 +69,7 @@ class FCMNotificationService {
     _providerName: string,
     _serviceType: string,
     _consultationId: string,
+    ..._extra: unknown[]
   ): Promise<void> {
     // no-op — use backend when wired
   }
@@ -79,6 +80,7 @@ class FCMNotificationService {
     _serviceType: string,
     _consultationId: string,
     _reason?: string,
+    ..._extra: unknown[]
   ): Promise<void> {
     // no-op — use backend when wired
   }

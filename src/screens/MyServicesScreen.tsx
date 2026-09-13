@@ -125,12 +125,12 @@ export default function MyServicesScreen({navigation}: any) {
                 <Text style={[styles.sub, {color: theme.textSecondary}]}>
                   {status} ·{' '}
                   {active
-                    ? t('settings.receivingOn')
-                    : t('settings.receivingOff')}
+                    ? String(t('settings.receivingOn'))
+                    : String(t('settings.receivingOff'))}
                 </Text>
                 {!canReceiveJobs(profile, name) ? (
                   <Text style={[styles.warn, {color: theme.warning}]}>
-                    {t('settings.serviceNeedsReview')}
+                    {String(t('settings.serviceNeedsReview'))}
                   </Text>
                 ) : null}
               </View>
@@ -142,7 +142,7 @@ export default function MyServicesScreen({navigation}: any) {
                   if (active) setConfirmOff(name);
                   else void toggle(name, true);
                 }}>
-                {active ? t('common.off') : t('common.on')}
+                {active ? String(t('common.off')) : String(t('common.on'))}
               </Button>
               <Icon
                 name="chevron_right"
@@ -154,14 +154,14 @@ export default function MyServicesScreen({navigation}: any) {
         );
       })}
       <Button variant="secondary" onPress={() => setAddOpen(true)}>
-        {t('settings.addService')}
+        {String(t('settings.addService'))}
       </Button>
       <ConfirmDialog
         visible={Boolean(confirmOff)}
-        title={t('settings.turnOffServiceTitle')}
-        message={t('settings.turnOffServiceMessage')}
-        confirmText={t('common.confirm')}
-        cancelText={t('common.cancel')}
+        title={String(t('settings.turnOffServiceTitle'))}
+        message={String(t('settings.turnOffServiceMessage'))}
+        confirmText={String(t('common.confirm'))}
+        cancelText={String(t('common.cancel'))}
         onConfirm={() => {
           const name = confirmOff;
           setConfirmOff(null);
@@ -178,7 +178,7 @@ export default function MyServicesScreen({navigation}: any) {
           <SearchBar
             value={addQuery}
             onChange={setAddQuery}
-            placeholder={t('browse.searchPlaceholder')}
+            placeholder={String(t('browse.searchPlaceholder'))}
           />
           {addable.slice(0, 20).map(c => (
             <Pressable
@@ -196,7 +196,7 @@ export default function MyServicesScreen({navigation}: any) {
             </Pressable>
           ))}
           <Button variant="ghost" onPress={() => setAddOpen(false)}>
-            {t('common.close')}
+            {String(t('common.close'))}
           </Button>
         </View>
       ) : null}

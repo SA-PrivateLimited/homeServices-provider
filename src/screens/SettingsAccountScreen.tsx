@@ -9,6 +9,7 @@ import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
 import authService from '../services/authService';
 import {CommonActions} from '@react-navigation/native';
 import {CrystalSurface} from '../components/CrystalSurface';
+import {NotificationsSettingsCard} from '../components/NotificationsSettingsCard';
 
 export default function SettingsAccountScreen({navigation}: any) {
   const {t} = useTranslation();
@@ -23,6 +24,21 @@ export default function SettingsAccountScreen({navigation}: any) {
     <ScrollView
       style={{backgroundColor: theme.background}}
       contentContainerStyle={styles.pad}>
+      <NotificationsSettingsCard
+        theme={theme}
+        title={String(t('notifications.settingsTitle') || t('notifications.title'))}
+        body={String(
+          t('notifications.settingsBody') || t('notifications.enableHint'),
+        )}
+        enableLabel={String(
+          t('notifications.settingsEnable') ||
+            t('notifications.enable') ||
+            'Turn on notifications',
+        )}
+        onLabel={String(t('notifications.settingsOn'))}
+        offLabel={String(t('notifications.settingsOff'))}
+        blockedLabel={String(t('notifications.settingsBlocked'))}
+      />
       <CrystalSurface
         primary={theme.primary}
         card={theme.card}

@@ -1,14 +1,11 @@
 import React, {useState} from 'react';
-import {Linking, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {Icon} from 'sapvt-ltd-app-packages';
 import {useStore} from '../store';
 import {useResolvedTheme} from '../hooks/useResolvedTheme';
 import type {Theme} from '../utils/theme';
 import useTranslation from '../hooks/useTranslation';
-import {UseAsCustomerCard} from '../components/ecosystem/UseAsCustomerCard';
 import {NotificationsSettingsCard} from '../components/NotificationsSettingsCard';
-import {createCustomerContextHandoff} from '../services/api/contextHandoffApi';
-import {customerHandoffUrl, getCustomerWebUrl} from '../utils/customerWebUrl';
 import authService from '../services/authService';
 import {CommonActions} from '@react-navigation/native';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
@@ -43,29 +40,12 @@ function SettingsRow({
 }
 
 export default function SettingsScreen({navigation}: any) {
-  const {currentUser, setCurrentUser, colorTheme} = useStore();
+  const {setCurrentUser, colorTheme} = useStore();
   const theme = useResolvedTheme();
   const {t} = useTranslation();
   const tx = (key: string) => String(t(key));
-  const [customerBusy, setCustomerBusy] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
-  const canSwitch = Boolean(
-    (currentUser as {canSwitchToCustomer?: boolean})?.canSwitchToCustomer,
-  );
   void colorTheme;
-
-  const openCustomer = () => {
-    if (customerBusy) return;
-    if (canSwitch) {
-      setCustomerBusy(true);
-      void createCustomerContextHandoff()
-        .then(code => Linking.openURL(customerHandoffUrl(code)))
-        .catch(() => {})
-        .finally(() => setCustomerBusy(false));
-      return;
-    }
-    void Linking.openURL(getCustomerWebUrl());
-  };
 
   return (
     <View style={[styles.root, {backgroundColor: theme.background}]}>
@@ -79,6 +59,13 @@ export default function SettingsScreen({navigation}: any) {
           title={tx('settings.sectionProfile')}
           subtitle={tx('settings.sectionProfileSub')}
           onPress={() => navigation.navigate('SettingsProfile')}
+        />
+        <SettingsRow
+          theme={theme}
+          icon="handyman"
+          title={tx('nav.myServices')}
+          subtitle={tx('settings.myServicesLinkSub')}
+          onPress={() => navigation.navigate('MyServices')}
         />
         <SettingsRow
           theme={theme}
@@ -119,13 +106,6 @@ export default function SettingsScreen({navigation}: any) {
           onLabel={tx('notifications.settingsOn')}
           offLabel={tx('notifications.settingsOff')}
           blockedLabel={tx('notifications.settingsBlocked')}
-        />
-
-        <UseAsCustomerCard
-          canSwitch={canSwitch}
-          busy={customerBusy}
-          onOpenCustomer={openCustomer}
-          theme={theme}
         />
 
         {/* Web `.settings-logout-wrap` + `.settings-logout` */}

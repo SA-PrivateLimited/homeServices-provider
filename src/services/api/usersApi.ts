@@ -6,12 +6,17 @@
 import {apiGet, apiPut, apiPost} from './apiClient';
 
 export interface UserLocation {
+  id?: string;
   latitude?: number;
   longitude?: number;
   address?: string;
   city?: string;
+  district?: string;
   state?: string;
+  stateId?: string;
+  districtId?: string;
   pincode?: string;
+  country?: string;
   updatedAt?: string | Date;
 }
 
@@ -20,10 +25,17 @@ export interface User {
   id?: string;
   uid?: string;
   name?: string;
+  displayName?: string;
   email?: string;
   phone?: string;
+  phoneNumber?: string;
   phoneVerified?: boolean;
-  role?: 'patient' | 'doctor' | 'admin';
+  secondaryPhone?: string | null;
+  secondaryPhoneVerified?: boolean | null;
+  role?: string;
+  gender?: string;
+  bloodGroup?: string;
+  dateOfBirth?: Date | string;
   location?: UserLocation;
   fcmToken?: string;
   createdAt?: string | Date;

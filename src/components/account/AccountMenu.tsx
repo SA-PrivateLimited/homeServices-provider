@@ -261,19 +261,46 @@ function AccountMenuHost({
                       {tx('mode.partner')}
                     </Text>
                   </View>
-                  <TouchableOpacity style={s.item} onPress={openCustomer}>
-                    <Icon name="swap-horiz" size={20} color={labelColor} />
-                    <View style={{flex: 1}}>
-                      <Text style={[s.itemLabelStrong, {color: labelColor}]}>
-                        {canSwitch
-                          ? tx('mode.switchToCustomer')
-                          : tx('ecosystem.becomeCustomer')}
+                  {canSwitch ? (
+                    <TouchableOpacity style={s.item} onPress={openCustomer}>
+                      <Icon name="swap-horiz" size={20} color={labelColor} />
+                      <View style={{flex: 1}}>
+                        <Text style={[s.itemLabelStrong, {color: labelColor}]}>
+                          {busy
+                            ? tx('handoff.openingCustomer')
+                            : tx('mode.switchToCustomer')}
+                        </Text>
+                        <Text style={[s.itemHint, {color: mutedColor}]}>
+                          {tx('mode.switchToCustomerHint')}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={s.modeUnavailable}>
+                      <Text style={[s.modeUnavailableTitle, {color: mutedColor}]}>
+                        {tx('mode.customer')}
                       </Text>
                       <Text style={[s.itemHint, {color: mutedColor}]}>
-                        {tx('mode.switchToCustomerHint')}
+                        {tx('mode.customerNotCreated')}
                       </Text>
+                      <TouchableOpacity
+                        style={[
+                          s.modeCreate,
+                          {
+                            borderColor: `${primary}59`,
+                            backgroundColor: `${primary}14`,
+                          },
+                        ]}
+                        disabled={busy}
+                        onPress={openCustomer}
+                        accessibilityRole="button"
+                        accessibilityLabel={tx('mode.createCustomerAccount')}>
+                        <Text style={[s.modeCreateText, {color: primary}]}>
+                          {tx('mode.createCustomerAccount')}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
-                  </TouchableOpacity>
+                  )}
                 </View>
 
                 <TouchableOpacity

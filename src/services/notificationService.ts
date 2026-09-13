@@ -10,8 +10,8 @@ class NotificationService {
   constructor() {
     try {
       PushNotification.configure({
-        onNotification: function (notification) {
-          notification.finish();
+        onNotification: function (notification: {finish?: () => void}) {
+          notification.finish?.();
         },
         permissions: {
           alert: true,

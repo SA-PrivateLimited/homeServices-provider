@@ -51,47 +51,19 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
       markNotificationAsRead(notification.id);
     }
 
-    // Navigate based on notification type
-    // Use getParent() to navigate to root navigator, then to the correct tab
-    if (notification.consultationId) {
+    if (notification.jobCardId) {
       try {
-        // Try to navigate to ConsultationsHistory in the ConsultationsStack
-        const parent = navigation.getParent();
-        if (parent) {
-          // Navigate to Consultations tab first, then to ConsultationsHistory
-          parent.navigate('Consultations', {
-            screen: 'ConsultationsHistory',
-            params: {consultationId: notification.consultationId},
-          });
-        } else {
-          // Fallback: navigate to Consultations tab
-          navigation.navigate('Consultations');
-        }
+        navigation.navigate('JobDetails', {jobCardId: notification.jobCardId});
       } catch (error) {
-        // Fallback: just navigate to Consultations tab
-        navigation.navigate('Consultations');
-      }
-    } else if (notification.prescriptionId) {
-      // Navigate to Consultations tab
-      try {
-        const parent = navigation.getParent();
-        if (parent) {
-          parent.navigate('Consultations');
-        } else {
-          navigation.navigate('Consultations');
-        }
-      } catch (error) {
-        navigation.navigate('Consultations');
+        navigation.navigate('Jobs');
       }
     }
   };
 
   const getNotificationIcon = (type: AppNotification['type']) => {
     switch (type) {
-      case 'consultation':
-        return 'medical-outline';
-      case 'prescription':
-        return 'document-text-outline';
+      case 'job':
+        return 'briefcase-outline';
       case 'reminder':
         return 'time-outline';
       default:
@@ -187,14 +159,14 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
               {opacity: unreadCount === 0 ? 0.5 : 1},
             ]}>
             <Text style={[styles.headerButtonText, {color: theme.primary}]}>
-              {t('notifications.markAllAsRead')}
+              {String(t('notifications.markAllAsRead'))}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => clearAllNotifications(currentUser?.id)}
             style={styles.headerButton}>
             <Text style={[styles.headerButtonText, {color: theme.error}]}>
-              {t('notifications.clearAll')}
+              {String(t('notifications.clearAll'))}
             </Text>
           </TouchableOpacity>
         </View>

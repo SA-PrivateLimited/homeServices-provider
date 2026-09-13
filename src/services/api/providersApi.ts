@@ -15,6 +15,8 @@ export interface Provider {
   phoneNumber?: string;
   phone?: string;
   phoneVerified?: boolean;
+  secondaryPhone?: string | null;
+  secondaryPhoneVerified?: boolean | null;
   specialization?: string;
   specialty?: string;
   serviceType?: string;
@@ -189,6 +191,7 @@ export const providersApi = {
   getById: getProviderById,
   getByEmail: getProviderByEmail,
   getByUid: getProviderByUid,
+  getProviderByUid,
   getMyProfile,
   updateMyProfile,
   updateStatus: updateProviderStatus,

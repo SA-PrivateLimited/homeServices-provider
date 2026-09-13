@@ -326,7 +326,7 @@ export function JobHelpSection({theme, job, canHelp = true}: Props) {
     return (
       <View>
         <Text style={[styles.sectionLabel, {color: theme.textSecondary}]}>
-          {t('collab.otherServices')}
+          {String(t('collab.otherServices'))}
         </Text>
         <SearchBar
           value={svcQuery}
@@ -354,7 +354,7 @@ export function JobHelpSection({theme, job, canHelp = true}: Props) {
                     {isHindi && cat.nameHindi ? cat.nameHindi : cat.name}
                   </Text>
                   <Text style={{color: theme.primary, fontSize: 12}}>
-                    {t('collab.suggestedShort')}
+                    {String(t('collab.suggestedShort'))}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -423,7 +423,7 @@ export function JobHelpSection({theme, job, canHelp = true}: Props) {
           {joined === 0 ? (
             <>
               <Text style={[styles.lead, {color: theme.textSecondary}]}>
-                {t('collab.helpSub')}
+                {String(t('collab.helpSub'))}
               </Text>
               {renderPartnerSearch()}
             </>
@@ -438,7 +438,7 @@ export function JobHelpSection({theme, job, canHelp = true}: Props) {
                       {c.targetProviderName || t('collab.partnerFallback')}
                     </Text>
                     <Text style={[styles.meta, {color: theme.textSecondary}]}>
-                      {c.neededServiceType} · {t(collaborationStatusLabelKey(c.status))}
+                      {c.neededServiceType} · {String(t(collaborationStatusLabelKey(c.status)))}
                     </Text>
                   </View>
                   <Button

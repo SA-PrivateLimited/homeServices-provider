@@ -77,8 +77,7 @@ export default function LegalDocumentScreen({route}: {route: any}) {
             <Text style={[styles.body, {color: theme.text}]}>{body}</Text>
           ) : (
             <Text style={[styles.body, {color: theme.textSecondary}]}>
-              {t('settings.legalOpenHint') ||
-                'Open the full document in your browser.'}
+              {String(t('settings.legalOpenHint') || 'Open the full document in your browser.')}
             </Text>
           )}
           <Button
