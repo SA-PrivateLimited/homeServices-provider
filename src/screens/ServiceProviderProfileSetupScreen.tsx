@@ -699,26 +699,6 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
                 return null;
               })()}
             </View>
-            {(() => {
-              const authUser = auth().currentUser;
-              const loggedInWithPhone = !!authUser?.phoneNumber;
-              if (!loggedInWithPhone) {
-                return (
-                  <TouchableOpacity
-                    onPress={() => {
-                      navigation.navigate('PhoneVerification', {
-                        mode: 'change',
-                        phoneNumber: phone,
-                      });
-                    }}
-                    style={styles.editPhoneButton}>
-                    <Icon name="create" size={18} color="#007AFF" />
-                    <Text style={styles.editPhoneText}>Edit</Text>
-                  </TouchableOpacity>
-                );
-              }
-              return null;
-            })()}
           </View>
           {phoneVerified ? (
             <Text style={styles.verifiedText}>
@@ -747,18 +727,6 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
             <View style={styles.phoneRow}>
               <Text style={styles.phoneDisplay}>{secondaryPhone}</Text>
               <View style={{flexDirection: 'row', gap: 8}}>
-                {!secondaryPhoneVerified && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      navigation.navigate('PhoneVerification', {
-                        mode: 'secondary',
-                        phoneNumber: secondaryPhone,
-                      });
-                    }}
-                    style={styles.verifyButton}>
-                    <Text style={styles.verifyButtonText}>Verify</Text>
-                  </TouchableOpacity>
-                )}
                 <TouchableOpacity
                   onPress={async () => {
                     try {
@@ -792,16 +760,13 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
               </View>
             </View>
           ) : (
-            <TouchableOpacity
-              onPress={() => {
-                navigation.navigate('PhoneVerification', {
-                  mode: 'secondary',
-                });
-              }}
-              style={styles.addPhoneButton}>
-              <Icon name="add-circle-outline" size={20} color="#007AFF" />
-              <Text style={styles.addPhoneText}>Add Secondary Phone</Text>
-            </TouchableOpacity>
+            <TextInput
+              style={styles.input}
+              value={secondaryPhone}
+              onChangeText={setSecondaryPhone}
+              placeholder="Secondary phone (optional)"
+              keyboardType="phone-pad"
+            />
           )}
           {secondaryPhoneVerified ? (
             <Text style={styles.verifiedText}>Verified</Text>

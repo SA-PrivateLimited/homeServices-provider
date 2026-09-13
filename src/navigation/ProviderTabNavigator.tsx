@@ -33,6 +33,7 @@ import {lightTheme, darkTheme} from '../utils/theme';
 import websocketService from '../services/websocketService';
 import useTranslation from '../hooks/useTranslation';
 import {IncomingBookingProvider} from '../components/IncomingBookingContext';
+import {PushEnablePrompt} from '../components/PushEnablePrompt';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -56,7 +57,7 @@ const JobsStack = () => {
           fontWeight: '700',
           fontSize: 17,
         },
-        headerRightContainerStyle: {width: 96, paddingRight: 4},
+        ...( {headerRightContainerStyle: {width: 96, paddingRight: 4}} as object ),
       }}>
       <Stack.Screen
         name="JobsMain"
@@ -93,7 +94,7 @@ const JobsHistoryStack = () => {
           fontWeight: '700',
           fontSize: 17,
         },
-        headerRightContainerStyle: {width: 96, paddingRight: 4},
+        ...( {headerRightContainerStyle: {width: 96, paddingRight: 4}} as object ),
       }}>
       <Stack.Screen
         name="JobsHistoryMain"
@@ -125,7 +126,7 @@ const SettingsStack = () => {
         headerStyle: {backgroundColor: theme.card},
         headerTintColor: theme.text,
         headerTitleStyle: {fontWeight: '700', fontSize: 17},
-        headerRightContainerStyle: {width: 96, paddingRight: 4},
+        ...( {headerRightContainerStyle: {width: 96, paddingRight: 4}} as object ),
       }}>
       <Stack.Screen
         name="SettingsMain"
@@ -334,6 +335,7 @@ export default function ProviderTabNavigator() {
           }}
         />
       </Tab.Navigator>
+      <PushEnablePrompt />
       </AccountMenuProvider>
     </IncomingBookingProvider>
   );

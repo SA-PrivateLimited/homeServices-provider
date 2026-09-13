@@ -38,7 +38,7 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({compact = false}) =>
           onValueChange={handleLanguageChange}
           style={[styles.compactPicker, {color: theme.text}]}
           dropdownIconColor={theme.text}
-          mode={Platform.OS === 'android' ? 'dropdown' : 'default'}
+          mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
         >
           <Picker.Item label="English" value="en" />
           <Picker.Item label="हिंदी" value="hi" />
@@ -55,7 +55,7 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({compact = false}) =>
         onValueChange={handleLanguageChange}
         style={[styles.picker, {color: theme.text}]}
         dropdownIconColor={theme.textSecondary}
-        mode={Platform.OS === 'android' ? 'dropdown' : 'default'}
+        mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
       >
         <Picker.Item label={String(t('settings.english') || 'English')} value="en" />
         <Picker.Item label={String(t('settings.hindi') || 'Hindi')} value="hi" />

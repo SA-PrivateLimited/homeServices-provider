@@ -297,10 +297,7 @@ export function IncomingBookingProvider({
       }
       toast.success(String(t('dashboard.requestAccepted')));
       if (navigationRef.isReady()) {
-        navigationRef.navigate(
-          'JobDetails' as never,
-          {jobCardId: id} as never,
-        );
+        navigationRef.navigate('JobDetails', {jobCardId: id});
       }
     } catch (error: any) {
       showAlert(

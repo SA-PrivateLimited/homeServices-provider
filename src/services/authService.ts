@@ -6,7 +6,7 @@
 
 import auth from '@react-native-firebase/auth';
 import messaging from '@react-native-firebase/messaging';
-import type {User, UserLocation} from '../types/consultation';
+import type {User, UserLocation} from './api/usersApi';
 import NotificationService from './notificationService';
 import {usersApi} from './api/usersApi';
 

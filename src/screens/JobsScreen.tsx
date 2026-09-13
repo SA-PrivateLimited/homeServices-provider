@@ -34,6 +34,11 @@ import {
 import {canCallCustomerOnJob} from '../utils/customerContact';
 import {jobsFromWeb as s} from '../fromWebCss/jobsFromWeb.styles';
 import {CrystalSurface} from '../components/CrystalSurface';
+import {AssistingCollaborationCard} from '../components/AssistingCollaborationCard';
+import {
+  listAssistingCollaborations,
+  type PartnerCollaborationRequest,
+} from '../services/api/partnerCollaborationApi';
 
 const ACTIVE_STATUSES = new Set(['pending', 'accepted', 'in-progress']);
 const FILTER_KEYS = ['all', 'pending', 'accepted', 'in-progress'] as const;
@@ -94,6 +99,9 @@ export default function JobsScreen({navigation}: any) {
   const success = theme.success || '#34C759';
   const warning = theme.warning || '#FF9500';
   const [rows, setRows] = useState<ProviderJobCard[]>([]);
+  const [assisting, setAssisting] = useState<PartnerCollaborationRequest[]>(
+    [],
+  );
   const [filter, setFilter] = useState<(typeof FILTER_KEYS)[number]>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -102,12 +110,17 @@ export default function JobsScreen({navigation}: any) {
     if (opts?.refresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const jobs = await getMyJobCards();
+      const [jobs, assistingRows] = await Promise.all([
+        getMyJobCards(),
+        listAssistingCollaborations('accepted').catch(() => []),
+      ]);
       setRows(
         jobs.filter(j => ACTIVE_STATUSES.has(String(j.status || ''))),
       );
+      setAssisting(assistingRows);
     } catch {
       setRows([]);
+      setAssisting([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -145,9 +158,36 @@ export default function JobsScreen({navigation}: any) {
 
   return (
     <View style={[s.page, {backgroundColor: theme.background}]}>
+      {assisting.length ? (
+        <View style={{marginBottom: 12}} accessibilityLabel={String(t('collab.assistingTitle'))}>
+          <Text style={[s.toolbarSub, {color: theme.text, fontWeight: '700', marginBottom: 8}]}>
+            {String(t('collab.assistingTitle'))}
+          </Text>
+          {assisting.map(row => (
+            <AssistingCollaborationCard
+              key={row.id}
+              theme={theme}
+              collab={row}
+              title={String(t('collab.assistingTitle'))}
+              lead={String(
+                t('collab.assistingLead', {
+                  name:
+                    row.requestingProviderName || t('collab.partnerFallback'),
+                }),
+              )}
+              customerLabel={String(t('jobDetail.customer'))}
+              primaryLabel={String(t('collab.primaryPartner'))}
+              contactLabel={String(t('collab.contactPrimary'))}
+              directionsLabel={String(t('jobDetail.directions'))}
+              completeLabel={String(t('collab.completePortion'))}
+              onComplete={() => void load({refresh: true})}
+            />
+          ))}
+        </View>
+      ) : null}
       <View style={s.toolbarHead}>
         <Text style={[s.toolbarSub, {color: theme.textSecondary}]}>
-          {t('jobs.pageSub')}
+          {String(t('jobs.pageSub'))}
         </Text>
         <TouchableOpacity
           style={[s.refreshBtn, {backgroundColor: `${primary}1F`}]}
@@ -204,7 +244,7 @@ export default function JobsScreen({navigation}: any) {
       {loading && rows.length === 0 ? (
         <View style={s.center}>
           <ActivityIndicator color={primary} />
-          <Text style={s.muted}>{t('jobs.loading')}</Text>
+          <Text style={s.muted}>{String(t('jobs.loading'))}</Text>
         </View>
       ) : (
         <FlatList
@@ -293,7 +333,7 @@ export default function JobsScreen({navigation}: any) {
                 <View style={s.fields}>
                   <View>
                     <Text style={[s.fieldLabel, {color: theme.textSecondary}]}>
-                      {t('jobs.problemLabel')}
+                      {String(t('jobs.problemLabel'))}
                     </Text>
                     <Text style={[s.fieldValue, {color: theme.text}]}>
                       {problemText || t('jobs.problemMissing')}
@@ -308,7 +348,7 @@ export default function JobsScreen({navigation}: any) {
                       />
                       <Text
                         style={[s.fieldLabel, {color: theme.textSecondary}]}>
-                        {t('jobs.serviceAddressLabel')}
+                        {String(t('jobs.serviceAddressLabel'))}
                       </Text>
                     </View>
                     <Text
@@ -336,7 +376,7 @@ export default function JobsScreen({navigation}: any) {
                       navigation.navigate('JobDetails', {jobCardId: id})
                     }
                     accessibilityRole="button">
-                    <Text style={s.openBtnText}>{t('jobs.openJob')}</Text>
+                    <Text style={s.openBtnText}>{String(t('jobs.openJob'))}</Text>
                     <Icon name="arrow_forward" size={16} color="#FFFFFF" />
                   </TouchableOpacity>
                   {canCall && item.customerPhone ? (
@@ -356,7 +396,7 @@ export default function JobsScreen({navigation}: any) {
                       accessibilityRole="button">
                       <Icon name="call" size={18} color={theme.text} />
                       <Text style={[s.callBtnText, {color: theme.text}]}>
-                        {t('contact.callCustomer')}
+                        {String(t('contact.callCustomer'))}
                       </Text>
                     </TouchableOpacity>
                   ) : null}

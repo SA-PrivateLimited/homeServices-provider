@@ -1,10 +1,14 @@
 import React from 'react';
-import {ScrollView, StyleSheet, Text} from 'react-native';
+import {Linking, ScrollView, StyleSheet, Text} from 'react-native';
 import {Button} from 'sapvt-ltd-app-packages';
 import useTranslation from '../hooks/useTranslation';
 import {useStore} from '../store';
 import {useResolvedTheme} from '../hooks/useResolvedTheme';
 import {CrystalSurface} from '../components/CrystalSurface';
+import {ShareAkansoPanel} from '../components/ShareAkansoPanel';
+
+const PLAY_STORE_URL =
+  'https://play.google.com/store/apps/details?id=com.homeservices.providerapp';
 
 export default function SettingsAboutScreen({navigation}: {navigation: any}) {
   const {t} = useTranslation();
@@ -29,7 +33,16 @@ export default function SettingsAboutScreen({navigation}: {navigation: any}) {
         <Text style={[styles.muted, {color: theme.textSecondary}]}>
           {t('settings.aboutCopy')}
         </Text>
+        <Button
+          variant="ghost"
+          onPress={() => void Linking.openURL(PLAY_STORE_URL)}>
+          {t('appUpdate.title')}
+        </Button>
+        <Text style={[styles.muted, {color: theme.textSecondary}]}>
+          {t('appUpdate.hint')}
+        </Text>
       </CrystalSurface>
+      <ShareAkansoPanel />
       <CrystalSurface
         primary={theme.primary}
         card={theme.card}

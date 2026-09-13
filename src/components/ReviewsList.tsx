@@ -69,9 +69,10 @@ export default function ReviewsList({
     );
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: string | Date) => {
     const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const parsed = date instanceof Date ? date : new Date(date);
+    const diffTime = Math.abs(now.getTime() - parsed.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) {
@@ -81,7 +82,7 @@ export default function ReviewsList({
     } else if (diffDays < 7) {
       return `${diffDays} days ago`;
     } else {
-      return date.toLocaleDateString();
+      return parsed.toLocaleDateString();
     }
   };
 

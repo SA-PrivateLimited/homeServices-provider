@@ -32,6 +32,7 @@ import JobCardComments from '../components/JobCardComments';
 import {JobHelpSection} from '../components/JobHelpSection';
 import RequestPhotoGallery from '../components/RequestPhotoGallery';
 import {jobCardsApi} from '../services/api/jobCardsApi';
+import {getProductFeatures} from '../services/api/productFeaturesApi';
 import {serviceRequestsApi} from '../services/api/serviceRequestsApi';
 import useTranslation from '../hooks/useTranslation';
 import {
@@ -143,6 +144,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
   const [requestPhotos, setRequestPhotos] = useState<RequestPhotoInput[] | null>(
     null,
   );
+  const [allowComments, setAllowComments] = useState(true);
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{
     title: string;
@@ -198,6 +200,9 @@ export default function JobDetailsScreen({navigation, route}: any) {
 
   useEffect(() => {
     void loadJobCard();
+    void getProductFeatures().then(features => {
+      setAllowComments(features.allowJobCardComments);
+    });
     const unsubscribe = subscribeToJobCardStatus(jobCardId, status => {
       setJobCard(prev => (prev ? {...prev, status} : null));
     });
@@ -544,6 +549,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
             title={tx('jobDetail.completionPhotosOptional')}
           />
 
+          {allowComments ? (
           <JobCardComments
             comments={jobCard.comments || []}
             theme={{...theme, background: theme.background}}
@@ -565,6 +571,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
               );
             }}
           />
+          ) : null}
         </View>
 
         {requirements.length ? (

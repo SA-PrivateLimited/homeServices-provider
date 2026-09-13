@@ -151,11 +151,6 @@ const App = () => {
       }
     })();
     
-    // Initialize notification service and save FCM token (for local notifications)
-    NotificationService.initializeAndSaveToken().catch(error => {
-      console.error('Error initializing notifications:', error);
-    });
-
     // Cleanup
     return () => {
       if (typeof global.removeEventListener === 'function') {
@@ -166,20 +161,19 @@ const App = () => {
 
   useEffect(() => {
     if (!currentUser) return;
-    void NotificationService.saveTokenToBackend();
+    NotificationService.initializeAndSaveToken().catch(error => {
+      console.error('Error initializing notifications:', error);
+    });
   }, [currentUser]);
 
   // Initialize WebSocket connection for real-time booking notifications
   useEffect(() => {
-    // Check for both 'provider' and 'doctor' roles for backward compatibility
-    // NOTE: WebSocket connection is now handled in ProviderDashboardScreen when provider goes online
-    // This is to ensure connection only happens when provider is actually online
     const userRole = (currentUser as any)?.role;
     if (!currentUser?.id) {
       // Disconnect WebSocket when user logs out
       console.log('Disconnecting WebSocket - user logged out');
       WebSocketService.disconnect();
-    } else if (userRole !== 'provider' && userRole !== 'doctor') {
+    } else if (userRole !== 'provider') {
       console.log('⚠️ WebSocket not initialized - user role:', userRole, 'user ID:', currentUser?.id);
       // Don't connect here - let ProviderDashboardScreen handle it when provider goes online
     }

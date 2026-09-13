@@ -28,7 +28,7 @@ export function AppHeader({navigation}: Props) {
           {title}
         </Text>
         <Text style={s.greetSub} numberOfLines={1}>
-          {t('login.productName')}
+          {String(t('login.productName'))}
         </Text>
       </View>
       <View style={s.actions}>

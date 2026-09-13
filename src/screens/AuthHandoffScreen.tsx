@@ -30,6 +30,14 @@ export default function AuthHandoffScreen({navigation, route}: any) {
   const paramCode = String(route?.params?.code || '').trim();
 
   useEffect(() => {
+    const sub = Linking.addEventListener('url', ({url}) => {
+      const next = codeFromUrl(url);
+      if (next) navigation.setParams({code: next});
+    });
+    return () => sub.remove();
+  }, [navigation]);
+
+  useEffect(() => {
     let active = true;
     void (async () => {
       const initial = await Linking.getInitialURL();
@@ -38,6 +46,7 @@ export default function AuthHandoffScreen({navigation, route}: any) {
         if (active) setError('CODE_MISSING');
         return;
       }
+      setError(null);
       try {
         const {user, token} = await exchangeContextHandoff(code);
         await setSession(token, user);
@@ -57,7 +66,7 @@ export default function AuthHandoffScreen({navigation, route}: any) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
-        <Text style={styles.muted}>{t('handoff.loading')}</Text>
+        <Text style={styles.muted}>{String(t('handoff.loading'))}</Text>
       </View>
     );
   }
@@ -77,8 +86,8 @@ export default function AuthHandoffScreen({navigation, route}: any) {
 
   return (
     <View style={styles.center}>
-      <Text style={styles.h}>{t('handoff.failedTitle')}</Text>
-      <Text style={styles.muted}>{t(errorKey)}</Text>
+      <Text style={styles.h}>{String(t('handoff.failedTitle'))}</Text>
+      <Text style={styles.muted}>{String(t(errorKey))}</Text>
       <Button
         onPress={() => {
           if (canOpenHome) {
@@ -87,12 +96,12 @@ export default function AuthHandoffScreen({navigation, route}: any) {
           }
           void Linking.openURL(getCustomerWebUrl());
         }}>
-        {canOpenHome ? t('auth.login') : t('handoff.retry')}
+        {canOpenHome ? String(t('auth.login')) : String(t('handoff.retry'))}
       </Button>
       <Button
         variant="secondary"
         onPress={() => void Linking.openURL(SUPPORT_PHONE_TEL)}>
-        {t('handoff.getHelp')}
+        {String(t('handoff.getHelp'))}
       </Button>
     </View>
   );

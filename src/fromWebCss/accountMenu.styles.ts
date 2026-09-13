@@ -197,6 +197,28 @@ export const accountMenuStyles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 16,
   },
+  modeUnavailable: {
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingBottom: 4,
+  },
+  modeUnavailableTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modeCreate: {
+    alignSelf: 'stretch',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modeCreateText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   itemDanger: {
     color: '#FF3B30',
   },

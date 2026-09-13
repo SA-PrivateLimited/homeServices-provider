@@ -6,7 +6,8 @@ function addressFilled(profile: ProviderProfile | null | undefined): boolean {
   if (!raw) return false;
   if (typeof raw === 'string') return raw.trim().length > 4;
   return Boolean(
-    (raw.address && raw.address.trim()) ||
+    (typeof (raw as {address?: unknown}).address === 'string' &&
+      (raw as {address: string}).address.trim()) ||
       (raw.pincode && String(raw.pincode).trim().length >= 6),
   );
 }
