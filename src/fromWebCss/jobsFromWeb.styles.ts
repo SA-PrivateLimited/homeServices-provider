@@ -58,7 +58,7 @@ export const jobsFromWeb = StyleSheet.create({
     paddingTop: 4,
   },
   card: {
-    borderRadius: 18,
+    borderRadius: 20,
     marginBottom: 12,
     overflow: 'hidden',
   },

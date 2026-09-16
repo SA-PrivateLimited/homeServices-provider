@@ -23,6 +23,7 @@ import {
   PARTNER_COLOR_THEMES,
 } from '../../utils/partnerColorTheme';
 import {getBrandThemeSwatch, lightTheme, darkTheme} from '../../utils/theme';
+import {mixColor} from '../CrystalSurface';
 
 type MenuCtx = {
   openMenu: (navigation: any) => void;
@@ -178,7 +179,7 @@ function AccountMenuHost({
               style={[
                 s.panel,
                 {
-                  backgroundColor: panelBg,
+                  backgroundColor: mixColor(primary, panelBg, 0.08),
                 },
               ]}>
               <View
@@ -186,9 +187,8 @@ function AccountMenuHost({
                 style={[
                   s.crystalTint,
                   {
-                    backgroundColor: isDarkMode
-                      ? `${primary}24`
-                      : `${primary}12`,
+                    backgroundColor: mixColor(primary, panelBg, 0.12),
+                    opacity: 0.45,
                   },
                 ]}
               />

@@ -641,6 +641,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
         <View style={web.authStack}>
           <View style={web.card}>
             <ScrollView
+              style={{flex: 1}}
               contentContainerStyle={web.cardScroll}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}>

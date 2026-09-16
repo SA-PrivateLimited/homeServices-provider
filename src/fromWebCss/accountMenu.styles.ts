@@ -104,7 +104,7 @@ export const accountMenuStyles = StyleSheet.create({
    * (card + primary mix, inset highlight, soft elevated shadow; no hard border).
    */
   panel: {
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 0,
     overflow: 'hidden',
     padding: 8,

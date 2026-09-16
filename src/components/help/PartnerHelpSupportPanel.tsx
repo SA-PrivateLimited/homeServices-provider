@@ -1,6 +1,7 @@
 import React, {useState} from 'react';
 import {Linking, Pressable, StyleSheet, Text, View} from 'react-native';
 import {Button, Icon} from 'sapvt-ltd-app-packages';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useTranslation} from 'react-i18next';
 import {
   SUPPORT_PHONE,
@@ -8,6 +9,8 @@ import {
   WHATSAPP_SUPPORT_URL,
 } from '../../config/support';
 import {useResolvedTheme} from '../../hooks/useResolvedTheme';
+import {useStore} from '../../store';
+import {CrystalSurface} from '../CrystalSurface';
 
 import {HelpFeedbackForm} from './HelpFeedbackForm';
 import {HELP_GROUPS, HELP_TOPICS, type HelpTopicId} from './helpTopics';
@@ -19,6 +22,7 @@ export function PartnerHelpSupportPanel({
 }) {
   const {t, i18n} = useTranslation();
   const theme = useResolvedTheme();
+  const {isDarkMode} = useStore();
   const [topic, setTopic] = useState<HelpTopicId | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const selected = HELP_TOPICS.find(x => x.id === topic) || null;
@@ -78,16 +82,18 @@ export function PartnerHelpSupportPanel({
               onPress={() => setFeedbackOpen(true)}
             />
           ) : null}
-          <Button
-            variant="primary"
-            block
+          <Pressable
+            style={styles.waBtn}
             onPress={() =>
               openWhatsApp(
                 `${t(selected.titleKey)} — ${t('help.whatsappPrefill')}`,
               )
-            }>
-            {t('help.chatWhatsApp')}
-          </Button>
+            }
+            accessibilityRole="button"
+            accessibilityLabel={String(t('help.chatWhatsApp'))}>
+            <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+            <Text style={styles.waText}>{t('help.chatWhatsApp')}</Text>
+          </Pressable>
           <Button
             variant="secondary"
             block
@@ -102,21 +108,28 @@ export function PartnerHelpSupportPanel({
   return (
     <View style={styles.stack}>
       {showPhoneCard ? (
-        <Pressable
-          style={styles.phone}
-          onPress={() => void Linking.openURL(SUPPORT_PHONE_TEL)}
-          accessibilityRole="button"
-          accessibilityLabel={`${String(t('shell.emergency'))} ${SUPPORT_PHONE}`}>
-          <View style={styles.copy}>
-            <Text style={styles.phoneLabel}>{t('shell.emergency')}</Text>
-            <Text style={styles.phoneNum}>{SUPPORT_PHONE}</Text>
-          </View>
-          <Text style={styles.em}>
-            {i18n.language?.startsWith('hi')
-              ? t('shell.hoursHi')
-              : t('shell.hoursEn')}
-          </Text>
-        </Pressable>
+        <CrystalSurface
+          primary={theme.primary}
+          card={theme.card}
+          isDark={isDarkMode}
+          accent
+          compact>
+          <Pressable
+            style={styles.phone}
+            onPress={() => void Linking.openURL(SUPPORT_PHONE_TEL)}
+            accessibilityRole="button"
+            accessibilityLabel={`${String(t('shell.emergency'))} ${SUPPORT_PHONE}`}>
+            <View style={styles.copy}>
+              <Text style={styles.phoneLabel}>{t('shell.emergency')}</Text>
+              <Text style={styles.phoneNum}>{SUPPORT_PHONE}</Text>
+            </View>
+            <Text style={styles.em}>
+              {i18n.language?.startsWith('hi')
+                ? t('shell.hoursHi')
+                : t('shell.hoursEn')}
+            </Text>
+          </Pressable>
+        </CrystalSurface>
       ) : null}
 
       {HELP_GROUPS.map(group => (
@@ -129,33 +142,39 @@ export function PartnerHelpSupportPanel({
                 return null;
               }
               return (
-                <Pressable
+                <CrystalSurface
                   key={item.id}
-                  style={styles.row}
-                  onPress={() => {
-                    if (item.id === 'feedback') {
-                      setFeedbackOpen(true);
-                      return;
-                    }
-                    setTopic(item.id);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={String(t(item.titleKey))}>
-                  <View style={styles.iconBadgeSm}>
-                    <Icon name={item.icon} size={18} color={theme.primary} />
-                  </View>
-                  <View style={styles.copy}>
-                    <Text style={styles.strong}>{t(item.titleKey)}</Text>
-                    <Text style={styles.em} numberOfLines={1}>
-                      {t(item.listKey)}
-                    </Text>
-                  </View>
-                  <Icon
-                    name="chevron_right"
-                    size={16}
-                    color={theme.textSecondary}
-                  />
-                </Pressable>
+                  primary={theme.primary}
+                  card={theme.card}
+                  isDark={isDarkMode}
+                  compact>
+                  <Pressable
+                    style={styles.row}
+                    onPress={() => {
+                      if (item.id === 'feedback') {
+                        setFeedbackOpen(true);
+                        return;
+                      }
+                      setTopic(item.id);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={String(t(item.titleKey))}>
+                    <View style={styles.iconBadgeSm}>
+                      <Icon name={item.icon} size={18} color={theme.primary} />
+                    </View>
+                    <View style={styles.copy}>
+                      <Text style={styles.strong}>{t(item.titleKey)}</Text>
+                      <Text style={styles.em} numberOfLines={1}>
+                        {t(item.listKey)}
+                      </Text>
+                    </View>
+                    <Icon
+                      name="chevron_right"
+                      size={16}
+                      color={theme.textSecondary}
+                    />
+                  </Pressable>
+                </CrystalSurface>
               );
             })}
           </View>
@@ -197,16 +216,29 @@ function makeStyles(theme: {
       paddingLeft: 4,
     },
     gap: {gap: 8, marginTop: 4},
+    waBtn: {
+      minHeight: 48,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingHorizontal: 14,
+    },
+    waText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: theme.text,
+    },
     phone: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
       paddingVertical: 10,
       paddingHorizontal: 12,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: `${theme.primary}3D`,
-      backgroundColor: `${theme.primary}0F`,
     },
     phoneLabel: {
       fontSize: 11,
@@ -238,10 +270,6 @@ function makeStyles(theme: {
       paddingVertical: 10,
       paddingHorizontal: 10,
       minHeight: 48,
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 12,
-      backgroundColor: theme.card,
     },
     iconBadge: {
       width: 36,
