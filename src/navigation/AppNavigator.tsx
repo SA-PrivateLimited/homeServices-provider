@@ -4,7 +4,8 @@ import {
   CommonActions,
 } from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import {View, ActivityIndicator, StyleSheet} from 'react-native';
+import {View} from 'react-native';
+import {BootSplash} from '../components/BootSplash';
 import {useStore} from '../store';
 import {resolveTheme} from '../utils/theme';
 import LanguageSwitcher from '../components/LanguageSwitcher';
@@ -104,11 +105,7 @@ export default function AppNavigator() {
   }, [setCurrentUser]);
 
   if (initializing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
-      </View>
-    );
+    return <BootSplash />;
   }
 
   if (needsBiometricUnlock) {
@@ -200,12 +197,3 @@ export default function AppNavigator() {
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-});

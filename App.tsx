@@ -25,6 +25,7 @@ import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {AppThemeProvider, ToastProvider} from 'sapvt-ltd-app-packages';
 import './src/i18n'; // Initialize i18n before store (store imports changeLanguage)
 import AppNavigator from './src/navigation/AppNavigator';
+import {BootSplash} from './src/components/BootSplash';
 import {useStore} from './src/store';
 import NotificationService from './src/services/notificationService';
 import GeolocationService from './src/services/geolocationService';
@@ -186,7 +187,7 @@ const App = () => {
   }, [currentUser?.id]);
 
   if (!bootReady) {
-    return null;
+    return <BootSplash />;
   }
 
   return (

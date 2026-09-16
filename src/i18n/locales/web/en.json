@@ -382,6 +382,7 @@
   "profile.pendingAdminApprovalDetail": "Complete your profile and submit your service details. Admin will review before you appear to customers.",
   "profile.rejected": "Profile rejected",
   "profile.approved": "Your profile is live — customers can find you",
+  "profile.approvedBadge": "Approved",
   "profile.setupHint": "Complete your provider profile to start receiving jobs.",
   "profile.setupCta": "Set up profile",
   "profile.completionTitle": "Complete your provider profile",

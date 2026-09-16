@@ -43,6 +43,7 @@ import {Banner} from 'sapvt-ltd-app-packages';
 import PhoneNumberInput from '../components/PhoneNumberInput';
 import {LoginStepIndicator} from '../components/login/LoginStepIndicator';
 import {LoginLangSwitcher} from '../components/login/LoginLangSwitcher';
+import {BootSplash} from '../components/BootSplash';
 import {LoginTermsMini} from '../components/login/LoginTermsMini';
 import {
   formatPhoneDisplay,
@@ -617,11 +618,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   };
 
   if (booting) {
-    return (
-      <View style={web.boot}>
-        <ActivityIndicator size="large" color={WEB.primary} />
-      </View>
-    );
+    return <BootSplash />;
   }
 
   return (

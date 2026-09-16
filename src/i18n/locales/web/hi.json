@@ -384,6 +384,7 @@
   "profile.pendingAdminApprovalDetail": "प्रोफ़ाइल और सेवा की जानकारी पूरी करें। Admin review के बाद ही customers को दिखेंगे।",
   "profile.rejected": "प्रोफ़ाइल अस्वीकृत",
   "profile.approved": "आपकी प्रोफ़ाइल live है — ग्राहक आपको ढूँढ सकते हैं",
+  "profile.approvedBadge": "स्वीकृत",
   "profile.setupHint": "जॉब प्राप्त करने के लिए अपनी प्रदाता प्रोफ़ाइल पूरी करें।",
   "profile.setupCta": "प्रोफ़ाइल सेट करें",
   "profile.completionTitle": "अपनी Partner प्रोफ़ाइल पूरी करें",

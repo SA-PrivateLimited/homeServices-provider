@@ -474,6 +474,28 @@ export default function ProviderProfileScreen({navigation}: any) {
               currentUser?.name ||
               String(t('profile.serviceProviderProfile'))}
           </Text>
+          {profile?.approvalStatus === 'approved' ? (
+            <View
+              style={[
+                styles.approvedBadge,
+                {backgroundColor: `${theme.success}24`},
+              ]}
+              accessibilityRole="text"
+              accessibilityLabel={String(
+                t('profile.approved') || t('profile.profileApproved'),
+              )}>
+              <Icon
+                name="shield-checkmark"
+                size={15}
+                color={theme.success}
+              />
+              <Text style={[styles.approvedBadgeText, {color: theme.success}]}>
+                {String(
+                  t('profile.approvedBadge') || t('profile.profileApproved'),
+                )}
+              </Text>
+            </View>
+          ) : null}
           <Text style={[styles.profileHeaderPhone, {color: theme.primary}]}>
             {phoneDisplay}
           </Text>
@@ -505,14 +527,6 @@ export default function ProviderProfileScreen({navigation}: any) {
               <Text style={styles.statusText}>
                 {String(t('profile.profileRejected'))}
                 {profile.rejectionReason ? `: ${profile.rejectionReason}` : ''}
-              </Text>
-            </View>
-          ) : null}
-          {profile?.approvalStatus === 'approved' ? (
-            <View style={[styles.statusBanner, styles.approvedBanner]}>
-              <Icon name="checkmark-circle-outline" size={18} color="#34C759" />
-              <Text style={styles.statusText}>
-                {String(t('profile.profileApproved'))}
               </Text>
             </View>
           ) : null}
@@ -890,8 +904,23 @@ const styles = StyleSheet.create({
   },
   profileHeaderInitials: {fontSize: 36, fontWeight: 'bold', color: '#fff'},
   changePhoto: {fontSize: 14, fontWeight: '600', marginBottom: 8},
-  profileHeaderName: {fontSize: 22, fontWeight: 'bold', marginBottom: 4},
-  profileHeaderPhone: {fontSize: 14, marginTop: 2},
+  profileHeaderName: {fontSize: 22, fontWeight: 'bold', marginBottom: 4, textAlign: 'center'},
+  approvedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 5,
+    marginTop: 2,
+    marginBottom: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  approvedBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  profileHeaderPhone: {fontSize: 14, marginTop: 6},
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -928,11 +957,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFEBEE',
     borderLeftWidth: 3,
     borderLeftColor: '#FF3B30',
-  },
-  approvedBanner: {
-    backgroundColor: '#E8F5E9',
-    borderLeftWidth: 3,
-    borderLeftColor: '#34C759',
   },
   statusText: {
     flex: 1,
