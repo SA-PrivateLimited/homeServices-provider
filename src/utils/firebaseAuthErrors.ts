@@ -32,9 +32,9 @@ export function mapFirebaseAuthError(error: unknown): string {
     case 'auth/captcha-check-failed':
     case 'auth/invalid-app-credential':
     case 'auth/missing-client-identifier':
-      return 'Phone verification could not start on this device. Use a real phone with Chrome installed, or add a test number in Firebase Auth → Phone. (Partner web does not need SHA keys; only the Android app does.)';
+      return 'Phone verification could not start. Use a phone with Chrome, or confirm Play App Signing SHA-1/SHA-256 are added under Firebase → Akansho Partner (com.akansho.partner).';
     case 'auth/app-not-authorized':
-      return 'App not authorized for phone authentication. In Firebase → Project settings → Akansho Partner (com.akansho.partner), add this build’s SHA-1/SHA-256.';
+      return 'App not authorized for phone authentication. In Firebase → Project settings → Akansho Partner (com.akansho.partner), add this build’s SHA-1/SHA-256 (including Play App Signing key).';
     case 'auth/network-request-failed':
       return 'Network error. Check your connection and try again.';
     case 'auth/operation-not-allowed':
