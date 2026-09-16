@@ -42,7 +42,7 @@ export function KycDocumentsCard({theme, documents, onUpdated}: Props) {
       documents?.[`${key}Verified` as keyof NonNullable<Provider['documents']>],
     );
     if (verified) return;
-    launchImageLibrary({mediaType: 'photo', quality: 0.8}, async response => {
+    launchImageLibrary({mediaType: 'photo', quality: 0.75}, async response => {
       const asset = response.assets?.[0];
       if (!asset?.uri) return;
       setBusy(key);
