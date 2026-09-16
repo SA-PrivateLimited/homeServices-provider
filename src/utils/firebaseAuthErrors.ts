@@ -11,10 +11,14 @@ export function mapFirebaseAuthError(error: unknown): string {
       : '';
   const message =
     error instanceof Error ? error.message : 'Something went wrong';
+  const nativeMessage =
+    error && typeof error === 'object' && 'nativeErrorMessage' in error
+      ? String((error as {nativeErrorMessage?: string}).nativeErrorMessage || '')
+      : '';
 
   switch (code) {
     case BROWSER_REQUIRED_FOR_OTP_CODE:
-      return BROWSER_REQUIRED_FOR_OTP_CODE;
+      return 'Phone verification needs a browser on this device. Please install or enable Chrome (or another browser) and try again.';
     case 'auth/invalid-phone-number':
       return 'Enter a valid mobile number with country code.';
     case 'auth/missing-phone-number':
@@ -42,8 +46,12 @@ export function mapFirebaseAuthError(error: unknown): string {
     case 'auth/argument-error':
       return 'Could not start phone verification. Please try again.';
     default:
-      if (/ActivityNotFoundException|No Activity found to handle Intent/i.test(message)) {
-        return BROWSER_REQUIRED_FOR_OTP_CODE;
+      if (
+        /ActivityNotFoundException|No Activity found to handle Intent/i.test(
+          `${message} ${nativeMessage}`,
+        )
+      ) {
+        return 'Phone verification needs a browser on this device. Please install or enable Chrome (or another browser) and try again.';
       }
       if (/network/i.test(message)) {
         return 'Network error. Check your connection and try again.';

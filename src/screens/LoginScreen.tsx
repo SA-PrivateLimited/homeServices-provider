@@ -59,10 +59,7 @@ import {
   TERMS_OF_SERVICE_URL,
 } from '../config/support';
 import {openExternalUrl} from '../utils/openExternalUrl';
-import {
-  BROWSER_REQUIRED_FOR_OTP_CODE,
-  isBrowserRequiredOtpError,
-} from '../utils/canOpenHttpsUrl';
+import {isBrowserRequiredOtpError} from '../utils/canOpenHttpsUrl';
 import ConfirmationModal from '../components/ConfirmationModal';
 import {
   enableBiometricUnlock,
@@ -77,7 +74,7 @@ interface LoginScreenProps {
   navigation: any;
 }
 
-type Step = 'phone' | 'pin' | 'otp' | 'showPin';
+type Step = 'phone' | 'pin' | 'otp' | 'createPin' | 'showPin';
 type OtpMode = 'signup' | 'forgot';
 
 type OtpBanner = {
@@ -101,19 +98,13 @@ function authErrorMessage(
   if (isBrowserRequiredOtpError(error)) {
     return (
       t('auth.browserRequiredForOtp') ||
-      'Install Chrome (or any browser), then try again. First-time login needs a short security check in the browser.'
+      'Phone verification needs a browser on this device. Please install or enable Chrome (or another browser) and try again.'
     );
   }
   const message =
     error instanceof Error
       ? error.message
       : String((error as {message?: string})?.message || '');
-  if (message === BROWSER_REQUIRED_FOR_OTP_CODE) {
-    return (
-      t('auth.browserRequiredForOtp') ||
-      'Install Chrome (or any browser), then try again. First-time login needs a short security check in the browser.'
-    );
-  }
   return message || t(fallbackKey);
 }
 
@@ -460,11 +451,27 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     }
   };
 
-  const handleVerifyOtpAndSetPin = async () => {
+  const handleVerifyOtp = async () => {
     if (!otp.trim()) {
       setInlineError(t('auth.pleaseEnterCode') || 'Enter OTP');
       return;
     }
+    setLoading(true);
+    setInlineError(null);
+    try {
+      await firebasePhone.verifyOtp(otp.trim());
+      setNewPin('');
+      setConfirmPin('');
+      setOtpBanner(null);
+      setStep('createPin');
+    } catch (error: any) {
+      setInlineError(error.message || t('auth.failedToVerifyCode'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetPin = async () => {
     if (!LOGIN_PIN_RE.test(newPin.trim())) {
       setInlineError(t('auth.pinMustBeFourDigits') || 'PIN must be 4 digits');
       return;
@@ -480,7 +487,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     setLoading(true);
     setInlineError(null);
     try {
-      await firebasePhone.verifyOtp(otp.trim());
       const idToken = await firebasePhone.getIdToken();
       const result =
         otpMode === 'signup'
@@ -503,11 +509,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     }
   };
 
-  const handleUseAnotherNumber = async () => {
-    await firebasePhone.reset();
-    await clearAllCredentials();
-    setCurrentUser(null);
-    setPhoneNumber('');
+  const handleUseAnotherNumber = () => {
+    setLoading(false);
     setPin('');
     setOtp('');
     setNewPin('');
@@ -519,6 +522,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     setCustomerOnly(false);
     setOtpMode('signup');
     setStep('phone');
+    void firebasePhone.reset();
+    void clearAllCredentials();
+    setCurrentUser(null);
   };
 
   /** Soft step-back for Android hardware Back — does not clear session/remembered phone. */
@@ -547,6 +553,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       }
       return true;
     }
+    if (step === 'createPin') {
+      void firebasePhone.reset();
+      setOtp('');
+      setNewPin('');
+      setConfirmPin('');
+      setInlineError(null);
+      setOtpBanner(null);
+      setStep('otp');
+      return true;
+    }
     if (step === 'showPin') {
       // Session already applied in finishWithPinReveal — continue into app.
       goMain();
@@ -569,6 +585,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
 
   const titleForStep = () => {
     switch (step) {
+      case 'createPin':
+        return otpMode === 'forgot'
+          ? t('login.createPinTitleForgot')
+          : t('login.createPinTitle');
       case 'showPin':
         return t('login.createPinTitle');
       case 'pin':
@@ -582,6 +602,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
 
   const subtitleForStep = () => {
     switch (step) {
+      case 'createPin':
       case 'showPin':
         return t('login.createPinSubtitle');
       case 'pin':
@@ -620,20 +641,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
         <View style={web.authStack}>
           <View style={web.card}>
             <ScrollView
+              style={{flex: 1}}
               contentContainerStyle={web.cardScroll}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}>
               <View style={web.cardTop}>
                 <View style={web.toolbar}>
-                  {step === 'phone' || step === 'pin' ? (
+                  {step === 'phone' || step === 'pin' || step === 'showPin' ? (
                     <View style={web.toolbarSpacer} />
                   ) : (
                     <TouchableOpacity
                       style={web.backToolbar}
-                      onPress={() => void handleUseAnotherNumber()}
-                      disabled={loading}
+                      onPress={handleUseAnotherNumber}
                       accessibilityRole="button"
-                      accessibilityLabel={String(t('login.changeMobile'))}>
+                      accessibilityLabel={String(t('login.changeMobile'))}
+                      hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
                       <Text style={web.backText}>{t('login.changeMobile')}</Text>
                     </TouchableOpacity>
                   )}
@@ -645,7 +667,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                   flow={
                     step === 'pin'
                       ? 'pinLogin'
-                      : step === 'otp' || step === 'showPin'
+                      : step === 'otp' ||
+                        step === 'createPin' ||
+                        step === 'showPin'
                         ? 'otpFlow'
                         : 'preview'
                   }
@@ -684,7 +708,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                       <Icon name="chatbubble-ellipses" size={26} color={WEB.otpIcon} />
                     </View>
                   ) : null}
-                  {step === 'pin' || step === 'showPin' ? (
+                  {step === 'pin' || step === 'createPin' || step === 'showPin' ? (
                     <View style={[web.stepIcon, web.stepIconPin]}>
                       <Icon name="key" size={26} color={WEB.primary} />
                     </View>
@@ -736,8 +760,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                         </Text>
                         <TouchableOpacity
                           style={web.editMobileBtn}
-                          onPress={() => void handleUseAnotherNumber()}
-                          disabled={loading}
+                          onPress={handleUseAnotherNumber}
                           accessibilityRole="button"
                           accessibilityLabel={String(t('login.changeMobile'))}
                           hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
@@ -813,6 +836,31 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
 
                 {step === 'otp' ? (
                   <View style={web.form}>
+                    <View style={web.readonlyPhone}>
+                      <Text style={web.readonlyPhoneLabel}>
+                        {t('login.pinStepMobileLabel')}
+                      </Text>
+                      <View style={web.readonlyPhoneRow}>
+                        <Text
+                          style={web.readonlyPhoneValue}
+                          accessibilityRole="text"
+                          accessibilityLabel={`${String(
+                            t('login.pinStepMobileLabel'),
+                          )}: ${formatPhoneDisplay(fullPhone())}`}>
+                          {formatPhoneDisplay(fullPhone())}
+                        </Text>
+                        <TouchableOpacity
+                          style={web.editMobileBtn}
+                          onPress={handleUseAnotherNumber}
+                          accessibilityRole="button"
+                          accessibilityLabel={String(t('login.changeMobile'))}
+                          hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                          <Text style={web.editMobileText}>
+                            {t('login.editMobile')}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                     <Text style={web.label}>{t('login.otpLabel')}</Text>
                     <WebCodeBoxes
                       value={otp}
@@ -824,6 +872,46 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                       editable={!loading}
                       autoFocus
                     />
+                    {inlineError ? (
+                      <Text style={web.fieldError}>{inlineError}</Text>
+                    ) : null}
+                    <LoginPrimary
+                      title={String(t('login.verifyOtp'))}
+                      onPress={() => void handleVerifyOtp()}
+                      loading={loading}
+                      disabled={otp.length !== 6}
+                    />
+                    <TouchableOpacity
+                      style={[web.textLink, web.textLinkCenter]}
+                      onPress={() => void handleResendOtp()}
+                      disabled={loading}>
+                      <Text style={web.textLinkLabel}>{t('login.resendOtp')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
+                {step === 'createPin' ? (
+                  <View style={web.form}>
+                    <View style={web.readonlyPhone}>
+                      <Text style={web.readonlyPhoneLabel}>
+                        {t('login.pinStepMobileLabel')}
+                      </Text>
+                      <View style={web.readonlyPhoneRow}>
+                        <Text style={web.readonlyPhoneValue}>
+                          {formatPhoneDisplay(fullPhone())}
+                        </Text>
+                        <TouchableOpacity
+                          style={web.editMobileBtn}
+                          onPress={handleUseAnotherNumber}
+                          accessibilityRole="button"
+                          accessibilityLabel={String(t('login.changeMobile'))}
+                          hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                          <Text style={web.editMobileText}>
+                            {t('login.editMobile')}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                     <Text style={web.label}>{t('login.newPinLabel')}</Text>
                     <WebCodeBoxes
                       value={newPin}
@@ -833,6 +921,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                         setInlineError(null);
                       }}
                       editable={!loading}
+                      autoFocus
+                      secure
+                      accessibilityLabel={String(t('login.newPinLabel'))}
                     />
                     <Text style={web.label}>{t('login.confirmPinLabel')}</Text>
                     <WebCodeBoxes
@@ -843,30 +934,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                         setInlineError(null);
                       }}
                       editable={!loading}
+                      secure
+                      accessibilityLabel={String(t('login.confirmPinLabel'))}
                     />
                     {inlineError ? (
                       <Text style={web.fieldError}>{inlineError}</Text>
                     ) : null}
                     <LoginPrimary
-                      title={String(
-                        otpMode === 'signup'
-                          ? t('login.setPinCta')
-                          : t('login.verifyOtp'),
-                      )}
-                      onPress={() => void handleVerifyOtpAndSetPin()}
+                      title={String(t('login.setPinCta'))}
+                      onPress={() => void handleSetPin()}
                       loading={loading}
                       disabled={
-                        otp.length !== 6 ||
                         newPin.length !== LOGIN_PIN_LENGTH ||
                         confirmPin.length !== LOGIN_PIN_LENGTH
                       }
                     />
-                    <TouchableOpacity
-                      style={[web.textLink, web.textLinkCenter]}
-                      onPress={() => void handleResendOtp()}
-                      disabled={loading}>
-                      <Text style={web.textLinkLabel}>{t('login.resendOtp')}</Text>
-                    </TouchableOpacity>
                   </View>
                 ) : null}
 

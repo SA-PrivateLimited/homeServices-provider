@@ -18,7 +18,6 @@ export const appHeaderStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 56,
     paddingHorizontal: 16,
     backgroundColor: '#FBFCFD',
     borderBottomWidth: 1,
@@ -105,7 +104,7 @@ export const accountMenuStyles = StyleSheet.create({
    * (card + primary mix, inset highlight, soft elevated shadow; no hard border).
    */
   panel: {
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 0,
     overflow: 'hidden',
     padding: 8,

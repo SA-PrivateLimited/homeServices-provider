@@ -6,11 +6,14 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Button, toast} from 'sapvt-ltd-app-packages';
@@ -157,6 +160,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
   const tx = (key: string, opts?: any) => String(t(key, opts));
+  const insets = useSafeAreaInsets();
   void colorTheme;
 
   const [jobCard, setJobCard] = useState<JobCard | null>(null);
@@ -430,14 +434,19 @@ export default function JobDetailsScreen({navigation, route}: any) {
         onClose={() => setAlertVisible(false)}
       />
 
+      <KeyboardAvoidingView
+        style={s.pageFlex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}>
       <ScrollView
         style={[s.page, {backgroundColor: theme.background}]}
         contentContainerStyle={[
           s.content,
           {paddingBottom: Math.max(48, 28 + insets.bottom + 16)},
         ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        showsVerticalScrollIndicator={false}>
         {/* Status hero */}
         <View
           style={[
@@ -791,6 +800,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <StartTaskModal
         visible={showStartModal}

@@ -5,10 +5,13 @@ export const jobDetailFromWeb = StyleSheet.create({
   page: {
     flex: 1,
   },
+  pageFlex: {
+    flex: 1,
+  },
   content: {
     paddingHorizontal: 14,
     paddingTop: 12,
-    paddingBottom: 28,
+    paddingBottom: 48,
     gap: 12,
   },
   hero: {
@@ -162,6 +165,7 @@ export const jobDetailFromWeb = StyleSheet.create({
   rail: {
     gap: 10,
     marginTop: 4,
+    paddingBottom: 8,
   },
   railLabel: {
     fontSize: 12,
