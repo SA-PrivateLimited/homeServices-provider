@@ -32,7 +32,9 @@ import {
 } from '../utils/partnerColorTheme';
 import {getBrandThemeSwatch} from '../utils/theme';
 import {deleteMe} from '../services/api/usersApi';
+import {ACCOUNT_DELETION_INFO_URL} from '../config/support';
 import {getUserFacingErrorMessage} from '../utils/userFacingError';
+import {openExternalUrl} from '../utils/openExternalUrl';
 
 export default function SettingsAccountScreen({navigation}: any) {
   const {t} = useTranslation();
@@ -332,51 +334,6 @@ export default function SettingsAccountScreen({navigation}: any) {
         </CrystalSurface>
       ) : null}
 
-      <CrystalSurface
-        primary={theme.primary}
-        card={theme.card}
-        isDark={isDarkMode}
-        contentStyle={styles.card}>
-        <Text style={[styles.h3, {color: theme.error}]}>
-          {t('settings.deleteAccountTitle')}
-        </Text>
-        <Text style={[styles.muted, {color: theme.textSecondary}]}>
-          {t('settings.deleteAccountLead')}
-        </Text>
-        <Text style={[styles.muted, {color: theme.textSecondary}]}>
-          {t('settings.uninstallDoesNotDelete')}
-        </Text>
-        <Pressable
-          style={[
-            styles.deleteBtn,
-            {
-              borderColor: `${theme.error}66`,
-              backgroundColor: theme.card,
-              opacity: deleting ? 0.6 : 1,
-            },
-          ]}
-          disabled={deleting}
-          onPress={handleDeleteAccount}
-          accessibilityRole="button"
-          accessibilityLabel={String(t('settings.deleteAccountCta'))}>
-          <Icon name="delete" size={20} color={theme.error} />
-          <Text style={[styles.deleteText, {color: theme.error}]}>
-            {deleting
-              ? String(t('common.loading') || '…')
-              : String(t('settings.deleteAccountCta'))}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() =>
-            navigation.navigate('LegalDocument', {kind: 'privacy'})
-          }
-          accessibilityRole="link">
-          <Text style={[styles.link, {color: theme.primary}]}>
-            {t('settings.deleteAccountLearnMore')}
-          </Text>
-        </Pressable>
-      </CrystalSurface>
-
       <View style={[styles.logoutWrap, {borderTopColor: theme.border}]}>
         <Pressable
           style={[
@@ -392,6 +349,34 @@ export default function SettingsAccountScreen({navigation}: any) {
           <Icon name="logout" size={20} color={theme.error} />
           <Text style={[styles.logoutText, {color: theme.error}]}>
             {t('profile.logout')}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={styles.deleteQuiet}
+          disabled={deleting}
+          onPress={handleDeleteAccount}
+          accessibilityRole="button"
+          accessibilityLabel={String(t('settings.deleteAccountCta'))}>
+          <Text
+            style={[
+              styles.deleteQuietText,
+              {color: theme.textSecondary, opacity: deleting ? 0.6 : 1},
+            ]}>
+            {deleting
+              ? String(t('common.loading') || '…')
+              : String(t('settings.deleteAccountCta'))}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() =>
+            void openExternalUrl(ACCOUNT_DELETION_INFO_URL, {
+              failTitle: String(t('common.error') || 'Error'),
+              failMessage: String(t('settings.legalOpenFailed')),
+            })
+          }
+          accessibilityRole="link">
+          <Text style={[styles.link, {color: theme.textSecondary}]}>
+            {t('settings.deleteAccountLearnMore')}
           </Text>
         </Pressable>
       </View>
@@ -413,20 +398,7 @@ const styles = StyleSheet.create({
   h3: {fontSize: 16, fontWeight: '700'},
   p: {fontSize: 16},
   muted: {fontSize: 13, lineHeight: 18},
-  link: {fontSize: 13, fontWeight: '600', marginTop: 4},
-  deleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    width: '100%',
-    minHeight: 48,
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginTop: 4,
-  },
-  deleteText: {fontSize: 15, fontWeight: '700'},
+  link: {fontSize: 13, fontWeight: '500', marginTop: 2, textAlign: 'center'},
   bioRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -459,6 +431,8 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+    alignItems: 'center',
   },
   logout: {
     flexDirection: 'row',
@@ -472,4 +446,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   logoutText: {fontSize: 15, fontWeight: '700'},
+  deleteQuiet: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  deleteQuietText: {
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+  },
 });
