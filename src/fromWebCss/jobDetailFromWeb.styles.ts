@@ -174,6 +174,26 @@ export const jobDetailFromWeb = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  railStack: {
+    gap: 8,
+  },
+  actionBtn: {
+    minHeight: 48,
+    paddingVertical: 12,
+    overflow: 'visible',
+  },
+  actionBtnText: {
+    fontSize: 15,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  cancelBtn: {
+    minHeight: 48,
+    paddingVertical: 14,
+    marginTop: 4,
+    marginBottom: 8,
+    overflow: 'visible',
+  },
   center: {
     flex: 1,
     alignItems: 'center',

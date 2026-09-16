@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Button, toast} from 'sapvt-ltd-app-packages';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
@@ -151,6 +152,7 @@ function splitAddressLines(line: string): {primary: string; secondary?: string} 
 
 export default function JobDetailsScreen({navigation, route}: any) {
   const {jobCardId} = route.params;
+  const insets = useSafeAreaInsets();
   const {isDarkMode, colorTheme} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
@@ -430,8 +432,12 @@ export default function JobDetailsScreen({navigation, route}: any) {
 
       <ScrollView
         style={[s.page, {backgroundColor: theme.background}]}
-        contentContainerStyle={s.content}
-        showsVerticalScrollIndicator={false}>
+        contentContainerStyle={[
+          s.content,
+          {paddingBottom: Math.max(48, 28 + insets.bottom + 16)},
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled">
         {/* Status hero */}
         <View
           style={[
@@ -694,24 +700,26 @@ export default function JobDetailsScreen({navigation, route}: any) {
           ) : null}
 
           {canCall && jobCard.customerPhone ? (
-            <View style={s.railRow}>
-              <View style={{flex: 1}}>
-                <Button
-                  variant="primary"
-                  block
-                  title={tx('contact.callCustomer')}
-                  onPress={handleCallCustomer}
-                />
-              </View>
+            <View style={s.railStack}>
+              <Button
+                variant="primary"
+                block
+                size="lg"
+                title={tx('contact.callCustomer')}
+                onPress={handleCallCustomer}
+                style={s.actionBtn}
+                textStyle={s.actionBtnText}
+              />
               {actionable ? (
-                <View style={{flex: 1}}>
-                  <Button
-                    variant="secondary"
-                    block
-                    title={tx('jobDetail.whatsapp')}
-                    onPress={handleWhatsAppCustomer}
-                  />
-                </View>
+                <Button
+                  variant="secondary"
+                  block
+                  size="lg"
+                  title={tx('jobDetail.whatsapp')}
+                  onPress={handleWhatsAppCustomer}
+                  style={s.actionBtn}
+                  textStyle={s.actionBtnText}
+                />
               ) : null}
             </View>
           ) : statusKey === 'pending' ? (
@@ -732,10 +740,13 @@ export default function JobDetailsScreen({navigation, route}: any) {
             <Button
               variant="primary"
               block
+              size="lg"
               title={tx('jobDetail.startService')}
               onPress={() => setShowStartModal(true)}
               disabled={updating}
               loading={updating}
+              style={s.actionBtn}
+              textStyle={s.actionBtnText}
             />
           ) : null}
 
@@ -743,9 +754,12 @@ export default function JobDetailsScreen({navigation, route}: any) {
             <Button
               variant="primary"
               block
+              size="lg"
               title={tx('jobDetail.markCompleted')}
               onPress={() => setShowPINModal(true)}
               disabled={updating}
+              style={s.actionBtn}
+              textStyle={s.actionBtnText}
             />
           ) : null}
 
@@ -757,17 +771,22 @@ export default function JobDetailsScreen({navigation, route}: any) {
             <Button
               variant="ghost"
               block
+              size="lg"
               title={tx('jobDetail.cancelTask')}
               onPress={() => setShowCancelModal(true)}
               disabled={updating}
-              textStyle={{color: theme.error, fontWeight: '600'}}
+              style={s.cancelBtn}
+              textStyle={[s.actionBtnText, {color: theme.error, fontWeight: '600'}]}
             />
           ) : (
             <Button
               variant="ghost"
               block
+              size="lg"
               title={tx('jobDetail.backToJobs')}
               onPress={() => navigation.goBack()}
+              style={s.cancelBtn}
+              textStyle={s.actionBtnText}
             />
           )}
         </View>
