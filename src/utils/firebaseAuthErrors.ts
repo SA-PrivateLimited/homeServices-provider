@@ -11,10 +11,14 @@ export function mapFirebaseAuthError(error: unknown): string {
       : '';
   const message =
     error instanceof Error ? error.message : 'Something went wrong';
+  const nativeMessage =
+    error && typeof error === 'object' && 'nativeErrorMessage' in error
+      ? String((error as {nativeErrorMessage?: string}).nativeErrorMessage || '')
+      : '';
 
   switch (code) {
     case BROWSER_REQUIRED_FOR_OTP_CODE:
-      return BROWSER_REQUIRED_FOR_OTP_CODE;
+      return 'Phone verification needs a browser on this device. Please install or enable Chrome (or another browser) and try again.';
     case 'auth/invalid-phone-number':
       return 'Enter a valid mobile number with country code.';
     case 'auth/missing-phone-number':
@@ -32,7 +36,7 @@ export function mapFirebaseAuthError(error: unknown): string {
     case 'auth/captcha-check-failed':
     case 'auth/invalid-app-credential':
     case 'auth/missing-client-identifier':
-      return 'Phone verification could not start on this device. Use a real phone with Chrome installed, or add a test number in Firebase Auth → Phone. (Partner web does not need SHA keys; only the Android app does.)';
+      return 'Phone verification could not start on this device. Please try again or use another device.';
     case 'auth/app-not-authorized':
       return 'App not authorized for phone authentication. In Firebase → Project settings → Akansho Partner (com.akansho.partner), add this build’s SHA-1/SHA-256.';
     case 'auth/network-request-failed':
@@ -42,8 +46,12 @@ export function mapFirebaseAuthError(error: unknown): string {
     case 'auth/argument-error':
       return 'Could not start phone verification. Please try again.';
     default:
-      if (/ActivityNotFoundException|No Activity found to handle Intent/i.test(message)) {
-        return BROWSER_REQUIRED_FOR_OTP_CODE;
+      if (
+        /ActivityNotFoundException|No Activity found to handle Intent/i.test(
+          `${message} ${nativeMessage}`,
+        )
+      ) {
+        return 'Phone verification needs a browser on this device. Please install or enable Chrome (or another browser) and try again.';
       }
       if (/network/i.test(message)) {
         return 'Network error. Check your connection and try again.';

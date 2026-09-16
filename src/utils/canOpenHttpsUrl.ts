@@ -29,8 +29,11 @@ export function isBrowserRequiredOtpError(error: unknown): boolean {
     error instanceof Error
       ? error.message
       : String((error as {message?: string}).message || '');
-  return (
-    message === BROWSER_REQUIRED_FOR_OTP_CODE ||
-    /ActivityNotFoundException|No Activity found to handle Intent/i.test(message)
+  const nativeMessage =
+    'nativeErrorMessage' in error
+      ? String((error as {nativeErrorMessage?: string}).nativeErrorMessage || '')
+      : '';
+  return /ActivityNotFoundException|No Activity found to handle Intent/i.test(
+    `${message} ${nativeMessage}`,
   );
 }

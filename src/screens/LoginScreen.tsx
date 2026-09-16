@@ -59,10 +59,7 @@ import {
   TERMS_OF_SERVICE_URL,
 } from '../config/support';
 import {openExternalUrl} from '../utils/openExternalUrl';
-import {
-  BROWSER_REQUIRED_FOR_OTP_CODE,
-  isBrowserRequiredOtpError,
-} from '../utils/canOpenHttpsUrl';
+import {isBrowserRequiredOtpError} from '../utils/canOpenHttpsUrl';
 import ConfirmationModal from '../components/ConfirmationModal';
 import {
   enableBiometricUnlock,
@@ -101,19 +98,13 @@ function authErrorMessage(
   if (isBrowserRequiredOtpError(error)) {
     return (
       t('auth.browserRequiredForOtp') ||
-      'Install Chrome (or any browser), then try again. First-time login needs a short security check in the browser.'
+      'Phone verification needs a browser on this device. Please install or enable Chrome (or another browser) and try again.'
     );
   }
   const message =
     error instanceof Error
       ? error.message
       : String((error as {message?: string})?.message || '');
-  if (message === BROWSER_REQUIRED_FOR_OTP_CODE) {
-    return (
-      t('auth.browserRequiredForOtp') ||
-      'Install Chrome (or any browser), then try again. First-time login needs a short security check in the browser.'
-    );
-  }
   return message || t(fallbackKey);
 }
 

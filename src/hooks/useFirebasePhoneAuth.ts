@@ -1,10 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
 import {mapFirebaseAuthError} from '../utils/firebaseAuthErrors';
-import {
-  BROWSER_REQUIRED_FOR_OTP_CODE,
-  canOpenHttpsUrl,
-} from '../utils/canOpenHttpsUrl';
+import {BROWSER_REQUIRED_FOR_OTP_CODE} from '../utils/canOpenHttpsUrl';
 
 type ConfirmationResult = FirebaseAuthTypes.ConfirmationResult;
 
@@ -56,62 +53,72 @@ export function useFirebasePhoneAuth() {
       throw new Error('Enter a valid mobile number with country code.');
     }
 
-    /**
-     * When Play Integrity is unavailable, Firebase opens RecaptchaActivity which
-     * starts a browser Intent. No browser → ActivityNotFoundException kills the app.
-     * Preflight: require a browser handler, or in __DEV__ skip app verification.
-     * AndroidManifest <queries> is also required so Chrome is visible on API 30+.
-     */
-    const browserOk = await canOpenHttpsUrl();
-    if (!browserOk) {
-      if (__DEV__) {
-        try {
-          auth().settings.appVerificationDisabledForTesting = true;
-        } catch {
-          /* ignore */
-        }
-      } else {
-        const err = new Error(BROWSER_REQUIRED_FOR_OTP_CODE) as Error & {
-          code: string;
-        };
-        err.code = BROWSER_REQUIRED_FOR_OTP_CODE;
-        throw err;
-      }
-    }
-
     setSending(true);
     try {
       confirmationRef.current = null;
       idTokenRef.current = null;
 
       const forceResend = lastPhoneRef.current === e164;
+
+      console.log('[PHONE AUTH] Starting Firebase phone verification');
+
       const confirmation = await auth().signInWithPhoneNumber(
         e164,
         forceResend,
       );
 
+      console.log(
+        '[PHONE AUTH] Firebase phone verification started successfully',
+      );
+
       confirmationRef.current = confirmation;
       lastPhoneRef.current = e164;
-      if (mountedRef.current) setPhoneE164(e164);
-      return {phoneNumber: e164};
-    } catch (err) {
-      confirmationRef.current = null;
-      if (
-        err &&
-        typeof err === 'object' &&
-        'code' in err &&
-        (err as {code?: string}).code === BROWSER_REQUIRED_FOR_OTP_CODE
-      ) {
-        throw err;
+      if (mountedRef.current) {
+        setPhoneE164(e164);
       }
+      return {phoneNumber: e164};
+    } catch (err: unknown) {
+      confirmationRef.current = null;
+
+      const firebaseErr =
+        err && typeof err === 'object'
+          ? (err as {
+              code?: string;
+              message?: string;
+              nativeErrorCode?: string | number;
+              nativeErrorMessage?: string;
+              stack?: string;
+            })
+          : {};
+
+      console.error('[PHONE AUTH] Firebase signInWithPhoneNumber failed', {
+        code: firebaseErr.code,
+        message: firebaseErr.message,
+        nativeErrorCode: firebaseErr.nativeErrorCode,
+        nativeErrorMessage: firebaseErr.nativeErrorMessage,
+        stack: firebaseErr.stack,
+      });
+
       const mapped = mapFirebaseAuthError(err);
       const next = new Error(mapped) as Error & {code?: string};
-      if (mapped === BROWSER_REQUIRED_FOR_OTP_CODE) {
+      const originalText = `${firebaseErr.message || ''} ${
+        firebaseErr.nativeErrorMessage || ''
+      }`;
+      if (
+        firebaseErr.code === BROWSER_REQUIRED_FOR_OTP_CODE ||
+        /ActivityNotFoundException|No Activity found to handle Intent/i.test(
+          originalText,
+        )
+      ) {
         next.code = BROWSER_REQUIRED_FOR_OTP_CODE;
+      } else if (firebaseErr.code) {
+        next.code = firebaseErr.code;
       }
       throw next;
     } finally {
-      if (mountedRef.current) setSending(false);
+      if (mountedRef.current) {
+        setSending(false);
+      }
     }
   }, []);
 
