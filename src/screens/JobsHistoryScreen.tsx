@@ -12,7 +12,9 @@ import {
   View,
 } from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Button, Chip, Chips, EmptyState, Icon} from 'sapvt-ltd-app-packages';
+import {glassTabOverlayPad} from '../navigation/GlassTabBar';
 import useTranslation from '../hooks/useTranslation';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
@@ -23,14 +25,15 @@ import {
 import {formatJobDate, normalizeJobStatusKey} from '../utils/jobStatus';
 import {jobCustomerDisplayName} from '../utils/partnerDisplayName';
 import {historyFromWeb as s} from '../fromWebCss/historyFromWeb.styles';
-import {CrystalSurface} from '../components/CrystalSurface';
+import {CrystalSurface, mixColor} from '../components/CrystalSurface';
 import {navigationRef} from '../navigation/rootNavigation';
 
 const PAGE_SIZE = 50;
 const FILTERS = ['completed', 'cancelled'] as const;
 
 function jobId(job: ProviderJobCard): string {
-  return String(job._id || job.id || '').trim();
+  const row = job as ProviderJobCard & {jobCardId?: string};
+  return String(row._id || row.id || row.jobCardId || '').trim();
 }
 
 /** Compact history meta — scanning, not Active-job status lines. */
@@ -71,14 +74,18 @@ function openJobDetails(navigation: any, id: string) {
   const jobCardId = String(id || '').trim();
   if (!jobCardId) return;
 
-  // Prefer root ref — History tab is nested (stack → tabs → root).
-  if (navigationRef.isReady()) {
-    navigationRef.navigate('JobDetails', {jobCardId});
+  const params = {jobCardId};
+  let root = navigation;
+  while (root?.getParent?.()) {
+    root = root.getParent();
+  }
+  if (root?.navigate) {
+    root.navigate('JobDetails', params);
     return;
   }
-
-  // Fallback: bubble like Active services.
-  navigation.navigate('JobDetails', {jobCardId});
+  if (navigationRef.isReady()) {
+    navigationRef.navigate('JobDetails', params);
+  }
 }
 
 /**
@@ -111,6 +118,7 @@ async function fetchHistoryRows(
 
 export default function JobsHistoryScreen({navigation}: any) {
   const {t} = useTranslation();
+  const insets = useSafeAreaInsets();
   const {isDarkMode, colorTheme} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const primary = theme.primary;
@@ -211,7 +219,9 @@ export default function JobsHistoryScreen({navigation}: any) {
           extraData={`${colorTheme}-${primary}-${success}-${isDarkMode}-${error}`}
           keyExtractor={(item, index) => jobId(item) || `row-${index}`}
           contentContainerStyle={
-            rows.length === 0 ? {flexGrow: 1} : s.list
+            rows.length === 0
+              ? {flexGrow: 1}
+              : [s.list, {paddingBottom: glassTabOverlayPad(insets.bottom)}]
           }
           refreshControl={
             <RefreshControl
@@ -266,23 +276,31 @@ export default function JobsHistoryScreen({navigation}: any) {
               statusKey === 'cancelled' || statusKey === 'rejected';
 
             return (
-              <TouchableOpacity
-                onPress={() => openJobDetails(navigation, id)}
-                accessibilityLabel={String(t('jobs.viewJobDetails'))}
-                accessibilityRole="button"
-                activeOpacity={0.88}>
-                <CrystalSurface
-                  primary={primary}
-                  card={theme.card}
-                  isDark={isDarkMode}
-                  style={[
-                    s.card,
-                    {
-                      borderLeftWidth: 3,
-                      borderLeftColor: cancelled ? errorColor : success,
-                    },
-                  ]}
-                  contentStyle={s.row}>
+              <CrystalSurface
+                primary={primary}
+                card={theme.card}
+                isDark={isDarkMode}
+                statusColor={
+                  cancelled
+                    ? mixColor(errorColor, '#64748B', 0.7)
+                    : success
+                }
+                intensity="history"
+                compact
+                interactive
+                style={[
+                  s.card,
+                  {
+                    borderLeftWidth: 4,
+                    borderLeftColor: cancelled ? errorColor : success,
+                  },
+                ]}>
+                <TouchableOpacity
+                  onPress={() => openJobDetails(navigation, id)}
+                  accessibilityLabel={String(t('jobs.viewJobDetails'))}
+                  accessibilityRole="button"
+                  activeOpacity={0.88}
+                  style={s.row}>
                   <View style={s.main}>
                     <Text style={[s.title, {color: theme.text}]}>
                       {serviceType}
@@ -309,8 +327,8 @@ export default function JobsHistoryScreen({navigation}: any) {
                     color={theme.textSecondary}
                     style={s.chevron}
                   />
-                </CrystalSurface>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </CrystalSurface>
             );
           }}
         />

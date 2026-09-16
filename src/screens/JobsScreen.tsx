@@ -13,7 +13,9 @@ import {
   View,
 } from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Chip, Chips, EmptyState, Icon} from 'sapvt-ltd-app-packages';
+import {glassTabOverlayPad} from '../navigation/GlassTabBar';
 import useTranslation from '../hooks/useTranslation';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
@@ -33,7 +35,7 @@ import {
 } from '../utils/addressDisplay';
 import {canCallCustomerOnJob} from '../utils/customerContact';
 import {jobsFromWeb as s} from '../fromWebCss/jobsFromWeb.styles';
-import {CrystalSurface} from '../components/CrystalSurface';
+import {CrystalSurface, mixColor} from '../components/CrystalSurface';
 import {AssistingCollaborationCard} from '../components/AssistingCollaborationCard';
 import {
   listAssistingCollaborations,
@@ -80,6 +82,18 @@ function statusTint(
   return primary;
 }
 
+function badgeTint(
+  statusKey: string,
+  primary: string,
+  success: string,
+  warning: string,
+): string {
+  // Customer ServiceRequestCard.css: accepted/completed → success, in-progress → primary
+  if (statusKey === 'accepted' || statusKey === 'completed') return success;
+  if (statusKey === 'pending') return warning;
+  return primary;
+}
+
 function leftStripe(
   statusKey: string,
   primary: string,
@@ -92,6 +106,7 @@ function leftStripe(
 
 export default function JobsScreen({navigation}: any) {
   const {t} = useTranslation();
+  const insets = useSafeAreaInsets();
   const {isDarkMode, colorTheme} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const primary = theme.primary;
@@ -248,10 +263,14 @@ export default function JobsScreen({navigation}: any) {
         </View>
       ) : (
         <FlatList
+          style={{flex: 1}}
           data={visible}
           extraData={`${colorTheme}-${primary}-${success}-${isDarkMode}`}
           keyExtractor={item => jobId(item) || String(Math.random())}
-          contentContainerStyle={s.list}
+          contentContainerStyle={[
+            s.list,
+            {paddingBottom: glassTabOverlayPad(insets.bottom)},
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -285,6 +304,7 @@ export default function JobsScreen({navigation}: any) {
               Boolean(item.customerPhone) && canCallCustomerOnJob(item);
 
             const tint = statusTint(statusKey, primary, success, warning);
+            const chip = badgeTint(statusKey, primary, success, warning);
 
             return (
               <CrystalSurface
@@ -293,9 +313,23 @@ export default function JobsScreen({navigation}: any) {
                 isDark={isDarkMode}
                 statusColor={tint}
                 intensity="job"
+                interactive
                 style={[s.card, leftStripe(statusKey, primary, success, warning)]}
-                contentStyle={s.cardInner}
+                contentStyle={s.cardShell}
                 accessibilityLabel={`${customerName}. ${needLine}. ${getJobStatusTitle(status)}`}>
+                <View
+                  pointerEvents="none"
+                  style={[
+                    s.status,
+                    {
+                      backgroundColor: mixColor(chip, theme.card, 0.14),
+                    },
+                  ]}>
+                  <Text style={[s.statusText, {color: chip}]}>
+                    {getJobStatusTitle(status)}
+                  </Text>
+                </View>
+                <View style={s.cardInner}>
                 <View style={s.head}>
                   <View
                     style={[s.avatar, {backgroundColor: `${primary}2E`}]}
@@ -312,19 +346,6 @@ export default function JobsScreen({navigation}: any) {
                         numberOfLines={2}>
                         {customerName}
                       </Text>
-                      <View
-                        style={[
-                          s.status,
-                          {
-                            backgroundColor: `${primary}24`,
-                            borderWidth: 1,
-                            borderColor: `${primary}59`,
-                          },
-                        ]}>
-                        <Text style={[s.statusText, {color: primary}]}>
-                          {getJobStatusTitle(status)}
-                        </Text>
-                      </View>
                     </View>
                     <Text
                       style={[s.customer, {color: theme.textSecondary}]}
@@ -396,6 +417,7 @@ export default function JobsScreen({navigation}: any) {
                       </Text>
                     </TouchableOpacity>
                   ) : null}
+                </View>
                 </View>
               </CrystalSurface>
             );

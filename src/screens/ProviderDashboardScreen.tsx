@@ -13,6 +13,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import {getUserId} from '../services/session';
@@ -34,6 +35,7 @@ import {ReceiveRequestsCard} from '../components/ReceiveRequestsCard';
 import {AvailabilityCard} from '../components/AvailabilityCard';
 import {EffectiveRequestStatus} from '../components/EffectiveRequestStatus';
 import {CrystalSurface} from '../components/CrystalSurface';
+import {glassTabOverlayPad} from '../navigation/GlassTabBar';
 import {getEffectiveRequestAvailability} from '../utils/effectiveRequestAvailability';
 import type {Provider} from '../services/api/providersApi';
 import {IncomingRequestCard} from '../components/IncomingRequestCard';
@@ -58,6 +60,7 @@ import {
 } from '../services/api/partnerCollaborationApi';
 
 export default function ProviderDashboardScreen({navigation}: any) {
+  const insets = useSafeAreaInsets();
   const {isDarkMode, currentUser, colorTheme} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const userId = getUserId(currentUser);
@@ -298,7 +301,10 @@ export default function ProviderDashboardScreen({navigation}: any) {
       />
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {paddingBottom: glassTabOverlayPad(insets.bottom)},
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }>

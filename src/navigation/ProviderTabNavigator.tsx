@@ -2,16 +2,13 @@ import React, {useState, useEffect, useCallback} from 'react';
 import {Pressable} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   PROVIDER_WEB,
-  webTabBarStyle,
-  webTabLabelStyle,
   Icon,
 } from 'sapvt-ltd-app-packages';
 import {getMyProfile} from '../services/api/providersApi';
-import {getMyJobCards} from '../services/api/jobsApi';
 import {getUserId} from '../services/session';
 
 import ProviderDashboardScreen from '../screens/ProviderDashboardScreen';
@@ -26,7 +23,7 @@ import SettingsAboutScreen from '../screens/SettingsAboutScreen';
 import LegalDocumentScreen from '../screens/LegalDocumentScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
-import {AccountMenu, AccountMenuProvider} from '../components/account/AccountMenu';
+import {AccountMenuProvider} from '../components/account/AccountMenu';
 import {HeaderAccountActions} from '../components/account/HeaderAccountActions';
 import ProfileSetupModal from '../components/ProfileSetupModal';
 import {useStore} from '../store';
@@ -34,6 +31,7 @@ import {lightTheme, darkTheme} from '../utils/theme';
 import websocketService from '../services/websocketService';
 import useTranslation from '../hooks/useTranslation';
 import {IncomingBookingProvider} from '../components/IncomingBookingContext';
+import {GlassTabBar} from './GlassTabBar';
 import {PushEnablePrompt} from '../components/PushEnablePrompt';
 
 const Tab = createBottomTabNavigator();
@@ -121,7 +119,7 @@ const SettingsStack = () => {
   void colorTheme;
 
   const accountMenuHeader = (navigation: any) => ({
-    headerRight: () => <AccountMenu navigation={navigation} compact />,
+    headerRight: () => <HeaderAccountActions navigation={navigation} />,
   });
 
   const settingsBackButton = (navigation: any) => ({
@@ -232,6 +230,16 @@ const SettingsStack = () => {
           settingsSubScreen(navigation, String(t('help.title')))
         }
       />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={({navigation}) =>
+          settingsSubScreen(
+            navigation,
+            String(t('notifications.title') || 'Notifications'),
+          )
+        }
+      />
     </Stack.Navigator>
   );
 };
@@ -322,30 +330,17 @@ export default function ProviderTabNavigator() {
       />
 
       <Tab.Navigator
+        tabBar={props => <GlassTabBar {...props} />}
         screenOptions={{
           tabBarActiveTintColor: theme.primary,
           tabBarInactiveTintColor: theme.textSecondary,
           headerShown: false,
-          tabBarStyle: [
-            webTabBarStyle({
-              height: PROVIDER_WEB.tabBarH,
-              padTop: PROVIDER_WEB.tabBarPadTop,
-              safeBottom: insets.bottom,
-              borderTopColor: theme.border,
-            }),
-            {
-              backgroundColor: theme.tabBar,
-              borderTopColor: theme.border,
-            },
-          ],
-          tabBarLabelStyle: webTabLabelStyle(
-            PROVIDER_WEB.tabLabelSize,
-            PROVIDER_WEB.tabLabelWeight,
-          ),
-          tabBarItemStyle: {
-            borderWidth: 0,
-            borderRightWidth: 0,
-            borderLeftWidth: 0,
+          tabBarStyle: {
+            position: 'absolute',
+            backgroundColor: 'transparent',
+            borderTopWidth: 0,
+            elevation: 0,
+            height: 72 + Math.max(10, insets.bottom),
           },
         }}>
         <Tab.Screen
