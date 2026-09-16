@@ -26,7 +26,7 @@ import SettingsAboutScreen from '../screens/SettingsAboutScreen';
 import LegalDocumentScreen from '../screens/LegalDocumentScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
-import {AccountMenu, AccountMenuProvider} from '../components/account/AccountMenu';
+import {AccountMenuProvider} from '../components/account/AccountMenu';
 import {HeaderAccountActions} from '../components/account/HeaderAccountActions';
 import ProfileSetupModal from '../components/ProfileSetupModal';
 import {useStore} from '../store';
@@ -121,7 +121,7 @@ const SettingsStack = () => {
   void colorTheme;
 
   const accountMenuHeader = (navigation: any) => ({
-    headerRight: () => <AccountMenu navigation={navigation} compact />,
+    headerRight: () => <HeaderAccountActions navigation={navigation} />,
   });
 
   const settingsBackButton = (navigation: any) => ({
@@ -230,6 +230,16 @@ const SettingsStack = () => {
         component={HelpSupportScreen}
         options={({navigation}) =>
           settingsSubScreen(navigation, String(t('help.title')))
+        }
+      />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={({navigation}) =>
+          settingsSubScreen(
+            navigation,
+            String(t('notifications.title') || 'Notifications'),
+          )
         }
       />
     </Stack.Navigator>

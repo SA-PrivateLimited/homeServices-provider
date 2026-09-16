@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {Linking, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Linking, Pressable, StyleSheet, Text, View} from 'react-native';
 import {Button, Icon} from 'sapvt-ltd-app-packages';
 import {useTranslation} from 'react-i18next';
 import {
@@ -10,120 +10,18 @@ import {
 import {useResolvedTheme} from '../../hooks/useResolvedTheme';
 
 import {HelpFeedbackForm} from './HelpFeedbackForm';
+import {HELP_GROUPS, HELP_TOPICS, type HelpTopicId} from './helpTopics';
 
-type HelpTopicId =
-  | 'newRequests'
-  | 'onlineReceive'
-  | 'serviceOnOff'
-  | 'myServices'
-  | 'documents'
-  | 'jobWorkflow'
-  | 'customerContact'
-  | 'loginOtp'
-  | 'pin'
-  | 'account'
-  | 'feedback'
-  | 'other';
-
-const TOPICS: {
-  id: HelpTopicId;
-  icon: string;
-  titleKey: string;
-  bodyKey: string;
-  tipsKey: string;
-}[] = [
-  {
-    id: 'newRequests',
-    icon: 'notifications',
-    titleKey: 'help.topic.newRequestsTitle',
-    bodyKey: 'help.topic.newRequestsBody',
-    tipsKey: 'help.topic.newRequestsTips',
-  },
-  {
-    id: 'onlineReceive',
-    icon: 'toggle_on',
-    titleKey: 'help.topic.onlineReceiveTitle',
-    bodyKey: 'help.topic.onlineReceiveBody',
-    tipsKey: 'help.topic.onlineReceiveTips',
-  },
-  {
-    id: 'serviceOnOff',
-    icon: 'handyman',
-    titleKey: 'help.topic.serviceOnOffTitle',
-    bodyKey: 'help.topic.serviceOnOffBody',
-    tipsKey: 'help.topic.serviceOnOffTips',
-  },
-  {
-    id: 'myServices',
-    icon: 'list',
-    titleKey: 'help.topic.myServicesTitle',
-    bodyKey: 'help.topic.myServicesBody',
-    tipsKey: 'help.topic.myServicesTips',
-  },
-  {
-    id: 'documents',
-    icon: 'description',
-    titleKey: 'help.topic.documentsTitle',
-    bodyKey: 'help.topic.documentsBody',
-    tipsKey: 'help.topic.documentsTips',
-  },
-  {
-    id: 'jobWorkflow',
-    icon: 'work',
-    titleKey: 'help.topic.jobWorkflowTitle',
-    bodyKey: 'help.topic.jobWorkflowBody',
-    tipsKey: 'help.topic.jobWorkflowTips',
-  },
-  {
-    id: 'customerContact',
-    icon: 'call',
-    titleKey: 'help.topic.customerContactTitle',
-    bodyKey: 'help.topic.customerContactBody',
-    tipsKey: 'help.topic.customerContactTips',
-  },
-  {
-    id: 'loginOtp',
-    icon: 'lock',
-    titleKey: 'help.topic.loginOtpTitle',
-    bodyKey: 'help.topic.loginOtpBody',
-    tipsKey: 'help.topic.loginOtpTips',
-  },
-  {
-    id: 'pin',
-    icon: 'password',
-    titleKey: 'help.topic.pinTitle',
-    bodyKey: 'help.topic.pinBody',
-    tipsKey: 'help.topic.pinTips',
-  },
-  {
-    id: 'account',
-    icon: 'person',
-    titleKey: 'help.topic.accountTitle',
-    bodyKey: 'help.topic.accountBody',
-    tipsKey: 'help.topic.accountTips',
-  },
-  {
-    id: 'feedback',
-    icon: 'rate_review',
-    titleKey: 'help.topic.feedbackTitle',
-    bodyKey: 'help.topic.feedbackBody',
-    tipsKey: 'help.topic.feedbackTips',
-  },
-  {
-    id: 'other',
-    icon: 'help',
-    titleKey: 'help.topic.otherTitle',
-    bodyKey: 'help.topic.otherBody',
-    tipsKey: 'help.topic.otherTips',
-  },
-];
-
-export function PartnerHelpSupportPanel({showPhoneCard = true}: {showPhoneCard?: boolean}) {
+export function PartnerHelpSupportPanel({
+  showPhoneCard = true,
+}: {
+  showPhoneCard?: boolean;
+}) {
   const {t, i18n} = useTranslation();
   const theme = useResolvedTheme();
   const [topic, setTopic] = useState<HelpTopicId | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const selected = TOPICS.find(x => x.id === topic) || null;
+  const selected = HELP_TOPICS.find(x => x.id === topic) || null;
   const tipList = selected
     ? String(t(selected.tipsKey))
         .split('|')
@@ -140,28 +38,35 @@ export function PartnerHelpSupportPanel({showPhoneCard = true}: {showPhoneCard?:
 
   if (feedbackOpen) {
     return (
-      <ScrollView contentContainerStyle={styles.pad}>
+      <View style={styles.stack}>
         <Pressable style={styles.back} onPress={() => setFeedbackOpen(false)}>
           <Icon name="arrow_back" size={18} color={theme.text} />
           <Text style={{color: theme.text}}>{t('common.back')}</Text>
         </Pressable>
         <HelpFeedbackForm onClose={() => setFeedbackOpen(false)} />
-      </ScrollView>
+      </View>
     );
   }
 
   if (selected) {
     return (
-      <ScrollView contentContainerStyle={styles.pad}>
+      <View style={styles.stack}>
         <Pressable style={styles.back} onPress={() => setTopic(null)}>
           <Icon name="arrow_back" size={18} color={theme.text} />
           <Text style={{color: theme.text}}>{t('common.back')}</Text>
         </Pressable>
-        <Text style={styles.h3}>{t(selected.titleKey)}</Text>
-        <Text style={styles.body}>{t(selected.bodyKey)}</Text>
+        <View style={styles.detailHead}>
+          <View style={styles.iconBadge}>
+            <Icon name={selected.icon} size={20} color={theme.primary} />
+          </View>
+          <View style={styles.copy}>
+            <Text style={styles.h3}>{t(selected.titleKey)}</Text>
+            <Text style={styles.body}>{t(selected.bodyKey)}</Text>
+          </View>
+        </View>
         {tipList.map(line => (
           <Text key={line} style={styles.tip}>
-            {line}
+            {`• ${line}`}
           </Text>
         ))}
         <View style={styles.gap}>
@@ -177,7 +82,9 @@ export function PartnerHelpSupportPanel({showPhoneCard = true}: {showPhoneCard?:
             variant="primary"
             block
             onPress={() =>
-              openWhatsApp(`${t(selected.titleKey)} — ${t('help.whatsappPrefill')}`)
+              openWhatsApp(
+                `${t(selected.titleKey)} — ${t('help.whatsappPrefill')}`,
+              )
             }>
             {t('help.chatWhatsApp')}
           </Button>
@@ -188,33 +95,73 @@ export function PartnerHelpSupportPanel({showPhoneCard = true}: {showPhoneCard?:
             {t('help.callSupport')}
           </Button>
         </View>
-      </ScrollView>
+      </View>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.pad}>
-      <Text style={styles.lead}>{t('help.panelLead')}</Text>
+    <View style={styles.stack}>
       {showPhoneCard ? (
-        <View style={styles.phone}>
-          <Text style={styles.strong}>{t('shell.emergency')}</Text>
-          <Text style={styles.phoneNum}>{SUPPORT_PHONE}</Text>
-          <Text style={styles.em}>
-            {i18n.language?.startsWith('hi') ? t('shell.hoursHi') : t('shell.hoursEn')}
-          </Text>
-        </View>
-      ) : null}
-      {TOPICS.map(item => (
-        <Pressable key={item.id} style={styles.row} onPress={() => setTopic(item.id)}>
-          <Icon name={item.icon} size={20} color={theme.text} />
+        <Pressable
+          style={styles.phone}
+          onPress={() => void Linking.openURL(SUPPORT_PHONE_TEL)}
+          accessibilityRole="button"
+          accessibilityLabel={`${String(t('shell.emergency'))} ${SUPPORT_PHONE}`}>
           <View style={styles.copy}>
-            <Text style={styles.strong}>{t(item.titleKey)}</Text>
-            <Text style={styles.em}>{t(item.bodyKey)}</Text>
+            <Text style={styles.phoneLabel}>{t('shell.emergency')}</Text>
+            <Text style={styles.phoneNum}>{SUPPORT_PHONE}</Text>
           </View>
-          <Icon name="chevron_right" size={18} color={theme.textSecondary} />
+          <Text style={styles.em}>
+            {i18n.language?.startsWith('hi')
+              ? t('shell.hoursHi')
+              : t('shell.hoursEn')}
+          </Text>
         </Pressable>
+      ) : null}
+
+      {HELP_GROUPS.map(group => (
+        <View key={group.titleKey} style={styles.group}>
+          <Text style={styles.groupTitle}>{t(group.titleKey)}</Text>
+          <View style={styles.topics}>
+            {group.ids.map(id => {
+              const item = HELP_TOPICS.find(topicItem => topicItem.id === id);
+              if (!item) {
+                return null;
+              }
+              return (
+                <Pressable
+                  key={item.id}
+                  style={styles.row}
+                  onPress={() => {
+                    if (item.id === 'feedback') {
+                      setFeedbackOpen(true);
+                      return;
+                    }
+                    setTopic(item.id);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={String(t(item.titleKey))}>
+                  <View style={styles.iconBadgeSm}>
+                    <Icon name={item.icon} size={18} color={theme.primary} />
+                  </View>
+                  <View style={styles.copy}>
+                    <Text style={styles.strong}>{t(item.titleKey)}</Text>
+                    <Text style={styles.em} numberOfLines={1}>
+                      {t(item.listKey)}
+                    </Text>
+                  </View>
+                  <Icon
+                    name="chevron_right"
+                    size={16}
+                    color={theme.textSecondary}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
       ))}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -226,34 +173,103 @@ function makeStyles(theme: {
   primary: string;
 }) {
   return StyleSheet.create({
-    pad: {paddingBottom: 24, gap: 8},
-    lead: {fontSize: 14, color: theme.textSecondary, marginBottom: 8},
-    back: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8},
-    h3: {fontSize: 16, fontWeight: '700', color: theme.text},
-    body: {fontSize: 14, color: theme.textSecondary, marginBottom: 8},
-    tip: {fontSize: 14, color: theme.text, lineHeight: 20},
-    gap: {gap: 8, marginTop: 12},
+    stack: {gap: 12},
+    back: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      alignSelf: 'flex-start',
+      minHeight: 44,
+    },
+    detailHead: {flexDirection: 'row', alignItems: 'flex-start', gap: 10},
+    h3: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: theme.text,
+      lineHeight: 22,
+      marginBottom: 2,
+    },
+    body: {fontSize: 13, lineHeight: 18, color: theme.textSecondary},
+    tip: {
+      fontSize: 13,
+      lineHeight: 19,
+      color: theme.textSecondary,
+      paddingLeft: 4,
+    },
+    gap: {gap: 8, marginTop: 4},
     phone: {
-      padding: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.card,
-      marginBottom: 8,
+      borderColor: `${theme.primary}3D`,
+      backgroundColor: `${theme.primary}0F`,
     },
-    phoneNum: {fontSize: 18, fontWeight: '700', color: theme.primary, marginTop: 4},
+    phoneLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+      color: theme.textSecondary,
+    },
+    phoneNum: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: theme.text,
+      lineHeight: 20,
+    },
+    group: {gap: 6},
+    groupTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+      color: theme.textSecondary,
+      paddingHorizontal: 2,
+    },
+    topics: {gap: 6},
     row: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      padding: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
+      minHeight: 48,
       borderWidth: 1,
       borderColor: theme.border,
-      borderRadius: 10,
+      borderRadius: 12,
       backgroundColor: theme.card,
     },
-    copy: {flex: 1},
-    strong: {fontSize: 14, fontWeight: '700', color: theme.text},
-    em: {fontSize: 12, color: theme.textSecondary, marginTop: 2},
+    iconBadge: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: `${theme.primary}1F`,
+    },
+    iconBadgeSm: {
+      width: 32,
+      height: 32,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: `${theme.primary}1F`,
+    },
+    copy: {flex: 1, minWidth: 0, gap: 2},
+    strong: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: theme.text,
+      lineHeight: 18,
+    },
+    em: {
+      fontSize: 12,
+      lineHeight: 16,
+      color: theme.textSecondary,
+    },
   });
 }

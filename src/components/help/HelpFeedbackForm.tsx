@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
-import {Linking, StyleSheet, Text, View} from 'react-native';
+import {Linking, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
 import {Button, Input, PhoneNumberInput} from 'sapvt-ltd-app-packages';
 import {useTranslation} from 'react-i18next';
 import {submitFeedback} from '../../services/api/feedbackApi';
@@ -61,16 +62,18 @@ export function HelpFeedbackForm({
         onPress={() => void sendAdmin()}
         title={String(t('login.feedbackSubmit'))}
       />
-      <Button
-        variant="secondary"
-        block
-        title={String(t('login.feedbackWhatsApp'))}
+      <TouchableOpacity
+        style={styles.waBtn}
         onPress={() =>
           void Linking.openURL(
             `${WHATSAPP_SUPPORT_URL}?text=${encodeURIComponent(message.trim())}`,
           )
         }
-      />
+        accessibilityRole="button"
+        accessibilityLabel={String(t('login.feedbackWhatsApp'))}>
+        <Icon name="logo-whatsapp" size={20} color="#25D366" />
+        <Text style={styles.waText}>{t('login.feedbackWhatsApp')}</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -80,4 +83,21 @@ const styles = StyleSheet.create({
   title: {fontSize: 16, fontWeight: '700', color: '#1A202C'},
   hint: {fontSize: 13, color: '#718096'},
   err: {fontSize: 13, color: '#E53E3E'},
+  waBtn: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+  },
+  waText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1A202C',
+  },
 });

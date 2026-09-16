@@ -18,7 +18,6 @@ export const appHeaderStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 56,
     paddingHorizontal: 16,
     backgroundColor: '#FBFCFD',
     borderBottomWidth: 1,

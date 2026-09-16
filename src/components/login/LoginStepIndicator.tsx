@@ -6,7 +6,7 @@ import {WEB} from '../../fromWebCss/loginFromWeb.styles';
 export type LoginStepFlow = 'preview' | 'pinLogin' | 'otpFlow';
 
 type Props = {
-  step: 'phone' | 'pin' | 'otp' | 'showPin';
+  step: 'phone' | 'pin' | 'otp' | 'createPin' | 'showPin';
   flow: LoginStepFlow;
 };
 
@@ -37,7 +37,12 @@ export function LoginStepIndicator({step, flow}: Props) {
             {
               id: 'pin',
               label: pin,
-              state: step === 'showPin' ? 'current' : step === 'otp' ? 'todo' : 'done',
+              state:
+                step === 'otp'
+                  ? 'todo'
+                  : step === 'createPin' || step === 'showPin'
+                    ? 'current'
+                    : 'done',
             },
           ]
         : [{id: 'phone', label: phone, state: 'current' as const}];

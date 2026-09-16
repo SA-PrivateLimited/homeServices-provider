@@ -42,6 +42,7 @@ export const loginFromWeb = StyleSheet.create({
     right: 0,
     height: '16%',
     backgroundColor: WEB.navyBand,
+    pointerEvents: 'none',
   },
   stage: {
     flex: 1,
@@ -88,7 +89,10 @@ export const loginFromWeb = StyleSheet.create({
   },
   backToolbar: {
     alignSelf: 'center',
-    paddingVertical: 4,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingRight: 8,
     margin: 0,
   },
   backText: {

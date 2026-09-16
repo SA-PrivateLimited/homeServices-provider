@@ -22,7 +22,14 @@ export function AppHeader({navigation}: Props) {
     : String(t('home.hello'));
 
   return (
-    <View style={[s.header, {paddingTop: insets.top}]}>
+    <View
+      style={[
+        s.header,
+        {
+          paddingTop: insets.top + 12,
+          paddingBottom: 12,
+        },
+      ]}>
       <View style={s.leading}>
         <Text style={s.greetTitle} numberOfLines={2}>
           {title}
