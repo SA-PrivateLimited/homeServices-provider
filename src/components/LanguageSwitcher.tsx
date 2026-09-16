@@ -1,93 +1,123 @@
 import React from 'react';
-import {View, Text, StyleSheet, Platform} from 'react-native';
-import {Picker} from '@react-native-picker/picker';
+import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {useStore} from '../store';
-import {lightTheme, darkTheme} from '../utils/theme';
+import {useResolvedTheme} from '../hooks/useResolvedTheme';
 import useTranslation from '../hooks/useTranslation';
+
+type AppLanguage = 'en' | 'hi';
 
 interface LanguageSwitcherProps {
   compact?: boolean;
 }
 
-const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({compact = false}) => {
-  const {isDarkMode, language, setLanguage} = useStore();
-  const theme = isDarkMode ? darkTheme : lightTheme;
+const OPTIONS: {
+  value: AppLanguage;
+  labelKey: string;
+  shortKey: string;
+}[] = [
+  {value: 'hi', labelKey: 'login.langHindi', shortKey: 'login.langHindiShort'},
+  {
+    value: 'en',
+    labelKey: 'login.langEnglish',
+    shortKey: 'login.langEnglishShort',
+  },
+];
+
+const LanguageSwitcher = ({
+  compact = false,
+}: LanguageSwitcherProps): React.ReactElement => {
+  const {language, setLanguage} = useStore();
+  const theme = useResolvedTheme();
   const {t} = useTranslation();
+  const current: AppLanguage = language === 'hi' ? 'hi' : 'en';
 
-  const currentLanguage = language || 'en';
-  const languageLabel = currentLanguage === 'hi' 
-    ? String(t('settings.hindi') || 'Hindi') 
-    : String(t('settings.english') || 'English');
-
-  const handleLanguageChange = async (itemValue: 'en' | 'hi') => {
-    if (itemValue === null || itemValue === undefined) return;
-    try {
-      // setLanguage already calls changeLanguage internally
-      await setLanguage(itemValue);
-    } catch (error) {
-      console.error('Error changing language:', error);
-    }
-  };
-
-  if (compact) {
-    // Compact version for headers - shows selected language with dropdown
-    return (
-      <View style={[styles.compactContainer, {backgroundColor: theme.card, borderColor: theme.border}]}>
-        <Picker
-          selectedValue={currentLanguage}
-          onValueChange={handleLanguageChange}
-          style={[styles.compactPicker, {color: theme.text}]}
-          dropdownIconColor={theme.text}
-          mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
-        >
-          <Picker.Item label="English" value="en" />
-          <Picker.Item label="हिंदी" value="hi" />
-        </Picker>
-      </View>
-    );
-  }
-
-  // Full version for settings - uses dropdown mode (not modal)
   return (
-    <View style={[styles.container, {backgroundColor: theme.card, borderColor: theme.border}]}>
-      <Picker
-        selectedValue={currentLanguage}
-        onValueChange={handleLanguageChange}
-        style={[styles.picker, {color: theme.text}]}
-        dropdownIconColor={theme.textSecondary}
-        mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
-      >
-        <Picker.Item label={String(t('settings.english') || 'English')} value="en" />
-        <Picker.Item label={String(t('settings.hindi') || 'Hindi')} value="hi" />
-      </Picker>
+    <View
+      style={[
+        styles.track,
+        compact ? styles.trackCompact : styles.trackFull,
+        {
+          backgroundColor: theme.background,
+          borderColor: theme.border,
+        },
+      ]}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={t('account.language')}>
+      {OPTIONS.map(opt => {
+        const selected = current === opt.value;
+        return (
+          <TouchableOpacity
+            key={opt.value}
+            style={[
+              styles.option,
+              compact ? styles.optionCompact : styles.optionFull,
+              selected && {backgroundColor: `${theme.primary}29`},
+            ]}
+            onPress={() => {
+              if (!selected) void setLanguage(opt.value);
+            }}
+            accessibilityRole="radio"
+            accessibilityState={{selected}}
+            accessibilityLabel={t(opt.labelKey)}>
+            <Text
+              style={[
+                compact ? styles.optionTextCompact : styles.optionText,
+                {
+                  color: selected ? theme.primary : theme.textSecondary,
+                  fontWeight: selected ? '700' : '600',
+                },
+              ]}
+              numberOfLines={1}>
+              {t(compact ? opt.shortKey : opt.labelKey)}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    borderRadius: 8,
+  track: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     overflow: 'hidden',
-    minWidth: 150,
   },
-  picker: {
-    height: 50,
-    width: '100%',
+  trackFull: {
+    alignSelf: 'stretch',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
   },
-  compactContainer: {
-    borderRadius: 6,
-    borderWidth: 1,
-    overflow: 'hidden',
-    minWidth: 90,
-    maxWidth: 120,
+  trackCompact: {
+    alignSelf: 'flex-end',
+    borderRadius: 999,
+    padding: 3,
+    gap: 2,
   },
-  compactPicker: {
-    height: 36,
-    width: '100%',
-    fontSize: 14,
+  option: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionFull: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  optionCompact: {
+    minHeight: 32,
+    minWidth: 40,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+  },
+  optionText: {
+    fontSize: 15,
+  },
+  optionTextCompact: {
+    fontSize: 13,
   },
 });
 
 export default LanguageSwitcher;
-

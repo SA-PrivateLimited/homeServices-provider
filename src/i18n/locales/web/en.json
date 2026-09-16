@@ -215,6 +215,8 @@
   "login.pinHint": "Don't use easy PINs like 1234 or 0000. Keep your PIN private and never share it.",
   "login.langHindi": "हिंदी",
   "login.langEnglish": "English",
+  "login.langHindiShort": "हिं",
+  "login.langEnglishShort": "EN",
   "login.loading.lookup": "Checking…",
   "login.loading.sendOtp": "Sending OTP…",
   "login.loading.verifyOtp": "Verifying OTP…",

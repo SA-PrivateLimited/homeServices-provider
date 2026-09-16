@@ -215,6 +215,8 @@
   "login.pinHint": "आसान PIN जैसे 1234 या 0000 का उपयोग न करें। PIN निजी रखें और किसी से साझा न करें।",
   "login.langHindi": "हिंदी",
   "login.langEnglish": "English",
+  "login.langHindiShort": "हिं",
+  "login.langEnglishShort": "EN",
   "login.loading.lookup": "जांच हो रही है…",
   "login.loading.sendOtp": "OTP भेजा जा रहा है…",
   "login.loading.verifyOtp": "OTP सत्यापित हो रहा है…",
