@@ -58,9 +58,14 @@ export const jobsFromWeb = StyleSheet.create({
     paddingTop: 4,
   },
   card: {
-    borderRadius: 18,
+    borderRadius: 20,
     marginBottom: 12,
     overflow: 'hidden',
+  },
+  cardShell: {
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: 20,
   },
   cardInner: {
     paddingVertical: 12,
@@ -81,6 +86,7 @@ export const jobsFromWeb = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    paddingRight: 76,
   },
   avatar: {
     width: 40,
@@ -110,13 +116,25 @@ export const jobsFromWeb = StyleSheet.create({
     color: W.text,
   },
   status: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    zIndex: 2,
+    flexShrink: 0,
+    paddingTop: 5,
+    paddingBottom: 6,
+    paddingHorizontal: 12,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 0,
+    borderBottomLeftRadius: 12,
+    borderWidth: 0,
   },
   statusText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
+    letterSpacing: 0.12,
+    lineHeight: 16,
   },
   customer: {
     marginTop: 4,

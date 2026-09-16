@@ -93,10 +93,15 @@
   box-shadow: var(--crystal-inset), var(--crystal-shadow) !important;
 }
 
-.hs-card--interactive:hover {
-  box-shadow:
-    var(--crystal-inset),
-    0 10px 26px color-mix(in srgb, var(--primary) 12%, rgba(30, 60, 90, 0.07)) !important;
+@media (hover: hover) {
+  .hs-card--interactive:hover,
+  .hs-card.job-card:hover,
+  .hs-card.list-card-wrap:hover {
+    transform: scale(1.045);
+    box-shadow:
+      var(--crystal-inset),
+      0 10px 26px color-mix(in srgb, var(--primary) 12%, rgba(30, 60, 90, 0.07)) !important;
+  }
 }
 
 /* ── Modals / drawers / dialogs — opaque crystal (no bleed-through text) ── */
