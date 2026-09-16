@@ -334,8 +334,6 @@ export default function SettingsAccountScreen({navigation}: any) {
         </CrystalSurface>
       ) : null}
 
-      </CrystalSurface>
-
       <View style={[styles.logoutWrap, {borderTopColor: theme.border}]}>
         <Pressable
           style={[
