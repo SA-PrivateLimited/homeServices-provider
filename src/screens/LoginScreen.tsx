@@ -43,7 +43,6 @@ import {Banner} from 'sapvt-ltd-app-packages';
 import PhoneNumberInput from '../components/PhoneNumberInput';
 import {LoginStepIndicator} from '../components/login/LoginStepIndicator';
 import {LoginLangSwitcher} from '../components/login/LoginLangSwitcher';
-import {BootSplash} from '../components/BootSplash';
 import {LoginTermsMini} from '../components/login/LoginTermsMini';
 import {
   formatPhoneDisplay,
@@ -149,7 +148,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   const [step, setStep] = useState<Step>('phone');
   const [otpMode, setOtpMode] = useState<OtpMode>('signup');
   const [loading, setLoading] = useState(false);
-  const [booting, setBooting] = useState(true);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [customerOnly, setCustomerOnly] = useState(false);
   const [creatingPartner, setCreatingPartner] = useState(false);
@@ -232,8 +230,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
         if (!mounted || !remembered) return;
         setPhoneNumber(localTenDigits(remembered.phoneLocal));
         setStep('pin');
-      } finally {
-        if (mounted) setBooting(false);
+      } catch {
+        // Remembered phone is optional.
       }
     };
     void loadRemembered();
@@ -616,10 +614,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
         return t('login.phoneSubtitle');
     }
   };
-
-  if (booting) {
-    return <BootSplash />;
-  }
 
   return (
     <KeyboardAvoidingView

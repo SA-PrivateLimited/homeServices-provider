@@ -22,6 +22,7 @@ class MainApplication : Application(), ReactApplication {
               // Packages that cannot be autolinked yet can be added manually here
               add(HooterServicePackage())
               add(HoverablePackage())
+              add(NativeSplashPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

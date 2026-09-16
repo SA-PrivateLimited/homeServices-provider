@@ -19,13 +19,21 @@ if (typeof window !== 'undefined') {
   }
 }
 
-import React, {useEffect, useState, useMemo} from 'react';
-import {StatusBar, Platform, PermissionsAndroid} from 'react-native';
+import React, {useEffect, useState, useMemo, useCallback, useRef} from 'react';
+import {
+  StatusBar,
+  Platform,
+  PermissionsAndroid,
+  StyleSheet,
+  View,
+  InteractionManager,
+} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {AppThemeProvider, ToastProvider} from 'sapvt-ltd-app-packages';
 import './src/i18n'; // Initialize i18n before store (store imports changeLanguage)
 import AppNavigator from './src/navigation/AppNavigator';
-import {BootSplash} from './src/components/BootSplash';
+import {BootSplash, SPLASH_SKY} from './src/components/BootSplash';
+import {hideNativeSplash} from './src/native/nativeSplash';
 import {useStore} from './src/store';
 import NotificationService from './src/services/notificationService';
 import GeolocationService from './src/services/geolocationService';
@@ -35,6 +43,17 @@ import {resolveTheme} from './src/utils/theme';
 const App = () => {
   const {isDarkMode, hydrate, currentUser, colorTheme} = useStore();
   const [bootReady, setBootReady] = useState(false);
+  const [navReady, setNavReady] = useState(false);
+  const [splashVisible, setSplashVisible] = useState(true);
+  const nativeSplashHidden = useRef(false);
+  const handleNavReady = useCallback(() => setNavReady(true), []);
+  const handleSplashPainted = useCallback(() => {
+    if (nativeSplashHidden.current) {
+      return;
+    }
+    nativeSplashHidden.current = true;
+    hideNativeSplash();
+  }, []);
   const theme = resolveTheme(isDarkMode);
   const appThemeColors = useMemo(
     () => ({
@@ -90,57 +109,6 @@ const App = () => {
       global.addEventListener('unhandledrejection', rejectionHandler);
     }
 
-    // Request notification permission for FCM (Android 13+)
-    const requestNotificationPermission = async () => {
-      try {
-        if (Platform.OS === 'android' && Platform.Version >= 33) {
-          // Android 13+ requires POST_NOTIFICATIONS permission
-          const permissionStatus = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-          );
-
-          if (permissionStatus === PermissionsAndroid.RESULTS.GRANTED) {
-            console.log('✅ Notification permission granted');
-          } else {
-            console.warn('⚠️ Notification permission denied');
-          }
-        }
-      } catch (error) {
-        console.error('Error requesting notification permission:', error);
-      }
-    };
-
-    // Request notification permission
-    requestNotificationPermission();
-
-    // Request location permission (similar to notification permission)
-    const requestLocationPermission = async () => {
-      try {
-        if (Platform.OS === 'android') {
-          // Check current permission status first
-          const currentStatus = await GeolocationService.checkLocationPermission();
-
-          if (currentStatus !== 'granted') {
-            // Request permission using GeolocationService
-            const requestResult = await GeolocationService.requestLocationPermission();
-
-            if (requestResult === 'granted') {
-            } else if (requestResult === 'never_ask_again') {
-            } else {
-            }
-          } else {
-          }
-        } else {
-          // iOS - permissions are requested automatically when needed
-        }
-      } catch (error) {
-        console.error('Error requesting location permission:', error);
-      }
-    };
-
-    // Request location permission
-    requestLocationPermission();
-
     // Hydrate store + remote themeColors as colorPalette before first UI paint
     (async () => {
       try {
@@ -158,6 +126,56 @@ const App = () => {
       }
     };
   }, [hydrate]);
+
+  useEffect(() => {
+    if (splashVisible) {
+      return;
+    }
+
+    const requestNotificationPermission = async () => {
+      try {
+        if (Platform.OS === 'android' && Platform.Version >= 33) {
+          const permissionStatus = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+          );
+
+          if (permissionStatus === PermissionsAndroid.RESULTS.GRANTED) {
+            console.log('✅ Notification permission granted');
+          } else {
+            console.warn('⚠️ Notification permission denied');
+          }
+        }
+      } catch (error) {
+        console.error('Error requesting notification permission:', error);
+      }
+    };
+
+    const requestLocationPermission = async () => {
+      try {
+        if (Platform.OS === 'android') {
+          const currentStatus = await GeolocationService.checkLocationPermission();
+          if (currentStatus !== 'granted') {
+            await GeolocationService.requestLocationPermission();
+          }
+        }
+      } catch (error) {
+        console.error('Error requesting location permission:', error);
+      }
+    };
+
+    requestNotificationPermission();
+    requestLocationPermission();
+  }, [splashVisible]);
+
+  useEffect(() => {
+    if (!bootReady || !navReady) {
+      return;
+    }
+    const handle = InteractionManager.runAfterInteractions(() => {
+      setSplashVisible(false);
+    });
+    return () => handle.cancel();
+  }, [bootReady, navReady]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -186,24 +204,38 @@ const App = () => {
     };
   }, [currentUser?.id]);
 
-  if (!bootReady) {
-    return <BootSplash />;
-  }
-
   return (
     <SafeAreaProvider>
       <AppThemeProvider colors={appThemeColors}>
         <ToastProvider>
-          <StatusBar
-            barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-            backgroundColor={theme.background}
-          />
-          <AppNavigator />
+          <View style={styles.root}>
+            <StatusBar
+              barStyle={isDarkMode && !splashVisible ? 'light-content' : 'dark-content'}
+              backgroundColor={splashVisible ? SPLASH_SKY : theme.background}
+            />
+            <AppNavigator onReady={handleNavReady} />
+            {splashVisible ? (
+              <View style={styles.splashLayer} pointerEvents="auto" collapsable={false}>
+                <BootSplash onPainted={handleSplashPainted} />
+              </View>
+            ) : null}
+          </View>
         </ToastProvider>
       </AppThemeProvider>
     </SafeAreaProvider>
   );
 };
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: SPLASH_SKY,
+  },
+  splashLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+  },
+});
 
 export default App;
 
