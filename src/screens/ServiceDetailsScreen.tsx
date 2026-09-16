@@ -1,5 +1,12 @@
 import React, {useEffect, useState} from 'react';
-import {ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {Button, Input, toast} from 'sapvt-ltd-app-packages';
 import useTranslation from '../hooks/useTranslation';
@@ -9,10 +16,15 @@ import {
   updateMyServiceDetails,
   type PartnerServiceDetails,
   type ServiceQualificationDocument,
+  type ServiceVerificationStatus,
 } from '../services/api/jobsApi';
 import {uploadAssetFromUri} from '../services/api/assetsApi';
 import {getUserFacingErrorMessage} from '../utils/userFacingError';
 import {useResolvedTheme} from '../hooks/useResolvedTheme';
+import {
+  normalizeVerificationStatus,
+  verificationStatusLabelKey,
+} from '../utils/partnerServices';
 
 export default function ServiceDetailsScreen({route}: any) {
   const serviceName = String(route?.params?.serviceName || '');
@@ -24,6 +36,7 @@ export default function ServiceDetailsScreen({route}: any) {
   const [notes, setNotes] = useState('');
   const [docs, setDocs] = useState<ServiceQualificationDocument[]>([]);
   const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
 
   const reload = () => {
@@ -97,26 +110,54 @@ export default function ServiceDetailsScreen({route}: any) {
   }
 
   const required = details?.requiredDocuments || [];
+  const status: ServiceVerificationStatus = normalizeVerificationStatus(
+    details?.qualification?.verificationStatus,
+  );
+  const statusLabel = String(t(verificationStatusLabelKey(status)));
+  const canSubmit = status === 'required' || status === 'rejected';
 
   return (
     <ScrollView
       style={{backgroundColor: theme.background}}
       contentContainerStyle={styles.pad}>
       <Text style={[styles.h, {color: theme.text}]}>{serviceName}</Text>
-      <Text style={[styles.muted, {color: theme.textSecondary}]}>
-        {details?.qualification?.verificationStatus || 'required'}
+      <Text style={[styles.status, {color: theme.text}]}>
+        {statusLabel}
       </Text>
+      {status === 'pending' ? (
+        <Text style={[styles.muted, {color: theme.textSecondary}]}>
+          {String(t('settings.verification.underReviewHint'))}
+        </Text>
+      ) : null}
+      {status === 'rejected' && details?.qualification?.rejectionReason ? (
+        <Text style={[styles.warn, {color: theme.warning}]}>
+          {details.qualification.rejectionReason}
+        </Text>
+      ) : null}
+      {status === 'approved' ? (
+        <Text style={[styles.muted, {color: theme.textSecondary}]}>
+          {String(t('settings.verification.approvedHint'))}
+        </Text>
+      ) : null}
+      {status === 'required' ? (
+        <Text style={[styles.muted, {color: theme.textSecondary}]}>
+          {String(t('settings.verification.needsDocumentsHint'))}
+        </Text>
+      ) : null}
+
       <Input
         label={String(t('settings.experienceYears'))}
         keyboardType="number-pad"
         value={experience}
         onChangeText={setExperience}
+        editable={status !== 'pending'}
       />
       <Input
         label={String(t('settings.serviceNotes'))}
         multiline
         value={notes}
         onChangeText={setNotes}
+        editable={status !== 'pending'}
       />
       {required.map(req => {
         const existing = docs.find(d => d.key === req.key);
@@ -129,18 +170,20 @@ export default function ServiceDetailsScreen({route}: any) {
             {existing?.url ? (
               <Image source={{uri: existing.url}} style={styles.thumb} />
             ) : null}
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={uploadingKey === req.key}
-              title={String(
-                existing
-                  ? t('common.replace') || 'Replace'
-                  : t('common.upload') || 'Upload',
-              )}
-              onPress={() => pickDoc(req.key, req.label)}
-            />
-            {existing ? (
+            {status !== 'pending' ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={uploadingKey === req.key}
+                title={String(
+                  existing
+                    ? t('common.replace') || 'Replace'
+                    : t('common.upload') || 'Upload',
+                )}
+                onPress={() => pickDoc(req.key, req.label)}
+              />
+            ) : null}
+            {existing && status !== 'pending' ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -155,30 +198,51 @@ export default function ServiceDetailsScreen({route}: any) {
           </View>
         );
       })}
-      <Button
-        variant="secondary"
-        loading={saving}
-        title={String(t('common.save'))}
-        onPress={() => saveDraft()}
-      />
-      <Button
-        variant="primary"
-        title={String(t('settings.submitForReview'))}
-        onPress={() => {
-          void submitMyServiceForReview(serviceName)
-            .then(() => toast.success(String(t('settings.submitForReview'))))
-            .catch(err => toast.info(getUserFacingErrorMessage(err)));
-        }}
-      />
+
+      {canSubmit ? (
+        <Button
+          variant="primary"
+          loading={submitting}
+          title={String(t('settings.submitForReview'))}
+          onPress={() => {
+            setSubmitting(true);
+            void submitMyServiceForReview(serviceName)
+              .then(() => {
+                toast.success(String(t('settings.submitForReviewDone')));
+                reload();
+              })
+              .catch(err => toast.info(getUserFacingErrorMessage(err)))
+              .finally(() => setSubmitting(false));
+          }}
+        />
+      ) : null}
+      {status === 'required' || status === 'rejected' ? (
+        <Button
+          variant="secondary"
+          loading={saving}
+          title={String(t('settings.saveDraft'))}
+          onPress={() => saveDraft()}
+        />
+      ) : null}
+      {status === 'approved' ? (
+        <Button
+          variant="secondary"
+          loading={saving}
+          title={String(t('common.save'))}
+          onPress={() => saveDraft()}
+        />
+      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  pad: {padding: 16, gap: 12},
+  pad: {padding: 16, gap: 12, paddingBottom: 40},
   center: {flex: 1, justifyContent: 'center'},
   h: {fontSize: 20, fontWeight: '700'},
-  muted: {fontSize: 13},
+  status: {fontSize: 15, fontWeight: '700'},
+  muted: {fontSize: 13, lineHeight: 18},
+  warn: {fontSize: 13, lineHeight: 18},
   docRow: {gap: 8, paddingVertical: 8},
   docLabel: {fontSize: 14, fontWeight: '600'},
   thumb: {width: 72, height: 72, borderRadius: 8},

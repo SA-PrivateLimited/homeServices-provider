@@ -17,6 +17,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import {getProviderReviews, Review} from '../services/reviewService';
 import {lightTheme, darkTheme} from '../utils/theme';
 import {useStore} from '../store';
+import useTranslation from '../hooks/useTranslation';
 
 interface ReviewsListProps {
   providerId: string;
@@ -29,6 +30,7 @@ export default function ReviewsList({
 }: ReviewsListProps) {
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const {t} = useTranslation();
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,11 +46,12 @@ export default function ReviewsList({
       setReviews(providerReviews);
     } catch (error: any) {
       console.error('Error loading reviews:', error);
-      // Show error message but don't throw - component will show empty state
       if (error.message?.includes('index')) {
-        console.warn('Missing Firestore index. Please create index for reviews: providerId + createdAt');
+        console.warn(
+          'Missing Firestore index. Please create index for reviews: providerId + createdAt',
+        );
       }
-      setReviews([]); // Set empty array on error
+      setReviews([]);
     } finally {
       setLoading(false);
     }
@@ -76,20 +79,26 @@ export default function ReviewsList({
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) {
-      return 'Today';
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else if (diffDays < 7) {
-      return `${diffDays} days ago`;
-    } else {
-      return parsed.toLocaleDateString();
+      return String(t('profile.reviewDateToday') || 'Today');
     }
+    if (diffDays === 1) {
+      return String(t('profile.reviewDateYesterday') || 'Yesterday');
+    }
+    if (diffDays < 7) {
+      return String(
+        t('profile.reviewDateDaysAgo', {count: diffDays}) || `${diffDays} days ago`,
+      );
+    }
+    return parsed.toLocaleDateString();
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="small" color={theme.primary} />
+        <Text style={[styles.loadingText, {color: theme.textSecondary}]}>
+          {String(t('profile.reviewsLoading'))}
+        </Text>
       </View>
     );
   }
@@ -99,39 +108,50 @@ export default function ReviewsList({
       <View style={styles.emptyContainer}>
         <Icon name="rate-review" size={48} color={theme.textSecondary} />
         <Text style={[styles.emptyText, {color: theme.textSecondary}]}>
-          No reviews yet
+          {String(t('profile.reviewsEmpty'))}
         </Text>
       </View>
     );
   }
 
+  const averageRating = (
+    reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+  ).toFixed(1);
+
   return (
     <View style={styles.container}>
-      {showHeader && (
+      {showHeader ? (
         <View style={styles.header}>
           <Text style={[styles.headerTitle, {color: theme.text}]}>
-            Reviews ({reviews.length})
+            {String(
+              t('profile.reviewCount', {count: reviews.length}) ||
+                `Reviews (${reviews.length})`,
+            )}
           </Text>
           <View style={styles.averageRating}>
             <Icon name="star" size={20} color="#FFD700" />
             <Text style={[styles.averageRatingText, {color: theme.text}]}>
-              {(
-                reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-              ).toFixed(1)}
+              {averageRating}
             </Text>
           </View>
         </View>
-      )}
+      ) : null}
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {reviews.map(review => (
           <View
             key={review.id}
-            style={[styles.reviewCard, {backgroundColor: theme.card}]}>
-            {/* Review Header */}
+            style={[
+              styles.reviewCard,
+              {backgroundColor: theme.card, borderColor: theme.border},
+            ]}>
             <View style={styles.reviewHeader}>
               <View style={styles.reviewHeaderLeft}>
-                <View style={styles.customerAvatar}>
+                <View
+                  style={[
+                    styles.customerAvatar,
+                    {backgroundColor: theme.primary},
+                  ]}>
                   <Text style={styles.customerInitial}>
                     {review.customerName.charAt(0).toUpperCase()}
                   </Text>
@@ -153,15 +173,13 @@ export default function ReviewsList({
               </View>
             </View>
 
-            {/* Review Comment */}
-            {review.comment && (
+            {review.comment ? (
               <Text style={[styles.reviewComment, {color: theme.text}]}>
                 {review.comment}
               </Text>
-            )}
+            ) : null}
 
-            {/* Review Photos */}
-            {review.photos && review.photos.length > 0 && (
+            {review.photos && review.photos.length > 0 ? (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -174,13 +192,13 @@ export default function ReviewsList({
                   />
                 ))}
               </ScrollView>
-            )}
+            ) : null}
 
-            {/* Provider Cannot Edit Notice */}
-            <View style={styles.readOnlyNotice}>
+            <View
+              style={[styles.readOnlyNotice, {borderTopColor: theme.border}]}>
               <Icon name="lock" size={12} color={theme.textSecondary} />
               <Text style={[styles.readOnlyText, {color: theme.textSecondary}]}>
-                Review cannot be edited
+                {String(t('profile.reviewReadOnly'))}
               </Text>
             </View>
           </View>
@@ -197,6 +215,10 @@ const styles = StyleSheet.create({
   loadingContainer: {
     padding: 20,
     alignItems: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 13,
   },
   emptyContainer: {
     padding: 40,
@@ -205,6 +227,7 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 12,
     fontSize: 16,
+    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -231,11 +254,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 12,
     borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.22,
-    shadowRadius: 2.22,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   reviewHeader: {
     flexDirection: 'row',
@@ -252,7 +271,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#007AFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -300,11 +318,9 @@ const styles = StyleSheet.create({
     gap: 4,
     marginTop: 8,
     paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   readOnlyText: {
     fontSize: 11,
   },
 });
-

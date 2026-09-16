@@ -5,6 +5,8 @@
 
 Stack: React Native 0.73 + TypeScript + Zustand + Firebase + i18next
 
+Never change `applicationId` `com.akansho.partner`. Native Kotlin namespace can stay `com.homeservices.providerapp`.
+
 ## How to use this agent
 1. Intake: `python scripts/agent_orchestrator.py --prompt "..." --name feature-slug --no-figma --stage intake`
 2. Chat: `Read agent-context/<slug>/AGENT_KICKOFF.md and implement by executing the full 7-stage pipeline.`

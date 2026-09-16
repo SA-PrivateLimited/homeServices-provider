@@ -95,7 +95,7 @@ export function KycDocumentsCard({theme, documents, onUpdated}: Props) {
                   <ActivityIndicator size="small" color={theme.primary} />
                 ) : (
                   <Text style={{color: theme.primary, fontWeight: '600', fontSize: 12}}>
-                    {String(t('actions.upload') || 'Upload')}
+                    {String(t('kyc.upload') || t('common.upload') || 'Upload')}
                   </Text>
                 )}
               </TouchableOpacity>

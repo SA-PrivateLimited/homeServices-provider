@@ -23,6 +23,7 @@ import React, {useEffect, useState, useMemo} from 'react';
 import {StatusBar, Platform, PermissionsAndroid} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {AppThemeProvider, ToastProvider} from 'sapvt-ltd-app-packages';
+import './src/i18n'; // Initialize i18n before store (store imports changeLanguage)
 import AppNavigator from './src/navigation/AppNavigator';
 import {useStore} from './src/store';
 import NotificationService from './src/services/notificationService';
@@ -30,8 +31,6 @@ import GeolocationService from './src/services/geolocationService';
 import WebSocketService from './src/services/websocketService';
 import {loadAndApplyBranding} from './src/services/brandingService';
 import {resolveTheme} from './src/utils/theme';
-import './src/i18n'; // Initialize i18n
-
 const App = () => {
   const {isDarkMode, hydrate, currentUser, colorTheme} = useStore();
   const [bootReady, setBootReady] = useState(false);

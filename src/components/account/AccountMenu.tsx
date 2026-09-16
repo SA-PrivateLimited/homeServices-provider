@@ -4,13 +4,11 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Switch,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {CommonActions} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {useStore} from '../../store';
 import useTranslation from '../../hooks/useTranslation';
@@ -20,12 +18,9 @@ import {
 } from '../../fromWebCss/accountMenu.styles';
 import {createCustomerContextHandoff} from '../../services/api/contextHandoffApi';
 import {customerHandoffUrl, getCustomerWebUrl} from '../../utils/customerWebUrl';
-import authService from '../../services/authService';
-import LogoutConfirmationModal from '../LogoutConfirmationModal';
 import {SuggestPartnerModal} from '../SuggestPartnerModal';
 import {
   PARTNER_COLOR_THEMES,
-  type PartnerColorThemeId,
 } from '../../utils/partnerColorTheme';
 import {getBrandThemeSwatch, lightTheme, darkTheme} from '../../utils/theme';
 
@@ -34,14 +29,6 @@ type MenuCtx = {
 };
 
 const AccountMenuContext = createContext<MenuCtx | null>(null);
-
-function rootNav(navigation: any) {
-  let nav = navigation;
-  while (nav?.getParent?.()) {
-    nav = nav.getParent();
-  }
-  return nav;
-}
 
 function initialsFrom(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -127,17 +114,10 @@ function AccountMenuHost({
   const tx = (key: string) => String(t(key));
   const {
     currentUser,
-    setCurrentUser,
-    language,
-    setLanguage,
     isDarkMode,
-    toggleTheme,
-    colorTheme,
-    setColorTheme,
   } = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const [busy, setBusy] = useState(false);
-  const [showLogout, setShowLogout] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const name = useDisplayName(tx('account.account'));
   const phone = useMemo(() => {
@@ -148,7 +128,6 @@ function AccountMenuHost({
   const canSwitch = Boolean(
     (currentUser as {canSwitchToCustomer?: boolean})?.canSwitchToCustomer,
   );
-  const brandSwatch = getBrandThemeSwatch();
   const primary = theme.primary || HEADER.primary;
   const panelBg = isDarkMode ? '#151E2E' : theme.card || '#FFFFFF';
   const divider = isDarkMode
@@ -156,7 +135,6 @@ function AccountMenuHost({
     : 'rgba(226, 232, 240, 0.85)';
   const labelColor = isDarkMode ? '#E8EDF5' : HEADER.text;
   const mutedColor = isDarkMode ? '#94A3B8' : HEADER.textSecondary;
-  const dangerColor = theme.error || HEADER.error;
 
   const go = (screen: string) => {
     onClose();
@@ -167,15 +145,6 @@ function AccountMenuHost({
     }
     navigation?.navigate('Settings', {screen});
   };
-
-  const colorThemeLabel = (() => {
-    const nested = tx('settings.colorTheme.label');
-    if (nested && !nested.startsWith('settings.')) {
-      return nested;
-    }
-    const raw = t('settings.colorTheme');
-    return typeof raw === 'string' ? raw : 'Theme color';
-  })();
 
   const openCustomer = () => {
     if (busy) return;
@@ -189,10 +158,6 @@ function AccountMenuHost({
       return;
     }
     void Linking.openURL(getCustomerWebUrl());
-  };
-
-  const pickTheme = (id: PartnerColorThemeId) => {
-    void setColorTheme(id);
   };
 
   return (
@@ -312,126 +277,14 @@ function AccountMenuHost({
                   </Text>
                 </TouchableOpacity>
 
-                <View style={[s.themes, {borderBottomColor: divider}]}>
-                  <View style={s.themesLabel}>
-                    <Icon name="palette" size={20} color={labelColor} />
-                    <Text style={[s.themesLabelText, {color: labelColor}]}>
-                      {colorThemeLabel}
-                    </Text>
-                  </View>
-                  <View style={s.themesRow}>
-                    {PARTNER_COLOR_THEMES.map(opt => {
-                      const selected = colorTheme === opt.id;
-                      const swatch =
-                        opt.id === 'brand' ? brandSwatch : opt.swatch;
-                      return (
-                        <TouchableOpacity
-                          key={opt.id}
-                          style={[
-                            s.themeSwatch,
-                            selected
-                              ? {
-                                  borderColor: `${swatch}73`,
-                                  backgroundColor: `${swatch}1F`,
-                                }
-                              : null,
-                          ]}
-                          onPress={() => pickTheme(opt.id)}
-                          accessibilityRole="button"
-                          accessibilityState={{selected}}
-                          accessibilityLabel={tx(
-                            `settings.colorTheme.${opt.id}`,
-                          )}>
-                          {selected ? (
-                            <View
-                              style={[
-                                s.themeDotRing,
-                                {
-                                  borderColor: swatch,
-                                  backgroundColor: panelBg,
-                                },
-                              ]}>
-                              <View
-                                style={[s.themeDot, {backgroundColor: swatch}]}
-                              />
-                            </View>
-                          ) : (
-                            <View
-                              style={[s.themeDot, {backgroundColor: swatch}]}
-                            />
-                          )}
-                          <Text
-                            style={[
-                              s.themeName,
-                              {color: mutedColor},
-                              selected ? {color: labelColor} : null,
-                            ]}
-                            numberOfLines={1}>
-                            {tx(`settings.colorTheme.${opt.id}`)}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-
-                <View style={s.toggle}>
-                  <View style={s.toggleLabel}>
-                    <Icon name="brightness-2" size={20} color={labelColor} />
-                    <Text style={[s.itemLabel, {color: labelColor}]}>
-                      {tx('settings.themeMode.dark')}
-                    </Text>
-                  </View>
-                  <Switch
-                    value={isDarkMode}
-                    onValueChange={() => toggleTheme()}
-                    trackColor={{false: divider, true: primary}}
-                    thumbColor="#FFFFFF"
-                  />
-                </View>
-
-                <View style={s.langRow}>
-                  <Icon name="language" size={16} color={mutedColor} />
-                  <TouchableOpacity
-                    style={[
-                      s.langPill,
-                      language === 'hi'
-                        ? {backgroundColor: `${primary}29`}
-                        : null,
-                    ]}
-                    onPress={() => void setLanguage('hi')}>
-                    <Text
-                      style={[
-                        s.langPillText,
-                        {color: mutedColor},
-                        language === 'hi'
-                          ? {color: primary, fontWeight: '700'}
-                          : null,
-                      ]}>
-                      {tx('login.langHindi')}
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={[s.langSep, {color: mutedColor}]}>|</Text>
-                  <TouchableOpacity
-                    style={[
-                      s.langPill,
-                      language === 'en'
-                        ? {backgroundColor: `${primary}29`}
-                        : null,
-                    ]}
-                    onPress={() => void setLanguage('en')}>
-                    <Text
-                      style={[
-                        s.langPillText,
-                        {color: mutedColor},
-                        language === 'en'
-                          ? {color: primary, fontWeight: '700'}
-                          : null,
-                      ]}>
-                      {tx('login.langEnglish')}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  style={s.item}
+                  onPress={() => go('SettingsAccount')}>
+                  <Icon name="lock" size={20} color={labelColor} />
+                  <Text style={[s.itemLabel, {color: labelColor}]}>
+                    {tx('settings.sectionAccount')}
+                  </Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   style={s.item}
@@ -453,42 +306,11 @@ function AccountMenuHost({
                     {tx('nav.addPartner')}
                   </Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={s.item}
-                  onPress={() => {
-                    onClose();
-                    setShowLogout(true);
-                  }}>
-                  <Icon name="logout" size={20} color={dangerColor} />
-                  <Text style={[s.itemLabel, {color: dangerColor}]}>
-                    {tx('account.logout')}
-                  </Text>
-                </TouchableOpacity>
               </ScrollView>
             </View>
           </View>
         </View>
       </Modal>
-
-      <LogoutConfirmationModal
-        visible={showLogout}
-        onCancel={() => setShowLogout(false)}
-        onConfirm={async () => {
-          setShowLogout(false);
-          try {
-            await authService.logout();
-          } catch {
-            /* still clear */
-          }
-          await setCurrentUser(null);
-          if (navigation) {
-            rootNav(navigation).dispatch(
-              CommonActions.reset({index: 0, routes: [{name: 'Login'}]}),
-            );
-          }
-        }}
-      />
 
       <SuggestPartnerModal
         theme={theme}

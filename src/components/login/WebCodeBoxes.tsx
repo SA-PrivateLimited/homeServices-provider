@@ -16,6 +16,8 @@ type Props = {
   editable?: boolean;
   autoFocus?: boolean;
   secure?: boolean;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 };
 
 /** Maps `.login-layout .hs-otp` / `.hs-otp__cell` from LoginPage.css */
@@ -27,6 +29,8 @@ export function WebCodeBoxes({
   editable = true,
   autoFocus,
   secure = false,
+  accessibilityLabel,
+  accessibilityHint,
 }: Props) {
   const inputRef = useRef<TextInput>(null);
   const digits = value.replace(/\D/g, '').slice(0, length);
@@ -44,7 +48,9 @@ export function WebCodeBoxes({
     <Pressable
       onPress={() => inputRef.current?.focus()}
       style={styles.wrap}
-      disabled={!editable}>
+      disabled={!editable}
+      accessibilityRole="none"
+      accessible={false}>
       <TextInput
         ref={inputRef}
         value={digits}
@@ -58,8 +64,15 @@ export function WebCodeBoxes({
         textContentType="oneTimeCode"
         importantForAutofill="yes"
         style={styles.hiddenInput}
+        accessible
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
+        accessibilityState={{disabled: !editable}}
       />
-      <View style={styles.row} pointerEvents="none">
+      <View
+        style={styles.row}
+        pointerEvents="none"
+        importantForAccessibility="no-hide-descendants">
         {Array.from({length}, (_, i) => {
           const filled = Boolean(digits[i]);
           const isFocused = editable && i === focusedIndex;

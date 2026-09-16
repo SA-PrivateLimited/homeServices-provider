@@ -66,10 +66,14 @@ export function WorkShowcaseEditor({theme, photos, onChange, disabled}: Props) {
   return (
     <View style={[styles.wrap, {backgroundColor: theme.card, borderColor: theme.border}]}>
       <Text style={[styles.title, {color: theme.text}]}>
-        {String(t('showcase.workShowcase') || 'Work photos')}
+        {String(t('showcase.title') || t('showcase.workShowcase') || 'Work photos')}
       </Text>
       <Text style={[styles.hint, {color: theme.textSecondary}]}>
-        {String(t('showcase.editorHint') || 'Add up to 3 photos of your work.')}
+        {String(
+          t('showcase.subtitle') ||
+            t('showcase.editorHint') ||
+            'Add up to 3 photos of your work.',
+        )}
       </Text>
       <View style={styles.row}>
         {slots.map((url, index) => (
@@ -88,7 +92,12 @@ export function WorkShowcaseEditor({theme, photos, onChange, disabled}: Props) {
             {url ? (
               <TouchableOpacity onPress={() => void removeAt(index)}>
                 <Text style={{color: theme.error || '#FF3B30', fontSize: 12}}>
-                  {String(t('actions.remove') || 'Remove')}
+                  {String(
+                    t('showcase.delete') ||
+                      t('actions.remove') ||
+                      t('common.remove') ||
+                      'Remove',
+                  )}
                 </Text>
               </TouchableOpacity>
             ) : null}

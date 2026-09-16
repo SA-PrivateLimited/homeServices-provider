@@ -274,9 +274,11 @@ export default function JobsScreen({navigation}: any) {
               item.customerName,
               String(t('jobs.unnamedCustomer')),
             );
-            const serviceTitle =
-              item.serviceType || String(t('jobs.service'));
             const problemText = String(item.problem || '').trim();
+            const needLine =
+              problemText ||
+              item.serviceType ||
+              String(t('jobs.problemMissing'));
             const addressLine = formatFullAddressLine(item.customerAddress);
             const hasAddress = hasAnyAddress(item.customerAddress);
             const canCall =
@@ -292,10 +294,13 @@ export default function JobsScreen({navigation}: any) {
                 statusColor={tint}
                 intensity="job"
                 style={[s.card, leftStripe(statusKey, primary, success, warning)]}
-                contentStyle={s.cardInner}>
+                contentStyle={s.cardInner}
+                accessibilityLabel={`${customerName}. ${needLine}. ${getJobStatusTitle(status)}`}>
                 <View style={s.head}>
                   <View
-                    style={[s.avatar, {backgroundColor: `${primary}2E`}]}>
+                    style={[s.avatar, {backgroundColor: `${primary}2E`}]}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no">
                     <Text style={[s.avatarText, {color: theme.text}]}>
                       {initials(customerName)}
                     </Text>
@@ -305,9 +310,8 @@ export default function JobsScreen({navigation}: any) {
                       <Text
                         style={[s.title, {color: theme.text}]}
                         numberOfLines={2}>
-                        {serviceTitle}
+                        {customerName}
                       </Text>
-                      {/* Web StatusChip: accepted + in-progress both use active/primary */}
                       <View
                         style={[
                           s.status,
@@ -324,21 +328,13 @@ export default function JobsScreen({navigation}: any) {
                     </View>
                     <Text
                       style={[s.customer, {color: theme.textSecondary}]}
-                      numberOfLines={1}>
-                      {customerName}
+                      numberOfLines={2}>
+                      {needLine}
                     </Text>
                   </View>
                 </View>
 
                 <View style={s.fields}>
-                  <View>
-                    <Text style={[s.fieldLabel, {color: theme.textSecondary}]}>
-                      {String(t('jobs.problemLabel'))}
-                    </Text>
-                    <Text style={[s.fieldValue, {color: theme.text}]}>
-                      {problemText || t('jobs.problemMissing')}
-                    </Text>
-                  </View>
                   <View>
                     <View style={s.fieldLabelRow}>
                       <Icon

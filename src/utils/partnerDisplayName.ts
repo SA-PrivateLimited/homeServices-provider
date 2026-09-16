@@ -34,7 +34,7 @@ export function tidyPersonName(raw: string): string {
 /** Customer name on a Partner job — never a role word like Provider. */
 export function jobCustomerDisplayName(
   raw?: string | null,
-  fallback = 'This customer',
+  fallback = 'Customer',
 ): string {
   const s = String(raw || '').trim();
   if (isGenericPartnerName(s) || /^partner$/i.test(s)) return fallback;

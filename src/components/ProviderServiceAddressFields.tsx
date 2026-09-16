@@ -59,6 +59,7 @@ interface ProviderServiceAddressFieldsProps {
     pincode?: string;
     useCurrent?: string;
     currentLocation?: string;
+    locationSaved?: string;
   };
 }
 
@@ -284,10 +285,10 @@ export function ProviderServiceAddressFields({
 
       {hasCoords ? (
         <View style={[styles.coordsRow, {borderColor: theme.border}]}>
-          <Icon name="place" size={16} color={theme.primary} />
+          <Icon name="check-circle" size={16} color={theme.primary} />
           <Text style={[styles.coordsText, {color: theme.textSecondary}]}>
-            {labels.currentLocation || 'Current location'}:{' '}
-            {value.latitude!.toFixed(5)}, {value.longitude!.toFixed(5)}
+            {labels.locationSaved ||
+              'Location saved on map. Check address below.'}
           </Text>
         </View>
       ) : null}

@@ -22,6 +22,7 @@ import {
   canReceiveJobs,
   isPartnerServiceActive,
   verificationOf,
+  verificationStatusLabelKey,
 } from '../utils/partnerServices';
 import {serviceCategoryIcon} from '../utils/serviceIcons';
 import {useResolvedTheme} from '../hooks/useResolvedTheme';
@@ -100,9 +101,16 @@ export default function MyServicesScreen({navigation}: any) {
     <ScrollView
       style={{backgroundColor: theme.background}}
       contentContainerStyle={styles.pad}>
+      <Text style={[styles.lead, {color: theme.textSecondary}]}>
+        {String(t('settings.myServicesLead'))}
+      </Text>
+      <Text style={[styles.hint, {color: theme.textSecondary}]}>
+        {String(t('settings.myServicesOnlineHint'))}
+      </Text>
       {services.map(name => {
         const status = verificationOf(profile, name);
         const active = isPartnerServiceActive(profile, name);
+        const statusLabel = String(t(verificationStatusLabelKey(status)));
         return (
           <CrystalSurface
             key={name}
@@ -110,46 +118,57 @@ export default function MyServicesScreen({navigation}: any) {
             card={theme.card}
             isDark={isDarkMode}
             style={styles.cardWrap}>
-            <Pressable
-              style={styles.card}
-              onPress={() =>
-                navigation.navigate('ServiceDetails', {serviceName: name})
-              }>
-              <Icon
-                name={serviceCategoryIcon(name) || 'handyman'}
-                size={22}
-                color={theme.text}
-              />
-              <View style={styles.copy}>
-                <Text style={[styles.title, {color: theme.text}]}>{name}</Text>
-                <Text style={[styles.sub, {color: theme.textSecondary}]}>
-                  {status} ·{' '}
-                  {active
-                    ? String(t('settings.receivingOn'))
-                    : String(t('settings.receivingOff'))}
-                </Text>
-                {!canReceiveJobs(profile, name) ? (
+            <View style={styles.card}>
+              <Pressable
+                style={styles.cardMain}
+                onPress={() =>
+                  navigation.navigate('ServiceDetails', {serviceName: name})
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`${name}. ${statusLabel}. ${String(
+                  t('settings.openServiceDetails'),
+                )}`}>
+                <Icon
+                  name={serviceCategoryIcon(undefined, name)}
+                  size={22}
+                  color={theme.text}
+                />
+                <View style={styles.copy}>
+                  <Text style={[styles.title, {color: theme.text}]}>{name}</Text>
+                  <Text style={[styles.sub, {color: theme.textSecondary}]}>
+                    {statusLabel}
+                    {' · '}
+                    {active
+                      ? String(t('settings.acceptJobsOn'))
+                      : String(t('settings.acceptJobsOff'))}
+                  </Text>
+                {!canReceiveJobs(profile, name) && status !== 'approved' ? (
                   <Text style={[styles.warn, {color: theme.warning}]}>
                     {String(t('settings.serviceNeedsReview'))}
                   </Text>
                 ) : null}
+                </View>
+                <Icon
+                  name="chevron_right"
+                  size={20}
+                  color={theme.textSecondary}
+                />
+              </Pressable>
+              <View style={[styles.toggleWrap, {borderLeftColor: theme.border}]}>
+                <Button
+                  size="sm"
+                  variant={active ? 'secondary' : 'primary'}
+                  loading={busy === name}
+                  onPress={() => {
+                    if (active) setConfirmOff(name);
+                    else void toggle(name, true);
+                  }}>
+                  {active
+                    ? String(t('settings.acceptJobsShortOff'))
+                    : String(t('settings.acceptJobsShortOn'))}
+                </Button>
               </View>
-              <Button
-                size="sm"
-                variant={active ? 'secondary' : 'primary'}
-                loading={busy === name}
-                onPress={() => {
-                  if (active) setConfirmOff(name);
-                  else void toggle(name, true);
-                }}>
-                {active ? String(t('common.off')) : String(t('common.on'))}
-              </Button>
-              <Icon
-                name="chevron_right"
-                size={20}
-                color={theme.textSecondary}
-              />
-            </Pressable>
+            </View>
           </CrystalSurface>
         );
       })}
@@ -207,14 +226,27 @@ export default function MyServicesScreen({navigation}: any) {
 const styles = StyleSheet.create({
   pad: {padding: 16, gap: 10, paddingBottom: 40},
   center: {flex: 1, justifyContent: 'center', alignItems: 'center'},
+  lead: {fontSize: 14, lineHeight: 20, fontWeight: '600'},
+  hint: {fontSize: 13, lineHeight: 18, marginBottom: 4},
   cardWrap: {},
   card: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  cardMain: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     padding: 14,
+    minWidth: 0,
   },
-  copy: {flex: 1},
+  toggleWrap: {
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+  },
+  copy: {flex: 1, minWidth: 0},
   title: {fontSize: 15, fontWeight: '700'},
   sub: {fontSize: 12, marginTop: 2},
   warn: {fontSize: 12, marginTop: 4},

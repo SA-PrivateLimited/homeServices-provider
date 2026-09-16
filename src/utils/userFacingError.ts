@@ -2,12 +2,16 @@
  * Map API/network errors to user-facing copy. Never show HTTP jargon.
  */
 
-import i18n from '../i18n';
-
 export type ErrorContext = 'login' | 'otp' | 'pin' | 'jobs' | 'generic';
 
 export type ConnectionFailureKind = 'send' | 'load' | 'refresh';
 
+function translate(key: string, fallback: string): string {
+  // Lazy require avoids Metro require-cycle with src/i18n/index.ts
+  const i18n = require('../i18n').default as {t: (k: string) => string};
+  const value = i18n.t(key);
+  return value === key ? fallback : String(value);
+}
 export function isConnectionFailure(error: unknown): boolean {
   const raw =
     error instanceof Error
@@ -54,11 +58,6 @@ const TECHNICAL_EXACT = new Set(
     'api request failed',
   ].map(s => s.toLowerCase()),
 );
-
-function translate(key: string, fallback: string): string {
-  const value = i18n.t(key);
-  return value === key ? fallback : String(value);
-}
 
 function normalizeText(raw: string): string {
   return raw.replace(/\s+/g, ' ').trim();
@@ -165,7 +164,11 @@ export function getUserFacingErrorMessage(
     return translate('jobDetails.invalidPIN', 'Invalid PIN. Please try again.');
   }
 
-  const lang = (i18n.language || 'en').startsWith('hi') ? 'hi' : 'en';
+  const lang = (
+    (require('../i18n').default as {language?: string}).language || 'en'
+  ).startsWith('hi')
+    ? 'hi'
+    : 'en';
   if (rawMessage && !isTechnicalErrorText(rawMessage) && lang === 'en') {
     return rawMessage;
   }

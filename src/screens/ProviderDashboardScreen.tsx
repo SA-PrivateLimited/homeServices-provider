@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import {useFocusEffect} from '@react-navigation/native';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
@@ -33,7 +32,10 @@ import {useIncomingBooking} from '../components/IncomingBookingContext';
 import {formatDistanceKm} from '../utils/distance';
 import {ReceiveRequestsCard} from '../components/ReceiveRequestsCard';
 import {AvailabilityCard} from '../components/AvailabilityCard';
+import {EffectiveRequestStatus} from '../components/EffectiveRequestStatus';
 import {CrystalSurface} from '../components/CrystalSurface';
+import {getEffectiveRequestAvailability} from '../utils/effectiveRequestAvailability';
+import type {Provider} from '../services/api/providersApi';
 import {IncomingRequestCard} from '../components/IncomingRequestCard';
 import {IncomingWaitingList} from '../components/IncomingWaitingList';
 import {PartnerIncomingCard} from '../components/PartnerIncomingCard';
@@ -84,7 +86,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<Provider | null>(null);
   const [receivePromptOpen, setReceivePromptOpen] = useState(false);
 
   const [alertVisible, setAlertVisible] = useState(false);
@@ -204,6 +206,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
       const newStatus = !isOnline;
       await setProviderOnline(newStatus);
       setIsOnline(newStatus);
+      setProfile(prev => (prev ? {...prev, isOnline: newStatus} : prev));
       toast.success(
         newStatus ? tx('dashboard.youreNowOnline') : tx('dashboard.youreNowOffline'),
       );
@@ -231,13 +234,21 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const serviceType =
     incomingBooking?.serviceType || tx('dashboard.serviceFallback');
   const distanceLabel = formatDistanceKm(incomingBooking?.distanceKm);
-  const showCta = isProfileIncomplete(profile);
+  const showCta = isProfileIncomplete(profile as any);
   const showEmpty =
     !incomingBooking &&
     !partnerIncoming &&
     showRequestService &&
     activeJobsCount === 0 &&
     !assisting;
+  const effectiveProfile: Provider | null = profile
+    ? {
+        ...profile,
+        isOnline,
+        showRequestService,
+      }
+    : null;
+  const effectiveRequestState = getEffectiveRequestAvailability(effectiveProfile);
 
   useEffect(() => {
     if (!profile) return;
@@ -305,11 +316,15 @@ export default function ProviderDashboardScreen({navigation}: any) {
             setTogglingRequests(true);
             void setShowRequestService(next)
               .then(updated => {
-                setShowRequest(updated.showRequestService !== false);
+                const enabled = updated.showRequestService !== false;
+                setShowRequest(enabled);
+                setProfile(prev =>
+                  prev ? {...prev, showRequestService: enabled} : prev,
+                );
                 toast.success(
                   next
-                    ? tx('dashboard.receiveRequestsNowOn')
-                    : tx('dashboard.receiveRequestsNowOff'),
+                    ? tx('home.receiveRequestsNowOn')
+                    : tx('home.receiveRequestsNowOff'),
                 );
               })
               .catch(err => {
@@ -322,6 +337,10 @@ export default function ProviderDashboardScreen({navigation}: any) {
               .finally(() => setTogglingRequests(false));
           }}
         />
+
+        {effectiveProfile ? (
+          <EffectiveRequestStatus state={effectiveRequestState} />
+        ) : null}
 
         <NotificationsSettingsCard
           theme={theme}
@@ -513,27 +532,6 @@ export default function ProviderDashboardScreen({navigation}: any) {
             }
           />
         ) : null}
-
-        {!isOnline ? (
-          <View
-            style={[
-              styles.infoBanner,
-              {
-                backgroundColor: isDarkMode
-                  ? `${theme.warning}33`
-                  : '#FFF3CD',
-              },
-            ]}>
-            <Icon name="info" size={20} color={theme.warning} />
-            <Text
-              style={[
-                styles.infoText,
-                {color: isDarkMode ? theme.text : '#856404'},
-              ]}>
-              {tx('dashboard.goOnlineMessage')}
-            </Text>
-          </View>
-        ) : null}
       </ScrollView>
       <ConfirmDialog
         visible={receivePromptOpen}
@@ -548,7 +546,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
           void setShowRequestService(true)
             .then(updated => {
               setShowRequest(updated.showRequestService !== false);
-              setProfile((prev: any) =>
+              setProfile(prev =>
                 prev
                   ? {
                       ...prev,
@@ -658,13 +656,4 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   actionButtonText: {flex: 1, fontSize: 16, fontWeight: '600'},
-  infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
-    gap: 10,
-    marginTop: 8,
-  },
-  infoText: {flex: 1, fontSize: 14},
 });

@@ -7,10 +7,23 @@ import {
   SUPPORT_PHONE_TEL,
   WHATSAPP_SUPPORT_URL,
 } from '../../config/support';
+import {useResolvedTheme} from '../../hooks/useResolvedTheme';
 
 import {HelpFeedbackForm} from './HelpFeedbackForm';
 
-type HelpTopicId = 'loginOtp' | 'pin' | 'account' | 'feedback' | 'other';
+type HelpTopicId =
+  | 'newRequests'
+  | 'onlineReceive'
+  | 'serviceOnOff'
+  | 'myServices'
+  | 'documents'
+  | 'jobWorkflow'
+  | 'customerContact'
+  | 'loginOtp'
+  | 'pin'
+  | 'account'
+  | 'feedback'
+  | 'other';
 
 const TOPICS: {
   id: HelpTopicId;
@@ -19,6 +32,55 @@ const TOPICS: {
   bodyKey: string;
   tipsKey: string;
 }[] = [
+  {
+    id: 'newRequests',
+    icon: 'notifications',
+    titleKey: 'help.topic.newRequestsTitle',
+    bodyKey: 'help.topic.newRequestsBody',
+    tipsKey: 'help.topic.newRequestsTips',
+  },
+  {
+    id: 'onlineReceive',
+    icon: 'toggle_on',
+    titleKey: 'help.topic.onlineReceiveTitle',
+    bodyKey: 'help.topic.onlineReceiveBody',
+    tipsKey: 'help.topic.onlineReceiveTips',
+  },
+  {
+    id: 'serviceOnOff',
+    icon: 'handyman',
+    titleKey: 'help.topic.serviceOnOffTitle',
+    bodyKey: 'help.topic.serviceOnOffBody',
+    tipsKey: 'help.topic.serviceOnOffTips',
+  },
+  {
+    id: 'myServices',
+    icon: 'list',
+    titleKey: 'help.topic.myServicesTitle',
+    bodyKey: 'help.topic.myServicesBody',
+    tipsKey: 'help.topic.myServicesTips',
+  },
+  {
+    id: 'documents',
+    icon: 'description',
+    titleKey: 'help.topic.documentsTitle',
+    bodyKey: 'help.topic.documentsBody',
+    tipsKey: 'help.topic.documentsTips',
+  },
+  {
+    id: 'jobWorkflow',
+    icon: 'work',
+    titleKey: 'help.topic.jobWorkflowTitle',
+    bodyKey: 'help.topic.jobWorkflowBody',
+    tipsKey: 'help.topic.jobWorkflowTips',
+  },
+  {
+    id: 'customerContact',
+    icon: 'call',
+    titleKey: 'help.topic.customerContactTitle',
+    bodyKey: 'help.topic.customerContactBody',
+    tipsKey: 'help.topic.customerContactTips',
+  },
   {
     id: 'loginOtp',
     icon: 'lock',
@@ -58,6 +120,7 @@ const TOPICS: {
 
 export function PartnerHelpSupportPanel({showPhoneCard = true}: {showPhoneCard?: boolean}) {
   const {t, i18n} = useTranslation();
+  const theme = useResolvedTheme();
   const [topic, setTopic] = useState<HelpTopicId | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const selected = TOPICS.find(x => x.id === topic) || null;
@@ -73,12 +136,14 @@ export function PartnerHelpSupportPanel({showPhoneCard = true}: {showPhoneCard?:
     void Linking.openURL(`${WHATSAPP_SUPPORT_URL}${text}`);
   };
 
+  const styles = makeStyles(theme);
+
   if (feedbackOpen) {
     return (
       <ScrollView contentContainerStyle={styles.pad}>
         <Pressable style={styles.back} onPress={() => setFeedbackOpen(false)}>
-          <Icon name="arrow_back" size={18} />
-          <Text>{t('common.back')}</Text>
+          <Icon name="arrow_back" size={18} color={theme.text} />
+          <Text style={{color: theme.text}}>{t('common.back')}</Text>
         </Pressable>
         <HelpFeedbackForm onClose={() => setFeedbackOpen(false)} />
       </ScrollView>
@@ -89,8 +154,8 @@ export function PartnerHelpSupportPanel({showPhoneCard = true}: {showPhoneCard?:
     return (
       <ScrollView contentContainerStyle={styles.pad}>
         <Pressable style={styles.back} onPress={() => setTopic(null)}>
-          <Icon name="arrow_back" size={18} />
-          <Text>{t('common.back')}</Text>
+          <Icon name="arrow_back" size={18} color={theme.text} />
+          <Text style={{color: theme.text}}>{t('common.back')}</Text>
         </Pressable>
         <Text style={styles.h3}>{t(selected.titleKey)}</Text>
         <Text style={styles.body}>{t(selected.bodyKey)}</Text>
@@ -141,45 +206,54 @@ export function PartnerHelpSupportPanel({showPhoneCard = true}: {showPhoneCard?:
       ) : null}
       {TOPICS.map(item => (
         <Pressable key={item.id} style={styles.row} onPress={() => setTopic(item.id)}>
-          <Icon name={item.icon} size={20} />
+          <Icon name={item.icon} size={20} color={theme.text} />
           <View style={styles.copy}>
             <Text style={styles.strong}>{t(item.titleKey)}</Text>
             <Text style={styles.em}>{t(item.bodyKey)}</Text>
           </View>
-          <Icon name="chevron_right" size={18} />
+          <Icon name="chevron_right" size={18} color={theme.textSecondary} />
         </Pressable>
       ))}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  pad: {paddingBottom: 24, gap: 8},
-  lead: {fontSize: 14, color: '#4A5568', marginBottom: 8},
-  back: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8},
-  h3: {fontSize: 16, fontWeight: '700', color: '#1A202C'},
-  body: {fontSize: 14, color: '#4A5568', marginBottom: 8},
-  tip: {fontSize: 14, color: '#2D3748', lineHeight: 20},
-  gap: {gap: 8, marginTop: 12},
-  phone: {
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 8,
-  },
-  phoneNum: {fontSize: 18, fontWeight: '700', color: '#3182CE', marginTop: 4},
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    backgroundColor: '#fff',
-  },
-  copy: {flex: 1},
-  strong: {fontSize: 14, fontWeight: '700', color: '#1A202C'},
-  em: {fontSize: 12, color: '#718096', marginTop: 2},
-});
+function makeStyles(theme: {
+  text: string;
+  textSecondary: string;
+  card: string;
+  border: string;
+  primary: string;
+}) {
+  return StyleSheet.create({
+    pad: {paddingBottom: 24, gap: 8},
+    lead: {fontSize: 14, color: theme.textSecondary, marginBottom: 8},
+    back: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8},
+    h3: {fontSize: 16, fontWeight: '700', color: theme.text},
+    body: {fontSize: 14, color: theme.textSecondary, marginBottom: 8},
+    tip: {fontSize: 14, color: theme.text, lineHeight: 20},
+    gap: {gap: 8, marginTop: 12},
+    phone: {
+      padding: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+      marginBottom: 8,
+    },
+    phoneNum: {fontSize: 18, fontWeight: '700', color: theme.primary, marginTop: 4},
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 10,
+      backgroundColor: theme.card,
+    },
+    copy: {flex: 1},
+    strong: {fontSize: 14, fontWeight: '700', color: theme.text},
+    em: {fontSize: 12, color: theme.textSecondary, marginTop: 2},
+  });
+}

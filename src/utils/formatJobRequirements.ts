@@ -1,4 +1,3 @@
-import i18n from '../i18n';
 import type {QuestionnaireItem} from '../services/api/serviceCategoriesApi';
 
 export type RequirementRow = {
@@ -6,8 +5,18 @@ export type RequirementRow = {
   value: string;
 };
 
+type I18nLike = {
+  language?: string;
+  t: (key: string) => string;
+};
+
+function getI18n(): I18nLike {
+  // Lazy require breaks Metro cycle with src/i18n/index.ts
+  return require('../i18n').default as I18nLike;
+}
+
 function appLang(): 'hi' | 'en' {
-  return i18n.language?.startsWith('hi') ? 'hi' : 'en';
+  return getI18n().language?.startsWith('hi') ? 'hi' : 'en';
 }
 
 function questionLabel(q: QuestionnaireItem, lang: 'hi' | 'en'): string {
@@ -31,7 +40,7 @@ function formatAnswer(
   lang: 'hi' | 'en',
 ): string {
   if (typeof answer === 'boolean') {
-    return answer ? i18n.t('jobDetail.yes') : i18n.t('jobDetail.no');
+    return answer ? getI18n().t('jobDetail.yes') : getI18n().t('jobDetail.no');
   }
   if (Array.isArray(answer)) {
     return answer
@@ -42,13 +51,13 @@ function formatAnswer(
       .join(', ');
   }
   if (answer === null || answer === undefined || answer === '') {
-    return i18n.t('jobDetail.notProvided');
+    return getI18n().t('jobDetail.notProvided');
   }
   const text = String(answer);
   if (q.type === 'boolean') {
     const lower = text.toLowerCase();
-    if (lower === 'true' || lower === 'yes') return i18n.t('jobDetail.yes');
-    if (lower === 'false' || lower === 'no') return i18n.t('jobDetail.no');
+    if (lower === 'true' || lower === 'yes') return getI18n().t('jobDetail.yes');
+    if (lower === 'false' || lower === 'no') return getI18n().t('jobDetail.no');
   }
   if (q.options?.length) {
     const idx = q.options.indexOf(text);

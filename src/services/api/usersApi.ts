@@ -3,7 +3,7 @@
  * Handles user operations via backend API
  */
 
-import {apiGet, apiPut, apiPost} from './apiClient';
+import {apiGet, apiPut, apiPost, apiDelete} from './apiClient';
 
 export interface UserLocation {
   id?: string;
@@ -76,6 +76,14 @@ export async function getMe(): Promise<User | null> {
 }
 
 /**
+ * Permanently delete the authenticated Partner/Customer account (Play Store).
+ * Backend: DELETE /api/users/me
+ */
+export async function deleteMe(): Promise<void> {
+  await apiDelete('/users/me');
+}
+
+/**
  * Get user by ID
  */
 export async function getUserById(userId: string): Promise<User | null> {
@@ -116,4 +124,5 @@ export const usersApi = {
   updateMe,
   updateFcmToken,
   createOrUpdate: createOrUpdateUser,
+  deleteMe,
 };

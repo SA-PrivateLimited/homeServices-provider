@@ -1,12 +1,9 @@
-import React, {useEffect, useState} from 'react';
-import {
-  ActivityIndicator,
-  Linking,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+/**
+ * Opens Partner Privacy / Terms on partner.akansho.com.
+ * Prefer in-app explanation; browser open is optional and fail-safe.
+ */
+import React from 'react';
+import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {Button} from 'sapvt-ltd-app-packages';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
@@ -15,23 +12,7 @@ import {
   PRIVACY_POLICY_URL,
   TERMS_OF_SERVICE_URL,
 } from '../config/support';
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n\n')
-    .replace(/<\/h[1-6]>/gi, '\n\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim();
-}
+import {openExternalUrl} from '../utils/openExternalUrl';
 
 export default function LegalDocumentScreen({route}: {route: any}) {
   const kind: 'privacy' | 'terms' =
@@ -40,62 +21,59 @@ export default function LegalDocumentScreen({route}: {route: any}) {
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
-  const [body, setBody] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(url);
-        const html = await res.text();
-        if (!cancelled) setBody(stripHtml(html));
-      } catch {
-        if (!cancelled) setBody('');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
 
   const title =
     kind === 'terms'
       ? String(t('settings.terms'))
       : String(t('collab.privacy'));
 
+  const open = () => {
+    void openExternalUrl(url, {
+      failTitle: String(t('common.error') || 'Error'),
+      failMessage: String(
+        t('settings.legalOpenFailed') ||
+          'Could not open the browser. On an emulator, install Chrome, or open the link on your phone.',
+      ),
+    });
+  };
+
   return (
     <View style={[styles.wrap, {backgroundColor: theme.background}]}>
-      {loading ? (
-        <ActivityIndicator style={{marginTop: 40}} color={theme.primary} />
-      ) : (
-        <ScrollView contentContainerStyle={styles.pad}>
-          <Text style={[styles.h, {color: theme.text}]}>{title}</Text>
-          {body ? (
-            <Text style={[styles.body, {color: theme.text}]}>{body}</Text>
-          ) : (
-            <Text style={[styles.body, {color: theme.textSecondary}]}>
-              {String(t('settings.legalOpenHint') || 'Open the full document in your browser.')}
-            </Text>
+      <ScrollView contentContainerStyle={styles.pad}>
+        <Text style={[styles.h, {color: theme.text}]}>{title}</Text>
+        <Text style={[styles.body, {color: theme.textSecondary}]}>
+          {String(
+            t('settings.legalOpenHint') ||
+              'Full Privacy Policy and Terms are on the Akansho Partner website.',
           )}
-          <Button
-            variant="secondary"
-            block
-            title={String(t('common.openInBrowser') || 'Open in browser')}
-            onPress={() => void Linking.openURL(url)}
-            style={{marginTop: 16}}
-          />
-        </ScrollView>
-      )}
+        </Text>
+        {kind === 'privacy' ? (
+          <Text style={[styles.body, {color: theme.textSecondary}]}>
+            {String(
+              t('settings.deleteAccountLead') ||
+                'You can delete your account from Account & security in this app.',
+            )}
+          </Text>
+        ) : null}
+        <Text style={[styles.url, {color: theme.primary}]} onPress={open}>
+          {url}
+        </Text>
+        <Button
+          variant="primary"
+          block
+          title={String(t('common.openInBrowser') || 'Open in browser')}
+          onPress={open}
+          style={{marginTop: 16}}
+        />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {flex: 1},
-  pad: {padding: 14, paddingBottom: 40},
-  h: {fontSize: 20, fontWeight: '700', marginBottom: 12},
+  pad: {padding: 14, paddingBottom: 40, gap: 10},
+  h: {fontSize: 20, fontWeight: '700'},
   body: {fontSize: 14, lineHeight: 22},
+  url: {fontSize: 13, lineHeight: 20},
 });
