@@ -4,7 +4,8 @@ import {
   CommonActions,
 } from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import {View, ActivityIndicator, StyleSheet} from 'react-native';
+import {View} from 'react-native';
+import {SPLASH_SKY} from '../components/BootSplash';
 import {useStore} from '../store';
 import {resolveTheme} from '../utils/theme';
 import LanguageSwitcher from '../components/LanguageSwitcher';
@@ -34,7 +35,7 @@ import {BiometricUnlockGate} from '../components/BiometricUnlockGate';
 
 const Stack = createNativeStackNavigator();
 
-export default function AppNavigator() {
+export default function AppNavigator({onReady}: {onReady?: () => void}) {
   const [initializing, setInitializing] = useState(true);
   const [hasSession, setHasSession] = useState(false);
   const [needsBiometricUnlock, setNeedsBiometricUnlock] = useState(false);
@@ -103,12 +104,14 @@ export default function AppNavigator() {
     });
   }, [setCurrentUser]);
 
+  useEffect(() => {
+    if (!initializing && needsBiometricUnlock) {
+      onReady?.();
+    }
+  }, [initializing, needsBiometricUnlock, onReady]);
+
   if (initializing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
-      </View>
-    );
+    return <View style={{flex: 1, backgroundColor: SPLASH_SKY}} />;
   }
 
   if (needsBiometricUnlock) {
@@ -121,6 +124,7 @@ export default function AppNavigator() {
     <NavigationContainer
       ref={navigationRef}
       linking={partnerLinking}
+      onReady={onReady}
       theme={{
         dark: isDarkMode,
         colors: {
@@ -200,12 +204,3 @@ export default function AppNavigator() {
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-});
