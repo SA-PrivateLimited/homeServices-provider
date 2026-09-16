@@ -32,7 +32,9 @@ import {
 } from '../utils/partnerColorTheme';
 import {getBrandThemeSwatch} from '../utils/theme';
 import {deleteMe} from '../services/api/usersApi';
+import {ACCOUNT_DELETION_INFO_URL} from '../config/support';
 import {getUserFacingErrorMessage} from '../utils/userFacingError';
+import {openExternalUrl} from '../utils/openExternalUrl';
 
 export default function SettingsAccountScreen({navigation}: any) {
   const {t} = useTranslation();
@@ -368,7 +370,10 @@ export default function SettingsAccountScreen({navigation}: any) {
         </Pressable>
         <Pressable
           onPress={() =>
-            navigation.navigate('LegalDocument', {kind: 'privacy'})
+            void openExternalUrl(ACCOUNT_DELETION_INFO_URL, {
+              failTitle: String(t('common.error') || 'Error'),
+              failMessage: String(t('settings.legalOpenFailed')),
+            })
           }
           accessibilityRole="link">
           <Text style={[styles.link, {color: theme.primary}]}>
