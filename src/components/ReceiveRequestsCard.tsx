@@ -13,7 +13,7 @@ type Props = {
   onToggle: () => void;
 };
 
-/** Partner Web `.home-avail.home-receive` — crystal glass. */
+/** Secondary Home control — Receive Requests preference (not Online status). */
 export function ReceiveRequestsCard({enabled, toggling, onToggle}: Props) {
   const {isDarkMode, colorTheme} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
@@ -21,28 +21,48 @@ export function ReceiveRequestsCard({enabled, toggling, onToggle}: Props) {
   const tx = (key: string) => String(t(key));
   void colorTheme;
   const primary = theme.primary;
-  const indicatorBg = enabled
-    ? `${primary}24`
-    : isDarkMode
-      ? 'rgba(232, 237, 245, 0.08)'
-      : 'rgba(26, 32, 44, 0.08)';
+  const stateLabel = enabled
+    ? tx('home.receiveRequestsStateOn')
+    : tx('home.receiveRequestsStateOff');
+  const sub = enabled
+    ? tx('home.receiveRequestsPrefOnSub')
+    : tx('home.receiveRequestsPrefOffSub');
+  const actionLabel = enabled
+    ? tx('home.receiveRequestsStop')
+    : tx('home.receiveRequestsStart');
+  const indicatorBg = isDarkMode
+    ? 'rgba(232, 237, 245, 0.08)'
+    : 'rgba(26, 32, 44, 0.06)';
 
   return (
     <CrystalSurface
       primary={primary}
       card={theme.card}
       isDark={isDarkMode}
-      accent={enabled}
+      accent={false}
       style={styles.card}
-      contentStyle={styles.row}>
-      <View style={[styles.indicator, {backgroundColor: indicatorBg}]}>
+      contentStyle={styles.row}
+      accessibilityRole="summary"
+      accessibilityLabel={`${tx('home.receiveRequestsLabel')}. ${stateLabel}. ${sub}`}
+      accessibilityHint={
+        enabled
+          ? tx('home.receiveRequestsStopA11yHint')
+          : tx('home.receiveRequestsStartA11yHint')
+      }>
+      <View
+        style={[styles.indicator, {backgroundColor: indicatorBg}]}
+        accessibilityElementsHidden
+        importantForAccessibility="no">
         <Icon
           name={enabled ? 'notifications' : 'notifications-off'}
-          size={28}
+          size={22}
           color={enabled ? primary : theme.textSecondary}
         />
       </View>
       <View style={styles.copy}>
+        <Text style={[styles.eyebrow, {color: theme.textSecondary}]}>
+          {tx('home.receiveRequestsLabel')}
+        </Text>
         <View style={styles.titleRow}>
           <View
             style={[
@@ -50,17 +70,9 @@ export function ReceiveRequestsCard({enabled, toggling, onToggle}: Props) {
               {backgroundColor: enabled ? primary : theme.textSecondary},
             ]}
           />
-          <Text style={[styles.title, {color: theme.text}]}>
-            {enabled
-              ? tx('dashboard.receiveRequestsOnTitle')
-              : tx('dashboard.receiveRequestsOffTitle')}
-          </Text>
+          <Text style={[styles.title, {color: theme.text}]}>{stateLabel}</Text>
         </View>
-        <Text style={[styles.sub, {color: theme.textSecondary}]}>
-          {enabled
-            ? tx('dashboard.receiveRequestsOnSub')
-            : tx('dashboard.receiveRequestsOffSub')}
-        </Text>
+        <Text style={[styles.sub, {color: theme.textSecondary}]}>{sub}</Text>
       </View>
       <Button
         variant={enabled ? 'secondary' : 'primary'}
@@ -69,40 +81,44 @@ export function ReceiveRequestsCard({enabled, toggling, onToggle}: Props) {
         size="md"
         style={enabled ? styles.offBtn : styles.onBtn}
         textStyle={enabled ? {color: theme.textSecondary} : undefined}>
-        {enabled
-          ? tx('dashboard.receiveRequestsStop')
-          : tx('dashboard.receiveRequestsStart')}
+        {actionLabel}
       </Button>
     </CrystalSurface>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {marginBottom: 12},
+  card: {marginBottom: 10},
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
   indicator: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   copy: {flex: 1, minWidth: 140},
+  eyebrow: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    marginBottom: 2,
+  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  title: {fontSize: 17, fontWeight: '700', lineHeight: 22.1, flex: 1},
-  dot: {width: 10, height: 10, borderRadius: 5},
-  sub: {marginTop: 4, fontSize: 13, lineHeight: 18.2},
+  title: {fontSize: 16, fontWeight: '700', lineHeight: 22, flex: 1},
+  dot: {width: 8, height: 8, borderRadius: 4},
+  sub: {marginTop: 4, fontSize: 12, lineHeight: 17},
   onBtn: {minHeight: 40, marginLeft: 'auto'},
   offBtn: {
     minHeight: 40,

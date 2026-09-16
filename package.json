@@ -1,6 +1,6 @@
 {
   "name": "HomeServicesProvider",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
     "android": "./run-android.sh",
@@ -28,6 +28,7 @@
     "react": "18.2.0",
     "react-i18next": "^16.5.1",
     "react-native": "0.73.2",
+    "react-native-biometrics": "^3.0.1",
     "react-native-calendars": "^1.1303.0",
     "react-native-dotenv": "^3.4.9",
     "react-native-fs": "^2.20.0",

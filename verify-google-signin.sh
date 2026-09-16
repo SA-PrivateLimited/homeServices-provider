@@ -20,7 +20,7 @@ echo ""
 # Check package name
 echo "2. Checking package name..."
 PACKAGE_NAME=$(grep "applicationId" android/app/build.gradle | head -1 | sed "s/.*applicationId \"\(.*\)\".*/\1/")
-EXPECTED_PACKAGE="com.homeservices.provider"
+EXPECTED_PACKAGE="com.akansho.partner"
 
 if [ "$PACKAGE_NAME" == "$EXPECTED_PACKAGE" ]; then
     echo "   ✅ Package name is correct: $PACKAGE_NAME"
@@ -37,7 +37,7 @@ if [ -f "android/app/google-services.json" ]; then
     echo "   ✅ google-services.json exists"
     
     # Check if package name matches in google-services.json
-    JSON_PACKAGE=$(grep -A 2 "com.homeservices.provider" android/app/google-services.json | grep "package_name" | head -1 | sed 's/.*"package_name": "\(.*\)".*/\1/')
+    JSON_PACKAGE=$(grep -A 2 "com.akansho.partner" android/app/google-services.json | grep "package_name" | head -1 | sed 's/.*"package_name": "\(.*\)".*/\1/')
     if [ "$JSON_PACKAGE" == "$EXPECTED_PACKAGE" ]; then
         echo "   ✅ Package name matches in google-services.json"
     else

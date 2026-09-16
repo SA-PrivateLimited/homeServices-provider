@@ -40,8 +40,8 @@ export function ShareAkansoPanel({url, compact = false}: Props) {
       return raw.replace('{{url}}', shareUrl);
     }
     return isHi
-      ? `भरोसेमंद घरेलू सेवाओं के लिए Akansho आज़माएँ: ${shareUrl}`
-      : `Try Akansho for trusted home services near you: ${shareUrl}`;
+      ? `Akansho Partner से जुड़ें — भरोसेमंद घरेलू सेवा काम: ${shareUrl}`
+      : `Join Akansho Partner for trusted home-service work: ${shareUrl}`;
   }, [isHi, shareUrl, t]);
 
   const onCopy = () => {
@@ -81,7 +81,7 @@ export function ShareAkansoPanel({url, compact = false}: Props) {
       </Text>
       <Text style={[styles.lead, {color: theme.textSecondary}]}>
         {t('ecosystem.shareLead') ||
-          'Invite friends and family to book trusted home services.'}
+          'Invite another service professional to join Akansho Partner.'}
       </Text>
       <View style={styles.actions}>
         <TouchableOpacity

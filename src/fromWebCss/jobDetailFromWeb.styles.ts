@@ -163,6 +163,13 @@ export const jobDetailFromWeb = StyleSheet.create({
     gap: 10,
     marginTop: 4,
   },
+  railLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
   railRow: {
     flexDirection: 'row',
     gap: 8,

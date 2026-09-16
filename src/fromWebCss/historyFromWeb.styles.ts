@@ -43,12 +43,14 @@ export const historyFromWeb = StyleSheet.create({
     paddingTop: 2,
   },
   card: {
-    borderRadius: 18,
+    borderRadius: 14,
     overflow: 'hidden',
-    borderWidth: 0,
-    marginBottom: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(26, 32, 44, 0.08)',
+    marginBottom: 8,
     elevation: 0,
     shadowOpacity: 0,
+    shadowRadius: 0,
   },
   cardCompleted: {
     borderLeftWidth: 4,

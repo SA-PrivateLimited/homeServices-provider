@@ -1,4 +1,5 @@
 import React, {useState, useEffect, useCallback} from 'react';
+import {Pressable} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -119,64 +120,117 @@ const SettingsStack = () => {
   const {t} = useTranslation();
   void colorTheme;
 
+  const accountMenuHeader = (navigation: any) => ({
+    headerRight: () => <AccountMenu navigation={navigation} compact />,
+  });
+
+  const settingsBackButton = (navigation: any) => ({
+    headerBackVisible: false,
+    headerLeft: () => (
+      <Pressable
+        onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+          }
+          navigation.navigate('SettingsMain');
+        }}
+        style={{marginLeft: 4, padding: 6}}
+        accessibilityRole="button"
+        accessibilityLabel={String(t('common.back') || t('actions.goBack'))}>
+        <Icon name="arrow_back" size={24} color={theme.text} />
+      </Pressable>
+    ),
+  });
+
+  const settingsSubScreen = (navigation: any, title: string) => ({
+    title,
+    ...accountMenuHeader(navigation),
+    ...settingsBackButton(navigation),
+  });
+
   return (
     <Stack.Navigator
-      screenOptions={{
+      screenOptions={({navigation}) => ({
         headerShown: true,
         headerStyle: {backgroundColor: theme.card},
         headerTintColor: theme.text,
         headerTitleStyle: {fontWeight: '700', fontSize: 17},
+        headerBackTitleVisible: false,
         ...( {headerRightContainerStyle: {width: 96, paddingRight: 4}} as object ),
-      }}>
+        ...accountMenuHeader(navigation),
+      })}>
       <Stack.Screen
         name="SettingsMain"
         component={SettingsScreen}
         options={({navigation}) => ({
           title: String(t('nav.settings') || t('common.settings')),
-          headerRight: () => (
-            <AccountMenu navigation={navigation} compact />
-          ),
+          headerBackVisible: false,
+          ...accountMenuHeader(navigation),
         })}
       />
       <Stack.Screen
         name="SettingsProfile"
         component={ProviderProfileScreen}
-        options={{title: String(t('settings.sectionProfile'))}}
+        options={({navigation}) =>
+          settingsSubScreen(
+            navigation,
+            String(t('settings.sectionProfile')),
+          )
+        }
       />
       <Stack.Screen
         name="MyServices"
         component={MyServicesScreen}
-        options={{title: String(t('settings.sectionServices') || 'My services')}}
+        options={({navigation}) =>
+          settingsSubScreen(
+            navigation,
+            String(t('nav.myServices') || t('settings.sectionServices') || 'My services'),
+          )
+        }
       />
       <Stack.Screen
         name="ServiceDetails"
         component={ServiceDetailsScreen}
-        options={{title: String(t('settings.serviceDetails') || 'Service')}}
+        options={({navigation}) =>
+          settingsSubScreen(
+            navigation,
+            String(t('settings.serviceDetails') || 'Service'),
+          )
+        }
       />
       <Stack.Screen
         name="SettingsAccount"
         component={SettingsAccountScreen}
-        options={{title: String(t('settings.sectionAccount'))}}
+        options={({navigation}) =>
+          settingsSubScreen(navigation, String(t('settings.sectionAccount')))
+        }
       />
       <Stack.Screen
         name="SettingsAbout"
         component={SettingsAboutScreen}
-        options={{title: String(t('settings.sectionAbout'))}}
+        options={({navigation}) =>
+          settingsSubScreen(navigation, String(t('settings.sectionAbout')))
+        }
       />
       <Stack.Screen
         name="LegalDocument"
         component={LegalDocumentScreen}
-        options={({route}: any) => ({
-          title:
+        options={({navigation, route}: any) => ({
+          ...settingsSubScreen(
+            navigation,
             route?.params?.kind === 'terms'
               ? String(t('settings.terms'))
               : String(t('collab.privacy')),
+          ),
         })}
       />
       <Stack.Screen
         name="HelpSupport"
         component={HelpSupportScreen}
-        options={{title: String(t('help.title'))}}
+        options={({navigation}) =>
+          settingsSubScreen(navigation, String(t('help.title')))
+        }
       />
     </Stack.Navigator>
   );

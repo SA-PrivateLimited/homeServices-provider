@@ -97,6 +97,33 @@ export function serviceCardAction(
   return 'details';
 }
 
+/** i18n key for human-readable verification status (UI only). */
+export function verificationStatusLabelKey(
+  status: ServiceVerificationStatus,
+): string {
+  switch (status) {
+    case 'required':
+      return 'settings.verification.needsDocuments';
+    case 'pending':
+      return 'settings.verification.underReview';
+    case 'rejected':
+      return 'settings.verification.needsChanges';
+    case 'approved':
+    default:
+      return 'settings.verification.approved';
+  }
+}
+
+export function normalizeVerificationStatus(
+  raw?: string | null,
+): ServiceVerificationStatus {
+  const s = String(raw || '').toLowerCase();
+  if (s === 'approved' || s === 'pending' || s === 'required' || s === 'rejected') {
+    return s;
+  }
+  return 'required';
+}
+
 export function serviceAssetDocKey(serviceName: string, docKey: string): string {
   const slug = serviceName
     .toLowerCase()

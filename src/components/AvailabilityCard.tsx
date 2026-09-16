@@ -13,7 +13,7 @@ type Props = {
   onToggle: () => void;
 };
 
-/** Partner Web `.home-avail` — crystal glass + online primary wash. */
+/** Primary Home control — current Online / Offline status only. */
 export function AvailabilityCard({online, toggling, onToggle}: Props) {
   const {isDarkMode, colorTheme} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
@@ -21,9 +21,13 @@ export function AvailabilityCard({online, toggling, onToggle}: Props) {
   const tx = (key: string) => String(t(key));
   void colorTheme;
   const primary = theme.primary;
-  const sub = online
-    ? tx('home.availableSubRing') || tx('dashboard.tapToGoOffline')
-    : tx('home.offlineSub') || tx('dashboard.tapToGoOnline');
+  const statusLabel = online
+    ? tx('home.statusOnline')
+    : tx('home.statusOffline');
+  const statusHint = online
+    ? tx('home.statusOnlineHint')
+    : tx('home.statusOfflineHint');
+  const actionLabel = online ? tx('home.goOffline') : tx('home.goOnline');
 
   return (
     <CrystalSurface
@@ -32,7 +36,12 @@ export function AvailabilityCard({online, toggling, onToggle}: Props) {
       isDark={isDarkMode}
       accent={online}
       style={styles.card}
-      contentStyle={styles.row}>
+      contentStyle={styles.row}
+      accessibilityRole="summary"
+      accessibilityLabel={`${tx('home.statusLabel')}. ${statusLabel}. ${statusHint}`}
+      accessibilityHint={
+        online ? tx('home.goOfflineA11yHint') : tx('home.goOnlineA11yHint')
+      }>
       <View
         style={[
           styles.indicator,
@@ -43,7 +52,9 @@ export function AvailabilityCard({online, toggling, onToggle}: Props) {
                 ? 'rgba(232, 237, 245, 0.08)'
                 : 'rgba(26, 32, 44, 0.08)',
           },
-        ]}>
+        ]}
+        accessibilityElementsHidden
+        importantForAccessibility="no">
         <Icon
           name={online ? 'wifi' : 'wifi-off'}
           size={28}
@@ -51,6 +62,9 @@ export function AvailabilityCard({online, toggling, onToggle}: Props) {
         />
       </View>
       <View style={styles.copy}>
+        <Text style={[styles.eyebrow, {color: theme.textSecondary}]}>
+          {tx('home.statusLabel')}
+        </Text>
         <View style={styles.titleRow}>
           <View
             style={[
@@ -60,13 +74,11 @@ export function AvailabilityCard({online, toggling, onToggle}: Props) {
               },
             ]}
           />
-          <Text style={[styles.title, {color: theme.text}]}>
-            {online
-              ? tx('home.availableTitle')
-              : tx('home.offlineTitle') || tx('dashboard.goOnline')}
-          </Text>
+          <Text style={[styles.title, {color: theme.text}]}>{statusLabel}</Text>
         </View>
-        <Text style={[styles.sub, {color: theme.textSecondary}]}>{sub}</Text>
+        <Text style={[styles.sub, {color: theme.textSecondary}]}>
+          {statusHint}
+        </Text>
       </View>
       <Button
         variant={online ? 'secondary' : 'primary'}
@@ -74,7 +86,7 @@ export function AvailabilityCard({online, toggling, onToggle}: Props) {
         onPress={onToggle}
         style={online ? styles.offBtn : styles.onBtn}
         textStyle={online ? {color: theme.textSecondary} : undefined}>
-        {online ? tx('home.goOffline') : tx('home.goOnline')}
+        {actionLabel}
       </Button>
     </CrystalSurface>
   );
@@ -82,7 +94,7 @@ export function AvailabilityCard({online, toggling, onToggle}: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    marginBottom: 0,
+    marginBottom: 10,
   },
   row: {
     flexDirection: 'row',
@@ -100,8 +112,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   copy: {flex: 1, minWidth: 140},
+  eyebrow: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    marginBottom: 2,
+    textTransform: 'uppercase',
+  },
   titleRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
-  title: {fontSize: 17, fontWeight: '700', lineHeight: 22, flex: 1},
+  title: {fontSize: 20, fontWeight: '800', lineHeight: 26, flex: 1},
   dot: {width: 10, height: 10, borderRadius: 5},
   sub: {marginTop: 4, fontSize: 13, lineHeight: 18},
   onBtn: {minHeight: 40, marginLeft: 'auto'},

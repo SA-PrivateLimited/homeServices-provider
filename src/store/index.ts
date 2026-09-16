@@ -7,7 +7,6 @@ import {
   setPartnerNightVisionFlag,
 } from '../utils/partnerColorTheme';
 import {applyNightVisionMode} from '../utils/theme';
-import {changeLanguage} from '../i18n';
 
 export interface AppNotification {
   id: string;
@@ -86,6 +85,10 @@ export const useStore = create<AppState>((set, get) => ({
   setLanguage: async (language: 'en' | 'hi') => {
     set({language});
     await AsyncStorage.setItem('language', language);
+    // Lazy import avoids Metro require-cycle: store ↔ i18n
+    const {changeLanguage} = require('../i18n') as {
+      changeLanguage: (lang: 'en' | 'hi') => Promise<void>;
+    };
     await changeLanguage(language);
   },
 
@@ -173,6 +176,9 @@ export const useStore = create<AppState>((set, get) => ({
       ]);
 
       const storedLanguage = (language || 'en') as 'en' | 'hi';
+      const {changeLanguage} = require('../i18n') as {
+        changeLanguage: (lang: 'en' | 'hi') => Promise<void>;
+      };
       await changeLanguage(storedLanguage);
 
       const isDarkMode = theme ? JSON.parse(theme) : false;

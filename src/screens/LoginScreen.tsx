@@ -16,6 +16,7 @@ import {
   Share,
   Linking,
   StatusBar,
+  BackHandler,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -43,7 +44,11 @@ import PhoneNumberInput from '../components/PhoneNumberInput';
 import {LoginStepIndicator} from '../components/login/LoginStepIndicator';
 import {LoginLangSwitcher} from '../components/login/LoginLangSwitcher';
 import {LoginTermsMini} from '../components/login/LoginTermsMini';
-import {INDIA_DIAL_CODE, localTenDigits} from '../utils/phone';
+import {
+  formatPhoneDisplay,
+  INDIA_DIAL_CODE,
+  localTenDigits,
+} from '../utils/phone';
 import {useFirebasePhoneAuth} from '../hooks/useFirebasePhoneAuth';
 import {getCustomerWebUrl} from '../utils/customerWebUrl';
 import {isWeakPin, LOGIN_PIN_LENGTH, LOGIN_PIN_RE} from '../components/login/pinUtils';
@@ -53,6 +58,18 @@ import {
   PRIVACY_POLICY_URL,
   TERMS_OF_SERVICE_URL,
 } from '../config/support';
+import {openExternalUrl} from '../utils/openExternalUrl';
+import {
+  BROWSER_REQUIRED_FOR_OTP_CODE,
+  isBrowserRequiredOtpError,
+} from '../utils/canOpenHttpsUrl';
+import ConfirmationModal from '../components/ConfirmationModal';
+import {
+  enableBiometricUnlock,
+  getBiometricAvailability,
+  isBiometricUnlockEnabled,
+  biometricKindLabel,
+} from '../services/biometricUnlock';
 
 const PARTNER_WEB_URL = 'https://partner.akansho.com';
 
@@ -76,6 +93,30 @@ function formatMmSs(totalSeconds: number): string {
   return `${m}:${r.toString().padStart(2, '0')}`;
 }
 
+function authErrorMessage(
+  error: unknown,
+  t: (key: string, options?: Record<string, unknown>) => string,
+  fallbackKey: string,
+): string {
+  if (isBrowserRequiredOtpError(error)) {
+    return (
+      t('auth.browserRequiredForOtp') ||
+      'Install Chrome (or any browser), then try again. First-time login needs a short security check in the browser.'
+    );
+  }
+  const message =
+    error instanceof Error
+      ? error.message
+      : String((error as {message?: string})?.message || '');
+  if (message === BROWSER_REQUIRED_FOR_OTP_CODE) {
+    return (
+      t('auth.browserRequiredForOtp') ||
+      'Install Chrome (or any browser), then try again. First-time login needs a short security check in the browser.'
+    );
+  }
+  return message || t(fallbackKey);
+}
+
 function LoginPrimary({
   title,
   onPress,
@@ -87,12 +128,16 @@ function LoginPrimary({
   loading?: boolean;
   disabled?: boolean;
 }) {
+  const isDisabled = Boolean(loading || disabled);
   return (
     <TouchableOpacity
-      style={[web.primaryFill, (loading || disabled) && {opacity: 0.65}]}
+      style={[web.primaryFill, isDisabled && {opacity: 0.65}]}
       onPress={onPress}
-      disabled={loading || disabled}
-      activeOpacity={0.85}>
+      disabled={isDisabled}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{disabled: isDisabled, busy: Boolean(loading)}}>
       {loading ? (
         <ActivityIndicator color="#fff" />
       ) : (
@@ -118,15 +163,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   const [creatingPartner, setCreatingPartner] = useState(false);
   const [otpBanner, setOtpBanner] = useState<OtpBanner | null>(null);
   const [otpSecondsLeft, setOtpSecondsLeft] = useState(0);
+  const [biometricOfferOpen, setBiometricOfferOpen] = useState(false);
+  const [biometricKind, setBiometricKind] = useState('Face / Fingerprint');
+  const [enablingBiometric, setEnablingBiometric] = useState(false);
   const [approvalNote, setApprovalNote] = useState<string | null>(null);
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const pinLoginInFlight = useRef(false);
-  const firebasePhone = useFirebasePhoneAuth();
 
   const {setCurrentUser, isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
   const insets = useSafeAreaInsets();
-  const [suggestOpen, setSuggestOpen] = useState(false);
+  const firebasePhone = useFirebasePhoneAuth();
 
   const [alertModal, setAlertModal] = useState<{
     visible: boolean;
@@ -209,6 +257,40 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     });
   };
 
+  /** After auth: optionally offer Face/Fingerprint unlock, then enter app. */
+  const enterAppAfterAuth = async () => {
+    try {
+      const enabled = await isBiometricUnlockEnabled();
+      const avail = await getBiometricAvailability();
+      if (!enabled && avail.available) {
+        setBiometricKind(biometricKindLabel(avail.biometryType, t));
+        setBiometricOfferOpen(true);
+        return;
+      }
+    } catch {
+      // ignore — still enter app
+    }
+    goMain();
+  };
+
+  const confirmEnableBiometric = async () => {
+    setEnablingBiometric(true);
+    try {
+      await enableBiometricUnlock({
+        promptMessage: String(
+          t('biometric.enablePrompt', {kind: biometricKind}),
+        ),
+        cancelButtonText: String(t('common.cancel') || 'Cancel'),
+      });
+    } catch {
+      // ignore
+    } finally {
+      setEnablingBiometric(false);
+      setBiometricOfferOpen(false);
+      goMain();
+    }
+  };
+
   const applySession = async (token: string, userRaw: any) => {
     const user = normalizeUser({
       ...userRaw,
@@ -268,7 +350,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       setAlertModal({
         visible: true,
         title: t('common.error'),
-        message: error.message || t('auth.loginError'),
+        message: authErrorMessage(error, t, 'auth.loginError'),
         type: 'error',
       });
     } finally {
@@ -286,7 +368,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       setCreatedPin(revealedPin);
       setStep('showPin');
     } else {
-      goMain();
+      await enterAppAfterAuth();
     }
   };
 
@@ -303,7 +385,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     try {
       const result = await loginPin(fullPhone(), code);
       await applySession(result.token, result.user);
-      goMain();
+      await enterAppAfterAuth();
     } catch (error: any) {
       const msg = String(error?.message || '');
       if (
@@ -333,7 +415,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     try {
       const result = await enablePartnerProfile(fullPhone(), code);
       await applySession(result.token, result.user);
-      goMain();
+      await enterAppAfterAuth();
     } catch (error: any) {
       setInlineError(error.message || t('auth.incorrectPin') || 'Incorrect PIN');
     } finally {
@@ -356,7 +438,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       setAlertModal({
         visible: true,
         title: t('common.error'),
-        message: error.message || t('auth.failedToSendCode'),
+        message: authErrorMessage(error, t, 'auth.failedToSendCode'),
         type: 'error',
       });
     } finally {
@@ -372,7 +454,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       setOtpBanner(null);
       await firebasePhone.sendOtp(fullPhone());
     } catch (error: any) {
-      setInlineError(error.message || t('auth.failedToSendCode'));
+      setInlineError(authErrorMessage(error, t, 'auth.failedToSendCode'));
     } finally {
       setLoading(false);
     }
@@ -434,9 +516,56 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
     setInlineError(null);
     setOtpBanner(null);
     setApprovalNote(null);
+    setCustomerOnly(false);
     setOtpMode('signup');
     setStep('phone');
   };
+
+  /** Soft step-back for Android hardware Back — does not clear session/remembered phone. */
+  const goBackAuthStep = () => {
+    if (loading || creatingPartner || pinLoginInFlight.current) {
+      return true;
+    }
+    if (step === 'pin') {
+      setPin('');
+      setInlineError(null);
+      setCustomerOnly(false);
+      setStep('phone');
+      return true;
+    }
+    if (step === 'otp') {
+      void firebasePhone.reset();
+      setOtp('');
+      setNewPin('');
+      setConfirmPin('');
+      setInlineError(null);
+      setOtpBanner(null);
+      if (otpMode === 'forgot') {
+        setStep('pin');
+      } else {
+        setStep('phone');
+      }
+      return true;
+    }
+    if (step === 'showPin') {
+      // Session already applied in finishWithPinReveal — continue into app.
+      goMain();
+      return true;
+    }
+    // phone: allow default system back (exit / leave Login)
+    return false;
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return undefined;
+    }
+    const sub = BackHandler.addEventListener(
+      'hardwareBackPress',
+      goBackAuthStep,
+    );
+    return () => sub.remove();
+  }, [step, loading, creatingPartner, otpMode]);
 
   const titleForStep = () => {
     switch (step) {
@@ -496,13 +625,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
               showsVerticalScrollIndicator={false}>
               <View style={web.cardTop}>
                 <View style={web.toolbar}>
-                  {step === 'phone' ? (
+                  {step === 'phone' || step === 'pin' ? (
                     <View style={web.toolbarSpacer} />
                   ) : (
                     <TouchableOpacity
                       style={web.backToolbar}
                       onPress={() => void handleUseAnotherNumber()}
-                      disabled={loading}>
+                      disabled={loading}
+                      accessibilityRole="button"
+                      accessibilityLabel={String(t('login.changeMobile'))}>
                       <Text style={web.backText}>{t('login.changeMobile')}</Text>
                     </TouchableOpacity>
                   )}
@@ -592,23 +723,49 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                   <View style={web.form}>
                     <View style={web.readonlyPhone}>
                       <Text style={web.readonlyPhoneLabel}>
-                        {t('login.enterPinLabel')}
+                        {t('login.pinStepMobileLabel')}
                       </Text>
-                      <Text style={web.readonlyPhoneValue}>{fullPhone()}</Text>
+                      <View style={web.readonlyPhoneRow}>
+                        <Text
+                          style={web.readonlyPhoneValue}
+                          accessibilityRole="text"
+                          accessibilityLabel={`${String(
+                            t('login.pinStepMobileLabel'),
+                          )}: ${formatPhoneDisplay(fullPhone())}`}>
+                          {formatPhoneDisplay(fullPhone())}
+                        </Text>
+                        <TouchableOpacity
+                          style={web.editMobileBtn}
+                          onPress={() => void handleUseAnotherNumber()}
+                          disabled={loading}
+                          accessibilityRole="button"
+                          accessibilityLabel={String(t('login.changeMobile'))}
+                          hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                          <Text style={web.editMobileText}>
+                            {t('login.editMobile')}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    <WebCodeBoxes
-                      value={pin}
-                      length={LOGIN_PIN_LENGTH}
-                      onChange={text => {
-                        setPin(text);
-                        setInlineError(null);
-                      }}
-                      onComplete={code => {
-                        void handleLoginWithPin(code);
-                      }}
-                      editable={!loading}
-                      autoFocus
-                    />
+                    <View style={web.pinFieldBlock}>
+                      <Text style={web.label}>{t('login.enterPinLabel')}</Text>
+                      <WebCodeBoxes
+                        value={pin}
+                        length={LOGIN_PIN_LENGTH}
+                        onChange={text => {
+                          setPin(text);
+                          setInlineError(null);
+                        }}
+                        onComplete={code => {
+                          void handleLoginWithPin(code);
+                        }}
+                        editable={!loading}
+                        autoFocus
+                        secure
+                        accessibilityLabel={String(t('login.enterPinLabel'))}
+                        accessibilityHint={String(t('login.pinFieldHint'))}
+                      />
+                    </View>
                     {customerOnly ? (
                       <View style={web.customerOnly}>
                         <Text style={web.customerOnlyTitle}>
@@ -645,16 +802,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                       <TouchableOpacity
                         style={web.textLink}
                         onPress={() => void handleForgotPin()}
-                        disabled={loading}>
+                        disabled={loading}
+                        accessibilityRole="button"
+                        accessibilityLabel={String(t('login.forgotPin'))}>
                         <Text style={web.textLinkLabel}>{t('login.forgotPin')}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={web.textLink}
-                        onPress={() => void handleUseAnotherNumber()}
-                        disabled={loading}>
-                        <Text style={web.textLinkMuted}>
-                          {t('login.changeMobile')}
-                        </Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -730,7 +881,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                     ) : null}
                     <LoginPrimary
                       title={String(t('login.continue'))}
-                      onPress={goMain}
+                      onPress={() => void enterAppAfterAuth()}
                     />
                   </View>
                 ) : null}
@@ -781,8 +932,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
                     <View style={web.extrasFoot}>
                       <Text style={web.extrasTrust}>{t('login.heroSafety')}</Text>
                       <LoginTermsMini
-                        onTerms={() => void Linking.openURL(TERMS_OF_SERVICE_URL)}
-                        onPrivacy={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+                        onTerms={() => void openExternalUrl(TERMS_OF_SERVICE_URL)}
+                        onPrivacy={() => void openExternalUrl(PRIVACY_POLICY_URL)}
                       />
                     </View>
                   </View>
@@ -801,6 +952,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
         onClose={() =>
           setAlertModal({visible: false, title: '', message: '', type: 'info'})
         }
+      />
+      <ConfirmationModal
+        visible={biometricOfferOpen}
+        title={String(t('biometric.offerTitle', {kind: biometricKind}))}
+        message={String(t('biometric.offerBody', {kind: biometricKind}))}
+        confirmText={String(t('biometric.offerEnable', {kind: biometricKind}))}
+        cancelText={String(t('biometric.offerNotNow'))}
+        type="info"
+        onConfirm={() => void confirmEnableBiometric()}
+        onCancel={() => {
+          if (enablingBiometric) return;
+          setBiometricOfferOpen(false);
+          goMain();
+        }}
       />
       <SuggestPartnerModal
         theme={theme}

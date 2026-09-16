@@ -1,9 +1,9 @@
 buildscript {
     ext {
-        buildToolsVersion = "35.0.0"
+        buildToolsVersion = "36.0.0"
         minSdkVersion = 24
-        compileSdkVersion = 35
-        targetSdkVersion = 35
+        compileSdkVersion = 36
+        targetSdkVersion = 36
         ndkVersion = "25.1.8937393"
         // Keep 1.8.x line: RN 0.73 gradle-plugin ships kotlin-gradle-plugin 1.8.0; newer KGP breaks apply plugin.
         kotlinVersion = "1.8.22"

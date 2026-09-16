@@ -49,7 +49,10 @@ import type {QuestionnaireItem} from '../services/api/serviceCategoriesApi';
 import {canCallCustomerOnJob} from '../utils/customerContact';
 import {getUserFacingErrorMessage} from '../utils/userFacingError';
 import {serviceCategoryIcon} from '../utils/serviceIcons';
-import type {RequestPhotoInput} from '../utils/requestPhotos';
+import {
+  photoUrlsFromRequest,
+  type RequestPhotoInput,
+} from '../utils/requestPhotos';
 import {
   openCall,
   openWhatsApp,
@@ -119,6 +122,31 @@ function initials(name: string): string {
   if (!parts.length) return '?';
   if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
+
+/** Drop questionnaire rows that merely repeat “What they need”. */
+function requirementsBeyondProblem(
+  rows: {label: string; value: string}[],
+  problem: string,
+): {label: string; value: string}[] {
+  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+  const p = norm(problem);
+  if (!p) return rows;
+  return rows.filter(row => norm(row.value) !== p);
+}
+
+function splitAddressLines(line: string): {primary: string; secondary?: string} {
+  const parts = String(line || '')
+    .split(/\s+[—–-]\s+/)
+    .map(p => p.trim())
+    .filter(Boolean);
+  if (parts.length >= 2) {
+    return {
+      primary: parts.slice(0, -1).join(' — '),
+      secondary: parts[parts.length - 1],
+    };
+  }
+  return {primary: line};
 }
 
 export default function JobDetailsScreen({navigation, route}: any) {
@@ -338,8 +366,14 @@ export default function JobDetailsScreen({navigation, route}: any) {
     (jobCard as {customerProfileImage?: string}).customerProfileImage || '',
   ).trim();
   const addressLine = formatFullAddressLine(jobCard.customerAddress);
+  const addressParts = splitAddressLines(addressLine);
   const hasAddress = hasAnyAddress(jobCard.customerAddress);
   const problemText = String(jobCard.problem || '').trim();
+  const extraRequirements = requirementsBeyondProblem(requirements, problemText);
+  const customerPhotoUrls = photoUrlsFromRequest(requestPhotos);
+  const completionPhotoUrls = photoUrlsFromRequest(
+    jobCard.completionPhotos as RequestPhotoInput[] | undefined,
+  );
   const dateLine = formatJobStatusDate(
     jobCard.status,
     jobCard.updatedAt || jobCard.createdAt,
@@ -351,6 +385,12 @@ export default function JobDetailsScreen({navigation, route}: any) {
   });
   const actionable = ['pending', 'accepted', 'in-progress'].includes(statusKey);
   const showHelp = actionable;
+  const isTerminalStatus =
+    statusKey === 'completed' ||
+    statusKey === 'cancelled' ||
+    statusKey === 'rejected' ||
+    statusKey === 'expired';
+  const showStatusRefresh = !isTerminalStatus;
   const explainKey = statusExplainKey(jobCard.status);
   const serviceIconName = serviceCategoryIcon(
     null,
@@ -367,6 +407,16 @@ export default function JobDetailsScreen({navigation, route}: any) {
           : theme.primary;
   const heroBg = `${heroTint}12`;
   const heroBorder = `${heroTint}47`;
+  const heroTitle =
+    statusKey === 'in-progress'
+      ? tx('jobDetail.inProgressTitle')
+      : tx(statusLabelKey(jobCard.status));
+  const heroHint =
+    statusKey === 'in-progress'
+      ? tx('jobDetail.inProgressHint')
+      : statusKey === 'pending' && explainKey
+        ? tx(explainKey)
+        : '';
 
   return (
     <>
@@ -400,31 +450,35 @@ export default function JobDetailsScreen({navigation, route}: any) {
           </View>
           <View style={s.heroCopy}>
             <View style={s.heroTitleRow}>
-              <Text style={[s.heroTitle, {color: theme.text}]}>
-                {tx(statusLabelKey(jobCard.status))}
-              </Text>
-              <TouchableOpacity
-                style={[
-                  s.heroRefresh,
-                  {backgroundColor: `${theme.primary}1A`},
-                ]}
-                disabled={refreshing}
-                onPress={() => void loadJobCard({silent: true})}
-                accessibilityLabel={tx('jobDetail.refreshStatus')}>
-                {refreshing ? (
-                  <ActivityIndicator size="small" color={theme.primary} />
-                ) : (
-                  <Icon name="refresh" size={20} color={theme.primary} />
-                )}
-              </TouchableOpacity>
+              <Text style={[s.heroTitle, {color: theme.text}]}>{heroTitle}</Text>
+              {showStatusRefresh ? (
+                <TouchableOpacity
+                  style={[
+                    s.heroRefresh,
+                    {backgroundColor: `${theme.primary}1A`},
+                  ]}
+                  disabled={refreshing}
+                  onPress={() => void loadJobCard({silent: true})}
+                  accessibilityRole="button"
+                  accessibilityLabel={tx('jobDetail.refreshStatus')}
+                  accessibilityHint={tx('jobDetail.refreshStatusHint')}>
+                  {refreshing ? (
+                    <ActivityIndicator size="small" color={theme.primary} />
+                  ) : (
+                    <Icon name="refresh" size={20} color={theme.primary} />
+                  )}
+                </TouchableOpacity>
+              ) : null}
             </View>
-            {statusKey === 'pending' && explainKey ? (
+            {heroHint ? (
               <Text style={[s.heroMessage, {color: theme.textSecondary}]}>
-                {tx(explainKey)}
+                {heroHint}
               </Text>
             ) : null}
             {dateLine ? (
-              <Text style={[s.heroDate, {color: theme.text}]}>{dateLine}</Text>
+              <Text style={[s.heroDate, {color: theme.textSecondary}]}>
+                {dateLine}
+              </Text>
             ) : null}
             {statusKey === 'cancelled' && jobCard.cancellationReason ? (
               <Text style={[s.heroReason, {color: theme.textSecondary}]}>
@@ -440,7 +494,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
             s.card,
             {backgroundColor: theme.card, borderColor: theme.border},
           ]}>
-          <Text style={[s.sectionTitle, {color: theme.text}]}>
+          <Text style={[s.sectionTitle, {color: theme.textSecondary}]}>
             {tx('jobDetail.customerInfo')}
           </Text>
           <View style={s.customerRow}>
@@ -503,7 +557,8 @@ export default function JobDetailsScreen({navigation, route}: any) {
                 s.fieldValue,
                 {
                   color: problemText ? theme.text : theme.textSecondary,
-                  fontWeight: problemText ? '600' : '500',
+                  fontWeight: problemText ? '700' : '500',
+                  fontSize: 16,
                 },
               ]}>
               {problemText || tx('jobs.problemMissing')}
@@ -513,20 +568,47 @@ export default function JobDetailsScreen({navigation, route}: any) {
           <View style={s.field}>
             <View style={s.fieldLabelRow}>
               <Icon name="location-on" size={14} color={theme.textSecondary} />
-              <Text style={[s.fieldLabel, {color: theme.textSecondary, marginBottom: 0}]}>
+              <Text
+                style={[
+                  s.fieldLabel,
+                  {color: theme.textSecondary, marginBottom: 0},
+                ]}>
                 {tx('jobs.serviceAddressLabel')}
               </Text>
             </View>
-            <Text
-              style={[
-                s.fieldValue,
-                {
-                  color: hasAddress ? theme.text : theme.textSecondary,
-                  fontWeight: hasAddress ? '600' : '500',
-                },
-              ]}>
-              {hasAddress ? addressLine : tx('jobs.addressMissing')}
-            </Text>
+            {hasAddress ? (
+              <>
+                <Text
+                  style={[
+                    s.fieldValue,
+                    {color: theme.text, fontWeight: '700', lineHeight: 22},
+                  ]}>
+                  {addressParts.primary}
+                </Text>
+                {addressParts.secondary ? (
+                  <Text
+                    style={[
+                      s.fieldValue,
+                      {
+                        color: theme.text,
+                        fontWeight: '600',
+                        marginTop: 2,
+                        lineHeight: 20,
+                      },
+                    ]}>
+                    {addressParts.secondary}
+                  </Text>
+                ) : null}
+              </>
+            ) : (
+              <Text
+                style={[
+                  s.fieldValue,
+                  {color: theme.textSecondary, fontWeight: '500'},
+                ]}>
+                {tx('jobs.addressMissing')}
+              </Text>
+            )}
             {actionable && hasAddress ? (
               <Button
                 variant="secondary"
@@ -538,43 +620,48 @@ export default function JobDetailsScreen({navigation, route}: any) {
             ) : null}
           </View>
 
-          <RequestPhotoGallery
-            photos={requestPhotos}
-            theme={theme}
-            title={tx('request.photos')}
-          />
-          <RequestPhotoGallery
-            photos={jobCard.completionPhotos}
-            theme={theme}
-            title={tx('jobDetail.completionPhotosOptional')}
-          />
+          {customerPhotoUrls.length ? (
+            <RequestPhotoGallery
+              photos={requestPhotos}
+              theme={theme}
+              title={tx('request.photos')}
+            />
+          ) : null}
+          {completionPhotoUrls.length ? (
+            <RequestPhotoGallery
+              photos={jobCard.completionPhotos as RequestPhotoInput[]}
+              theme={theme}
+              title={tx('jobDetail.completionPhotosOptional')}
+            />
+          ) : null}
 
           {allowComments ? (
-          <JobCardComments
-            comments={jobCard.comments || []}
-            theme={{...theme, background: theme.background}}
-            canComment={
-              statusKey === 'accepted' ||
-              statusKey === 'in-progress' ||
-              statusKey === 'completed'
-            }
-            title={tx('comments.title')}
-            placeholder={tx('comments.placeholder')}
-            emptyText={tx('comments.empty')}
-            postLabel={tx('comments.send')}
-            onSubmit={async text => {
-              const updated = await jobCardsApi.addComment(jobCardId, text);
-              setJobCard(prev =>
-                prev
-                  ? {...prev, comments: (updated as any).comments || []}
-                  : prev,
-              );
-            }}
-          />
+            <JobCardComments
+              comments={jobCard.comments || []}
+              theme={{...theme, background: theme.background}}
+              canComment={
+                statusKey === 'accepted' ||
+                statusKey === 'in-progress' ||
+                statusKey === 'completed'
+              }
+              collapseWhenEmpty
+              title={tx('comments.title')}
+              placeholder={tx('comments.placeholder')}
+              emptyText={tx('comments.emptyShort')}
+              postLabel={tx('comments.send')}
+              onSubmit={async text => {
+                const updated = await jobCardsApi.addComment(jobCardId, text);
+                setJobCard(prev =>
+                  prev
+                    ? {...prev, comments: (updated as any).comments || []}
+                    : prev,
+                );
+              }}
+            />
           ) : null}
         </View>
 
-        {requirements.length ? (
+        {extraRequirements.length ? (
           <View
             style={[
               s.card,
@@ -584,7 +671,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
               {tx('jobDetail.requirements')}
             </Text>
             <View style={s.reqList}>
-              {requirements.map(row => (
+              {extraRequirements.map(row => (
                 <View key={`${row.label}-${row.value}`} style={s.reqRow}>
                   <Text style={[s.reqLabel, {color: theme.textSecondary}]}>
                     {row.label}
@@ -598,8 +685,14 @@ export default function JobDetailsScreen({navigation, route}: any) {
           </View>
         ) : null}
 
-        {/* Actions rail */}
+        {/* Actions rail — Contact → Finish → Exceptional */}
         <View style={s.rail}>
+          {(canCall && jobCard.customerPhone) || statusKey === 'pending' ? (
+            <Text style={[s.railLabel, {color: theme.textSecondary}]}>
+              {tx('jobDetail.contactSection')}
+            </Text>
+          ) : null}
+
           {canCall && jobCard.customerPhone ? (
             <View style={s.railRow}>
               <View style={{flex: 1}}>
@@ -624,6 +717,14 @@ export default function JobDetailsScreen({navigation, route}: any) {
           ) : statusKey === 'pending' ? (
             <Text style={[s.hint, {color: theme.textSecondary, marginTop: 0}]}>
               {tx('contact.afterAcceptCustomer')}
+            </Text>
+          ) : null}
+
+          {statusKey === 'accepted' || statusKey === 'in-progress' ? (
+            <Text style={[s.railLabel, {color: theme.textSecondary}]}>
+              {statusKey === 'accepted'
+                ? tx('jobDetail.startSection')
+                : tx('jobDetail.finishSection')}
             </Text>
           ) : null}
 
@@ -654,11 +755,12 @@ export default function JobDetailsScreen({navigation, route}: any) {
 
           {actionable ? (
             <Button
-              variant="danger"
+              variant="ghost"
               block
               title={tx('jobDetail.cancelTask')}
               onPress={() => setShowCancelModal(true)}
               disabled={updating}
+              textStyle={{color: theme.error, fontWeight: '600'}}
             />
           ) : (
             <Button

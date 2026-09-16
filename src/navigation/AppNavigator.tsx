@@ -14,6 +14,10 @@ import {
   normalizeUser,
   readStoredUser,
 } from '../services/session';
+import {
+  getBiometricAvailability,
+  isBiometricUnlockEnabled,
+} from '../services/biometricUnlock';
 import {onSessionExpired} from '../services/sessionExpiry';
 import {navigationRef} from './rootNavigation';
 import {partnerLinking} from './linking';
@@ -26,12 +30,14 @@ import HelpSupportScreen from '../screens/HelpSupportScreen';
 import ShareContactRecommendationScreen from '../screens/ShareContactRecommendationScreen';
 import PartnerDirectoryScreen from '../screens/PartnerDirectoryScreen';
 import AuthHandoffScreen from '../screens/AuthHandoffScreen';
+import {BiometricUnlockGate} from '../components/BiometricUnlockGate';
 
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const [initializing, setInitializing] = useState(true);
   const [hasSession, setHasSession] = useState(false);
+  const [needsBiometricUnlock, setNeedsBiometricUnlock] = useState(false);
   const {isDarkMode, setCurrentUser, colorTheme} = useStore();
   const theme = resolveTheme(isDarkMode);
   void colorTheme;
@@ -46,15 +52,22 @@ export default function AppNavigator() {
         if (jwt && storedUser && mounted) {
           setCurrentUser(normalizeUser(storedUser));
           setHasSession(true);
+          const biometricOn = await isBiometricUnlockEnabled();
+          const avail = await getBiometricAvailability();
+          if (biometricOn && avail.available) {
+            setNeedsBiometricUnlock(true);
+          }
         } else if (mounted) {
           setCurrentUser(null);
           setHasSession(false);
+          setNeedsBiometricUnlock(false);
         }
       } catch (e) {
         console.warn('Provider app boot failed:', e);
         if (mounted) {
           setCurrentUser(null);
           setHasSession(false);
+          setNeedsBiometricUnlock(false);
         }
       } finally {
         if (mounted) {
@@ -77,6 +90,7 @@ export default function AppNavigator() {
           // ignore
         }
         setHasSession(false);
+        setNeedsBiometricUnlock(false);
         if (navigationRef.isReady()) {
           navigationRef.dispatch(
             CommonActions.reset({
@@ -94,6 +108,12 @@ export default function AppNavigator() {
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4A90E2" />
       </View>
+    );
+  }
+
+  if (needsBiometricUnlock) {
+    return (
+      <BiometricUnlockGate onUnlocked={() => setNeedsBiometricUnlock(false)} />
     );
   }
 

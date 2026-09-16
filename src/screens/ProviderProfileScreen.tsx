@@ -19,7 +19,6 @@ import {uploadAssetFromUri} from '../services/api/assetsApi';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {getUserId} from '../services/session';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
-import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
 import ProviderServiceAddressFields, {
   type ProviderServiceAddressValue,
 } from '../components/ProviderServiceAddressFields';
@@ -27,6 +26,7 @@ import ReviewsList from '../components/ReviewsList';
 import {WorkShowcaseEditor} from '../components/WorkShowcaseEditor';
 import {KycDocumentsCard} from '../components/KycDocumentsCard';
 import useTranslation from '../hooks/useTranslation';
+import {APP_VERSION_NAME} from '../utils/appVersion';
 
 const SERVICE_TYPES = [
   'Carpenter',
@@ -150,11 +150,11 @@ export default function ProviderProfileScreen({navigation}: any) {
   const [profile, setProfile] = useState<ProviderProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [reviewsOpen, setReviewsOpen] = useState(false);
   const [editName, setEditName] = useState('');
   const [editServiceType, setEditServiceType] = useState('');
   const [editExperience, setEditExperience] = useState('');
@@ -362,24 +362,6 @@ export default function ProviderProfileScreen({navigation}: any) {
     }
   };
 
-  const handleConfirmLogout = async () => {
-    setShowLogoutModal(false);
-    try {
-      const {logout} = await import('../services/authService');
-      const {useStore: storeApi} = await import('../store');
-      await logout();
-      await storeApi.getState().setCurrentUser(null);
-    } catch {
-      // still navigate
-    }
-    const parentNavigation = navigation.getParent();
-    if (parentNavigation) {
-      parentNavigation.reset({index: 0, routes: [{name: 'Login'}]});
-    } else {
-      navigation.reset({index: 0, routes: [{name: 'Login'}]});
-    }
-  };
-
   const getInitials = (name: string) => {
     if (!name) return 'P';
     const parts = name.trim().split(/\s+/);
@@ -388,54 +370,6 @@ export default function ProviderProfileScreen({navigation}: any) {
     }
     return name.charAt(0).toUpperCase();
   };
-
-  const SettingItem = ({
-    icon,
-    title,
-    subtitle,
-    onPress,
-    rightComponent,
-    danger,
-  }: {
-    icon: string;
-    title: string;
-    subtitle?: string;
-    onPress?: () => void;
-    rightComponent?: React.ReactNode;
-    danger?: boolean;
-  }) => (
-    <TouchableOpacity
-      style={[styles.settingItem, {backgroundColor: theme.card}]}
-      onPress={onPress}
-      disabled={!onPress && !rightComponent}
-      activeOpacity={0.7}>
-      <View style={styles.settingLeft}>
-        <Icon
-          name={icon}
-          size={22}
-          color={danger ? '#FF3B30' : theme.primary}
-        />
-        <View style={styles.settingText}>
-          <Text
-            style={[
-              styles.settingTitle,
-              {color: danger ? '#FF3B30' : theme.text},
-            ]}>
-            {title}
-          </Text>
-          {subtitle ? (
-            <Text style={[styles.settingSubtitle, {color: theme.textSecondary}]}>
-              {subtitle}
-            </Text>
-          ) : null}
-        </View>
-      </View>
-      {rightComponent ||
-        (onPress ? (
-          <Icon name="chevron-forward" size={20} color={theme.textSecondary} />
-        ) : null)}
-    </TouchableOpacity>
-  );
 
   const phoneDisplay =
     profile?.phone ||
@@ -519,22 +453,6 @@ export default function ProviderProfileScreen({navigation}: any) {
 
   return (
     <View style={[styles.root, {backgroundColor: theme.background}]}>
-      <LogoutConfirmationModal
-        visible={showLogoutModal}
-        onConfirm={handleConfirmLogout}
-        onCancel={() => setShowLogoutModal(false)}
-      />
-
-      <View
-        style={[
-          styles.topBar,
-          {backgroundColor: theme.card, borderBottomColor: theme.border},
-        ]}>
-        <Text style={[styles.topBarTitle, {color: theme.text}]}>
-          {String(t('common.profile') || t('profile.title') || 'Profile')}
-        </Text>
-      </View>
-
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
@@ -776,29 +694,14 @@ export default function ProviderProfileScreen({navigation}: any) {
                     currentLocation: String(
                       t('profile.currentLocation') || 'Current location',
                     ),
+                    locationSaved: String(
+                      t('profile.locationSavedOnMap') ||
+                        'Location saved on map. Check address below.',
+                    ),
                   }}
                 />
               ) : (
                 <View style={styles.addressView}>
-                  {typeof profile.address?.latitude === 'number' &&
-                  typeof profile.address?.longitude === 'number' ? (
-                    <>
-                      <Text
-                        style={[
-                          styles.fieldLabelTight,
-                          {color: theme.textSecondary},
-                        ]}>
-                        {String(
-                          t('profile.currentLocation') || 'Current location',
-                        )}
-                      </Text>
-                      <Text style={[styles.fieldValue, {color: theme.text}]}>
-                        {profile.address.latitude.toFixed(5)},{' '}
-                        {profile.address.longitude.toFixed(5)}
-                      </Text>
-                    </>
-                  ) : null}
-
                   <Text
                     style={[styles.fieldLabelTight, {color: theme.textSecondary}]}>
                     {String(t('profile.address') || 'Address')}
@@ -901,47 +804,39 @@ export default function ProviderProfileScreen({navigation}: any) {
 
         {profile && userId ? (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-              {String(t('profile.reviews')).toUpperCase()}
-            </Text>
-            <View style={[styles.infoCard, {backgroundColor: theme.card}]}>
-              <ReviewsList providerId={userId} showHeader={false} />
-            </View>
+            <TouchableOpacity
+              style={styles.sectionHeaderRow}
+              onPress={() => setReviewsOpen(open => !open)}
+              accessibilityRole="button"
+              accessibilityState={{expanded: reviewsOpen}}
+              accessibilityLabel={String(
+                t('profile.customerReviews') || t('profile.reviews'),
+              )}>
+              <Text
+                style={[
+                  styles.sectionTitleInline,
+                  {color: theme.textSecondary, flex: 1},
+                ]}>
+                {String(
+                  t('profile.customerReviews') || t('profile.reviews'),
+                ).toUpperCase()}
+              </Text>
+              <Icon
+                name={reviewsOpen ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color={theme.textSecondary}
+              />
+            </TouchableOpacity>
+            {reviewsOpen ? (
+              <View style={[styles.infoCard, {backgroundColor: theme.card}]}>
+                <ReviewsList providerId={userId} showHeader={false} />
+              </View>
+            ) : null}
           </View>
         ) : null}
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-            {String(t('profile.account')).toUpperCase()}
-          </Text>
-          <SettingItem
-            icon="handyman-outline"
-            title={String(t('nav.myServices'))}
-            subtitle={String(t('settings.myServicesLinkSub'))}
-            onPress={() =>
-              navigation.navigate('Settings', {screen: 'MyServices'})
-            }
-          />
-          <SettingItem
-            icon="help-circle-outline"
-            title={String(t('profile.helpSupport'))}
-            onPress={() =>
-              navigation.navigate('Settings', {screen: 'HelpSupport'})
-            }
-          />
-          <SettingItem
-            icon="log-out-outline"
-            title={String(t('profile.logout'))}
-            subtitle={String(
-              t('settings.logoutSubtitle') || 'Sign out of your account',
-            )}
-            onPress={() => setShowLogoutModal(true)}
-            danger
-          />
-        </View>
-
         <Text style={[styles.version, {color: theme.textSecondary}]}>
-          {String(t('profile.version'))} 1.0.0
+          {String(t('profile.version'))} {APP_VERSION_NAME}
         </Text>
       </ScrollView>
     </View>
@@ -955,16 +850,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  topBarTitle: {fontSize: 18, fontWeight: '700'},
-  menuBtn: {padding: 4},
   container: {flex: 1},
   content: {paddingVertical: 16, paddingBottom: 32},
   section: {marginBottom: 20},
@@ -1116,21 +1001,6 @@ const styles = StyleSheet.create({
     minWidth: 72,
     alignItems: 'center',
   },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginHorizontal: 12,
-    marginVertical: 4,
-    borderRadius: 12,
-    ...commonStyles.shadowSmall,
-  },
-  settingLeft: {flexDirection: 'row', alignItems: 'center', flex: 1},
-  settingText: {marginLeft: 12, flex: 1},
-  settingTitle: {fontSize: 15, fontWeight: '500'},
-  settingSubtitle: {fontSize: 12, marginTop: 2},
   version: {
     textAlign: 'center',
     fontSize: 12,

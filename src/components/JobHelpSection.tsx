@@ -31,6 +31,7 @@ import {
   partnerPlaceLabel,
   type PublicPartner,
 } from '../utils/partnerPrivacy';
+import {tidyPersonName} from '../utils/partnerDisplayName';
 import {serviceCategoryIcon} from '../utils/serviceIcons';
 import {getUserFacingErrorMessage} from '../utils/userFacingError';
 import {useStore} from '../store';
@@ -251,14 +252,20 @@ export function JobHelpSection({theme, job, canHelp = true}: Props) {
     : pending.length
       ? t('collab.helpPendingTitle')
       : t('collab.helpTitle');
+  const pendingName = tidyPersonName(
+    pending[0]?.targetProviderName || String(t('collab.partnerFallback')),
+  );
+  const acceptedName = tidyPersonName(
+    accepted[0]?.targetProviderName || String(t('collab.partnerFallback')),
+  );
   const collapsedHint = accepted.length
     ? t('collab.helpingCollapsed', {
-        name: accepted[0].targetProviderName,
+        name: acceptedName,
         service: accepted[0].neededServiceType,
       })
     : pending.length
       ? t('collab.helpPendingCollapsed', {
-          name: pending[0].targetProviderName,
+          name: pendingName,
         })
       : t('collab.helpSub');
 
@@ -435,7 +442,9 @@ export function JobHelpSection({theme, job, canHelp = true}: Props) {
                   style={[styles.collabRow, {borderColor: theme.border}]}>
                   <View style={{flex: 1, minWidth: 0}}>
                     <Text style={[styles.name, {color: theme.text}]}>
-                      {c.targetProviderName || t('collab.partnerFallback')}
+                      {tidyPersonName(
+                        c.targetProviderName || String(t('collab.partnerFallback')),
+                      )}
                     </Text>
                     <Text style={[styles.meta, {color: theme.textSecondary}]}>
                       {c.neededServiceType} · {String(t(collaborationStatusLabelKey(c.status)))}

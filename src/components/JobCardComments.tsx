@@ -41,6 +41,11 @@ type Props = {
   placeholder?: string;
   emptyText?: string;
   postLabel?: string;
+  /**
+   * When true and there are no comments, start collapsed so field work
+   * stays focused (tap header to open composer).
+   */
+  collapseWhenEmpty?: boolean;
 };
 
 function roleIcon(role: JobComment['role']): string {
@@ -79,10 +84,15 @@ export default function JobCardComments({
   placeholder = 'Write a comment…',
   emptyText = 'No comments yet',
   postLabel = 'Post',
+  collapseWhenEmpty = false,
 }: Props) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const list = Array.isArray(comments) ? comments : [];
+  const [expanded, setExpanded] = useState(
+    () => !(collapseWhenEmpty && list.length === 0),
+  );
 
   const handlePost = async () => {
     const trimmed = text.trim();
@@ -92,6 +102,7 @@ export default function JobCardComments({
     try {
       await onSubmit(trimmed);
       setText('');
+      setExpanded(true);
     } catch (e: any) {
       setError(e?.message || 'Failed to post comment');
     } finally {
@@ -99,80 +110,109 @@ export default function JobCardComments({
     }
   };
 
-  const list = Array.isArray(comments) ? comments : [];
+  const showBody = expanded || list.length > 0;
 
   return (
-    <View style={[styles.wrap, {backgroundColor: theme.card, borderColor: theme.border}]}>
-      <View style={styles.header}>
+    <View
+      style={[styles.wrap, {backgroundColor: theme.card, borderColor: theme.border}]}>
+      <TouchableOpacity
+        style={styles.header}
+        onPress={() => setExpanded(v => !v)}
+        accessibilityRole="button"
+        accessibilityState={{expanded: showBody}}
+        accessibilityLabel={title}
+        accessibilityHint={emptyText}>
         <Icon name="chat" size={18} color={theme.primary} />
-        <Text style={[styles.title, {color: theme.text}]}>{title}</Text>
-      </View>
-
-      {list.length === 0 ? (
-        <Text style={[styles.empty, {color: theme.textSecondary}]}>{emptyText}</Text>
-      ) : (
-        list.map(c => (
-          <View
-            key={c._id}
-            style={[styles.item, {borderBottomColor: theme.border}]}>
-            <View style={styles.meta}>
-              <Icon name={roleIcon(c.role)} size={16} color={theme.primary} />
-              <Text style={[styles.role, {color: theme.primary}]}>
-                {roleLabel(c.role)}
-              </Text>
-              {c.authorName ? (
-                <Text style={[styles.author, {color: theme.textSecondary}]} numberOfLines={1}>
-                  {c.authorName}
-                </Text>
-              ) : null}
-              <Text style={[styles.time, {color: theme.textSecondary}]}>
-                {formatTime(c.createdAt)}
-              </Text>
-            </View>
-            <Text style={[styles.body, {color: theme.text}]}>{c.text}</Text>
-          </View>
-        ))
-      )}
-
-      {canComment ? (
-        <View style={styles.composer}>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                color: theme.text,
-                borderColor: theme.border,
-                backgroundColor: theme.background,
-              },
-            ]}
-            value={text}
-            onChangeText={setText}
-            placeholder={placeholder}
-            placeholderTextColor={theme.textSecondary}
-            multiline
-            editable={!busy}
-          />
-          <TouchableOpacity
-            style={[
-              styles.postBtn,
-              {
-                backgroundColor: theme.primary,
-                opacity: busy || !text.trim() ? 0.5 : 1,
-              },
-            ]}
-            onPress={() => void handlePost()}
-            disabled={busy || !text.trim()}>
-            {busy ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Icon name="send" size={16} color="#fff" />
-                <Text style={styles.postText}>{postLabel}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.headerCopy}>
+          <Text style={[styles.title, {color: theme.text}]}>{title}</Text>
+          {!showBody ? (
+            <Text style={[styles.empty, {color: theme.textSecondary, marginBottom: 0}]}>
+              {emptyText}
+            </Text>
+          ) : null}
         </View>
+        <Icon
+          name={showBody ? 'expand-less' : 'expand-more'}
+          size={22}
+          color={theme.textSecondary}
+        />
+      </TouchableOpacity>
+
+      {showBody ? (
+        <>
+          {list.length === 0 ? (
+            <Text style={[styles.empty, {color: theme.textSecondary}]}>
+              {emptyText}
+            </Text>
+          ) : (
+            list.map(c => (
+              <View
+                key={c._id}
+                style={[styles.item, {borderBottomColor: theme.border}]}>
+                <View style={styles.meta}>
+                  <Icon name={roleIcon(c.role)} size={16} color={theme.primary} />
+                  <Text style={[styles.role, {color: theme.primary}]}>
+                    {roleLabel(c.role)}
+                  </Text>
+                  {c.authorName ? (
+                    <Text
+                      style={[styles.author, {color: theme.textSecondary}]}
+                      numberOfLines={1}>
+                      {c.authorName}
+                    </Text>
+                  ) : null}
+                  <Text style={[styles.time, {color: theme.textSecondary}]}>
+                    {formatTime(c.createdAt)}
+                  </Text>
+                </View>
+                <Text style={[styles.body, {color: theme.text}]}>{c.text}</Text>
+              </View>
+            ))
+          )}
+
+          {canComment ? (
+            <View style={styles.composer}>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    color: theme.text,
+                    borderColor: theme.border,
+                    backgroundColor: theme.background,
+                  },
+                ]}
+                value={text}
+                onChangeText={setText}
+                placeholder={placeholder}
+                placeholderTextColor={theme.textSecondary}
+                multiline
+                editable={!busy}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.postBtn,
+                  {
+                    backgroundColor: theme.primary,
+                    opacity: busy || !text.trim() ? 0.5 : 1,
+                  },
+                ]}
+                onPress={() => void handlePost()}
+                disabled={busy || !text.trim()}
+                accessibilityRole="button"
+                accessibilityLabel={postLabel}>
+                {busy ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Icon name="send" size={16} color="#fff" />
+                    <Text style={styles.postText}>{postLabel}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+            </View>
+          ) : null}
+        </>
       ) : null}
     </View>
   );
@@ -180,24 +220,29 @@ export default function JobCardComments({
 
 const styles = StyleSheet.create({
   wrap: {
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginTop: 12,
+    marginHorizontal: 0,
+    marginBottom: 0,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    padding: 14,
+    padding: 12,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 10,
+  },
+  headerCopy: {
+    flex: 1,
+    minWidth: 0,
   },
   title: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   empty: {
     fontSize: 13,
+    marginTop: 4,
     marginBottom: 8,
   },
   item: {
@@ -232,7 +277,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   input: {
-    minHeight: 72,
+    minHeight: 56,
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 12,

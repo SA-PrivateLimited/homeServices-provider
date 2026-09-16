@@ -225,10 +225,10 @@ export const loginFromWeb = StyleSheet.create({
   },
   readonlyPhone: {
     flexDirection: 'column',
-    gap: 4,
+    gap: 6,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    marginBottom: 12,
+    marginBottom: 4,
     borderRadius: 14,
     backgroundColor: '#F1F4F8',
     borderWidth: 1,
@@ -236,13 +236,38 @@ export const loginFromWeb = StyleSheet.create({
   },
   readonlyPhoneLabel: {
     fontSize: 12,
+    fontWeight: '600',
     color: WEB.textSecondary,
   },
+  readonlyPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   readonlyPhoneValue: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.32,
     color: WEB.text,
+  },
+  editMobileBtn: {
+    minHeight: 44,
+    minWidth: 44,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editMobileText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: WEB.primary,
+  },
+  pinFieldBlock: {
+    flexDirection: 'column',
+    gap: 6,
   },
   linkRow: {
     flexDirection: 'row',

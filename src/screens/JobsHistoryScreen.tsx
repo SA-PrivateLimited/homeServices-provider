@@ -20,16 +20,35 @@ import {
   getMyJobCards,
   type ProviderJobCard,
 } from '../services/api/jobsApi';
-import {formatJobStatusDate, normalizeJobStatusKey} from '../utils/jobStatus';
+import {formatJobDate, normalizeJobStatusKey} from '../utils/jobStatus';
 import {jobCustomerDisplayName} from '../utils/partnerDisplayName';
 import {historyFromWeb as s} from '../fromWebCss/historyFromWeb.styles';
 import {CrystalSurface} from '../components/CrystalSurface';
+import {navigationRef} from '../navigation/rootNavigation';
 
 const PAGE_SIZE = 50;
 const FILTERS = ['completed', 'cancelled'] as const;
 
 function jobId(job: ProviderJobCard): string {
-  return String(job._id || job.id || '');
+  return String(job._id || job.id || '').trim();
+}
+
+/** Compact history meta — scanning, not Active-job status lines. */
+function historyDateLine(
+  status: string | undefined,
+  date: string | undefined,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  const formatted = formatJobDate(date);
+  if (!formatted) return '';
+  const key = normalizeJobStatusKey(status);
+  if (key === 'completed') {
+    return String(t('history.completedMeta', {date: formatted}));
+  }
+  if (key === 'cancelled' || key === 'rejected') {
+    return String(t('history.cancelledMeta', {date: formatted}));
+  }
+  return formatted;
 }
 
 function matchesHistoryFilter(
@@ -47,15 +66,19 @@ function sortByUpdatedDesc(a: ProviderJobCard, b: ProviderJobCard): number {
   return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
 }
 
+/** Open root-stack JobDetails (same destination Active jobs use). */
 function openJobDetails(navigation: any, id: string) {
-  if (!id) return;
-  let nav = navigation;
-  while (nav?.getParent?.()) {
-    const parent = nav.getParent();
-    if (!parent) break;
-    nav = parent;
+  const jobCardId = String(id || '').trim();
+  if (!jobCardId) return;
+
+  // Prefer root ref — History tab is nested (stack → tabs → root).
+  if (navigationRef.isReady()) {
+    navigationRef.navigate('JobDetails', {jobCardId});
+    return;
   }
-  nav.navigate('JobDetails', {jobCardId: id});
+
+  // Fallback: bubble like Active services.
+  navigation.navigate('JobDetails', {jobCardId});
 }
 
 /**
@@ -227,12 +250,14 @@ export default function JobsHistoryScreen({navigation}: any) {
             const id = jobId(item);
             const status = String(item.status || '');
             const statusKey = normalizeJobStatusKey(status);
-            const dateLine = formatJobStatusDate(
+            const dateLine = historyDateLine(
               status,
               item.updatedAt || item.createdAt,
+              t,
             );
             const customerName = jobCustomerDisplayName(
-              item.customerName,
+              item.customerName ||
+                (item as {patientName?: string}).patientName,
               String(t('jobs.unnamedCustomer')),
             );
             const serviceType = item.serviceType || String(t('jobs.service'));
@@ -250,12 +275,12 @@ export default function JobsHistoryScreen({navigation}: any) {
                   primary={primary}
                   card={theme.card}
                   isDark={isDarkMode}
-                  statusColor={cancelled ? errorColor : success}
                   style={[
                     s.card,
-                    cancelled
-                      ? {borderLeftWidth: 4, borderLeftColor: errorColor}
-                      : {borderLeftWidth: 4, borderLeftColor: success},
+                    {
+                      borderLeftWidth: 3,
+                      borderLeftColor: cancelled ? errorColor : success,
+                    },
                   ]}
                   contentStyle={s.row}>
                   <View style={s.main}>

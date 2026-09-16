@@ -1,4 +1,3 @@
-import i18n from '../i18n';
 import {formatJobRequirements} from './formatJobRequirements';
 import type {QuestionnaireItem} from '../services/api/serviceCategoriesApi';
 
@@ -33,6 +32,7 @@ export function resolveServiceRequestProblemText(
     request.serviceType,
   );
   if (rows.length) {
+    const i18n = require('../i18n').default as {t: (k: string) => string};
     const notProvided = i18n.t('jobDetail.notProvided');
     const values = rows
       .map((row) => row.value.trim())
