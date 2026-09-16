@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Button, toast} from 'sapvt-ltd-app-packages';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
@@ -160,7 +159,6 @@ export default function JobDetailsScreen({navigation, route}: any) {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const {t} = useTranslation();
   const tx = (key: string, opts?: any) => String(t(key, opts));
-  const insets = useSafeAreaInsets();
   void colorTheme;
 
   const [jobCard, setJobCard] = useState<JobCard | null>(null);
