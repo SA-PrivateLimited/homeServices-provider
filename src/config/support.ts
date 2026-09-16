@@ -13,10 +13,11 @@ export const PRIVACY_POLICY_URL = `${PARTNER_ORIGIN}${PRIVACY_POLICY_PATH}`;
 export const TERMS_OF_SERVICE_URL = `${PARTNER_ORIGIN}${TERMS_OF_SERVICE_PATH}`;
 export const TERMS_URL = TERMS_OF_SERVICE_URL;
 /**
- * Optional Play Console “Account deletion” web URL.
- * In-app deletion lives under Settings → Account; this page documents the right.
+ * Play Console “Account deletion” web URL (backend, no login).
+ * In-app deletion lives under Settings → Account & security.
  */
-export const ACCOUNT_DELETION_INFO_URL = PRIVACY_POLICY_URL;
+export const ACCOUNT_DELETION_INFO_URL =
+  'https://api.akansho.com/partner/account-deletion';
 
 export const LEGAL_ENTITY = 'Akansho';
 export const PRODUCT_NAME = 'Akansho Partner';

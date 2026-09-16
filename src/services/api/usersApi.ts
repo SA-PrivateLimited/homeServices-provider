@@ -76,11 +76,11 @@ export async function getMe(): Promise<User | null> {
 }
 
 /**
- * Permanently delete the authenticated Partner/Customer account (Play Store).
- * Backend: DELETE /api/users/me
+ * Permanently delete the authenticated Partner account (Play Store).
+ * Backend: DELETE /api/partner/account-deletion
  */
 export async function deleteMe(): Promise<void> {
-  await apiDelete('/users/me');
+  await apiDelete('/partner/account-deletion');
 }
 
 /**
