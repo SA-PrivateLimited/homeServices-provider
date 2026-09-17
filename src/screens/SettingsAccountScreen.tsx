@@ -20,11 +20,11 @@ import {CommonActions} from '@react-navigation/native';
 import {CrystalSurface} from '../components/CrystalSurface';
 import {NotificationsSettingsCard} from '../components/NotificationsSettingsCard';
 import {
+  allowBiometricOfferNextLogin,
   biometricKindLabel,
-  enableBiometricUnlock,
+  disableAccountBiometric,
   getBiometricAvailability,
-  isBiometricUnlockEnabled,
-  setBiometricUnlockEnabled,
+  isAccountBiometricEnabled,
 } from '../services/biometricUnlock';
 import {
   PARTNER_COLOR_THEMES,
@@ -47,9 +47,9 @@ export default function SettingsAccountScreen({navigation}: any) {
     setColorTheme,
   } = useStore();
   const theme = useResolvedTheme();
-  const phone = formatPhoneDisplay(
-    currentUser?.phoneNumber || currentUser?.phone || '',
-  );
+  const accountPhone =
+    currentUser?.phoneNumber || currentUser?.phone || '';
+  const phone = formatPhoneDisplay(accountPhone);
   const [showLogout, setShowLogout] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
@@ -65,34 +65,36 @@ export default function SettingsAccountScreen({navigation}: any) {
     let mounted = true;
     void (async () => {
       const avail = await getBiometricAvailability();
-      const enabled = await isBiometricUnlockEnabled();
+      const enabled = accountPhone
+        ? await isAccountBiometricEnabled(String(accountPhone))
+        : false;
       if (!mounted) return;
       setBiometricAvailable(avail.available);
       setBiometricEnabled(enabled);
-      setBiometricKind(biometricKindLabel(avail.biometryType, t));
+      setBiometricKind(biometricKindLabel(avail.kind, t));
     })();
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, accountPhone]);
 
   const onToggleBiometric = async (next: boolean) => {
     setBiometricBusy(true);
     setBiometricError(null);
     try {
       if (next) {
-        const result = await enableBiometricUnlock({
-          promptMessage: String(
-            t('biometric.enablePrompt', {kind: biometricKind}),
-          ),
-          cancelButtonText: String(t('common.cancel') || 'Cancel'),
-        });
-        setBiometricEnabled(result.enabled);
-        if (!result.enabled) {
-          setBiometricError(String(t('biometric.enableFailed')));
+        if (!accountPhone) {
+          setBiometricEnabled(false);
+          return;
         }
-      } else {
-        await setBiometricUnlockEnabled(false);
+        await allowBiometricOfferNextLogin(String(accountPhone));
+        const alreadyOn = await isAccountBiometricEnabled(String(accountPhone));
+        setBiometricEnabled(alreadyOn);
+        if (!alreadyOn) {
+          setBiometricError(String(t('biometric.enableOnLogin')));
+        }
+      } else if (accountPhone) {
+        await disableAccountBiometric(String(accountPhone));
         setBiometricEnabled(false);
       }
     } catch {
@@ -104,11 +106,6 @@ export default function SettingsAccountScreen({navigation}: any) {
   };
 
   const leaveToLogin = async () => {
-    try {
-      await setBiometricUnlockEnabled(false);
-    } catch {
-      /* ignore */
-    }
     try {
       await authService.logout();
     } catch {
@@ -150,6 +147,9 @@ export default function SettingsAccountScreen({navigation}: any) {
               setDeleting(true);
               try {
                 await deleteMe();
+                if (accountPhone) {
+                  await disableAccountBiometric(String(accountPhone));
+                }
                 await leaveToLogin();
               } catch (error: any) {
                 Alert.alert(
