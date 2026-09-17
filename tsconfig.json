@@ -20,6 +20,7 @@
     "babel.config.js",
     "metro.config.js",
     "jest.config.js",
-    "__tests__"
+    "__tests__",
+    "src/**/__tests__/**"
   ]
 }
