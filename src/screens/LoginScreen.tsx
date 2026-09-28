@@ -203,6 +203,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   };
 
   useEffect(() => {
+    if (step !== 'otp' || !firebasePhone.autoVerified) return;
+    setNewPin('');
+    setConfirmPin('');
+    setInlineError(null);
+    setOtpBanner(null);
+    setStep('createPin');
+  }, [step, firebasePhone.autoVerified]);
+
+  useEffect(() => {
     if (!otpBanner) {
       setOtpSecondsLeft(0);
       return;
