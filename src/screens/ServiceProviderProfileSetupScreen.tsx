@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useMemo} from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,14 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import auth from '@react-native-firebase/auth';
 import {Select} from 'sapvt-ltd-app-packages';
 import {providersApi} from '../services/api/providersApi';
+import {getServiceCategories} from '../services/api/serviceCategoriesApi';
+import {
+  FALLBACK_JOBS,
+  JOB_OTHER,
+  catalogJobNames,
+  jobSelectOptions,
+  resolvedJobName,
+} from '../utils/jobSelect';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {uploadAssetFromUri} from '../services/api/assetsApi';
 import {useStore} from '../store';
@@ -22,24 +30,6 @@ import AlertModal from '../components/AlertModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import useTranslation from '../hooks/useTranslation';
 import {getUserFacingErrorMessage} from '../utils/userFacingError';
-// Service Provider Types (replacing doctor specialties)
-const SERVICE_TYPES = [
-  'Carpenter',
-  'Electrician',
-  'Plumber',
-  'Painter',
-  'Mason',
-  'Welder',
-  'AC Repair',
-  'Appliance Repair',
-  'Cleaning Service',
-  'Gardener',
-  'Roofer',
-  'Flooring',
-  'Tiles & Marble',
-  'Interior Designer',
-  'Other',
-];
 
 const LANGUAGES = ['English', 'Hindi', 'Bengali', 'Telugu', 'Marathi', 'Tamil', 'Gujarati', 'Kannada', 'Malayalam', 'Punjabi'];
 
@@ -49,6 +39,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const [name, setName] = useState('');
   const [serviceType, setServiceType] = useState('');
+  const [customJobName, setCustomJobName] = useState('');
+  const [jobCatalog, setJobCatalog] = useState<string[]>(FALLBACK_JOBS);
   const [phone, setPhone] = useState('');
   const [secondaryPhone, setSecondaryPhone] = useState('');
   const [phoneVerified, setPhoneVerified] = useState(false);
@@ -102,6 +94,25 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
   useEffect(() => {
     checkExistingProfile();
   }, []);
+
+  useEffect(() => {
+    void getServiceCategories()
+      .then(cats => {
+        const names = catalogJobNames(cats);
+        if (names.length) setJobCatalog(names);
+      })
+      .catch(() => {});
+  }, []);
+
+  const jobOptions = useMemo(
+    () =>
+      jobSelectOptions(
+        jobCatalog,
+        serviceType,
+        String(t('providerProfile.jobOther')),
+      ),
+    [jobCatalog, serviceType, t],
+  );
 
   const checkExistingProfile = async () => {
     const user = auth().currentUser;
@@ -160,16 +171,22 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         let savedServiceType = (profile.serviceType || profile.specialization || profile.specialty || '').trim();
 
         if (savedServiceType) {
-          const normalized = SERVICE_TYPES.find(type =>
-            type.toLowerCase() === savedServiceType.toLowerCase() ||
-            type === savedServiceType
-          );
-          if (normalized) {
-            savedServiceType = normalized;
+          if (savedServiceType.toLowerCase() === 'other') {
+            savedServiceType = JOB_OTHER;
+          } else {
+            const normalized = FALLBACK_JOBS.find(
+              type =>
+                type.toLowerCase() === savedServiceType.toLowerCase() ||
+                type === savedServiceType,
+            );
+            if (normalized) {
+              savedServiceType = normalized;
+            }
           }
         }
 
         setServiceType(savedServiceType);
+        setCustomJobName('');
 
         // For phone: prioritize Firebase Auth phone number (if logged in with phone)
         // This ensures the verified phone from auth is always used as primary
@@ -432,7 +449,8 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
     }
 
     // Validate service type
-    if (!serviceType || serviceType.trim().length === 0) {
+    const jobName = resolvedJobName(serviceType, customJobName);
+    if (!jobName) {
       setAlertModal({
         visible: true,
         title: t('common.error'),
@@ -545,8 +563,9 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
 
       const providerData: any = {
         name,
-        specialization: serviceType,
-        specialty: serviceType, // Legacy field
+        serviceType: jobName,
+        specialization: jobName,
+        specialty: jobName,
         phone,
         phoneVerified: phoneVerified || existingProfile?.phoneVerified || false,
         secondaryPhone: secondaryPhone || null,
@@ -668,18 +687,47 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
 
         <Select
           label={String(t('providerProfile.serviceTypeRequired'))}
-          options={SERVICE_TYPES.map(s => ({value: s, label: s}))}
+          options={jobOptions}
           value={serviceType}
-          onChange={setServiceType}
+          onChange={value => {
+            if (value === JOB_OTHER) {
+              setCustomJobName(current =>
+                current || (serviceType !== JOB_OTHER ? serviceType : ''),
+              );
+            } else {
+              setCustomJobName('');
+            }
+            setServiceType(value);
+          }}
           placeholder={String(t('providerProfile.selectServiceType'))}
           title={String(t('providerProfile.selectServiceType'))}
+          showSearch
+          searchPlaceholder={String(t('providerProfile.searchServiceType'))}
+          emptySearchText={String(t('providerProfile.noServicesFound'))}
+          allowCreate
+          createLabel={String(
+            t('providerProfile.useCustomJob', {
+              defaultValue: 'Use “{{query}}”',
+            }),
+          )}
+          helperText={String(t('providerProfile.jobSearchHint'))}
         />
+        {serviceType === JOB_OTHER ? (
+          <TextInput
+            style={styles.input}
+            value={customJobName}
+            onChangeText={setCustomJobName}
+            placeholder={String(t('providerProfile.jobOtherPlaceholder'))}
+          />
+        ) : null}
 
         {/* Primary Phone */}
         <View style={styles.phoneSection}>
           <View style={styles.phoneHeader}>
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
-              <Text style={styles.label}>Primary Phone *</Text>
+              <Text style={styles.label}>
+                {String(t('providerProfile.primaryPhoneRequired'))}
+              </Text>
               {phoneVerified && (
                 <Icon name="checkmark-circle" size={16} color="#4CAF50" />
               )}
@@ -688,7 +736,7 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           <View style={styles.phoneRow}>
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1}}>
               <Text style={[styles.phoneDisplay, {color: phone ? '#000' : '#999'}]}>
-                {phone || 'Not set'}
+                {phone || String(t('providerProfile.notSet'))}
               </Text>
               {(() => {
                 const authUser = auth().currentUser;
@@ -702,14 +750,19 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           </View>
           {phoneVerified ? (
             <Text style={styles.verifiedText}>
-              Verified {(() => {
+              {String(t('providerProfile.verified'))}{' '}
+              {(() => {
                 const authUser = auth().currentUser;
                 const loggedInWithPhone = !!authUser?.phoneNumber;
-                return loggedInWithPhone ? '(Cannot be changed)' : '';
+                return loggedInWithPhone
+                  ? String(t('providerProfile.cannotBeChanged'))
+                  : '';
               })()}
             </Text>
           ) : phone ? (
-            <Text style={styles.notVerifiedText}>Not Verified</Text>
+            <Text style={styles.notVerifiedText}>
+              {String(t('providerProfile.notVerified'))}
+            </Text>
           ) : null}
         </View>
 
@@ -717,7 +770,9 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         <View style={styles.phoneSection}>
           <View style={styles.phoneHeader}>
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
-              <Text style={styles.label}>Secondary Phone</Text>
+              <Text style={styles.label}>
+                {String(t('providerProfile.secondaryPhoneLabel'))}
+              </Text>
               {secondaryPhoneVerified && (
                 <Icon name="checkmark-circle" size={16} color="#4CAF50" />
               )}
@@ -741,15 +796,17 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
 
                       setAlertModal({
                         visible: true,
-                        title: 'Success',
-                        message: 'Secondary phone removed',
+                        title: String(t('providerProfile.success')),
+                        message: String(t('providerProfile.secondaryPhoneRemoved')),
                         type: 'success',
                       });
                     } catch (error: any) {
                       setAlertModal({
                         visible: true,
-                        title: 'Error',
-                        message: error.message || 'Failed to remove secondary phone',
+                        title: String(t('providerProfile.error')),
+                        message:
+                          error.message ||
+                          String(t('providerProfile.failedToRemoveSecondaryPhone')),
                         type: 'error',
                       });
                     }
@@ -764,18 +821,24 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
               style={styles.input}
               value={secondaryPhone}
               onChangeText={setSecondaryPhone}
-              placeholder="Secondary phone (optional)"
+              placeholder={String(t('providerProfile.secondaryPhone'))}
               keyboardType="phone-pad"
             />
           )}
           {secondaryPhoneVerified ? (
-            <Text style={styles.verifiedText}>Verified</Text>
+            <Text style={styles.verifiedText}>
+              {String(t('providerProfile.verified'))}
+            </Text>
           ) : secondaryPhone ? (
-            <Text style={styles.notVerifiedText}>Not Verified</Text>
+            <Text style={styles.notVerifiedText}>
+              {String(t('providerProfile.notVerified'))}
+            </Text>
           ) : null}
         </View>
 
-        <Text style={styles.label}>Experience (years) *</Text>
+        <Text style={styles.label}>
+          {String(t('providerProfile.experienceYearsRequired'))}
+        </Text>
         <TextInput
           style={styles.input}
           value={experience}
@@ -784,16 +847,20 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           keyboardType="numeric"
         />
 
-        <Text style={styles.label}>Your Address *</Text>
+        <Text style={styles.label}>
+          {String(t('providerProfile.yourAddressRequired'))}
+        </Text>
         <Text style={styles.subLabel}>
-          Add your home or office address to accept service requests
+          {String(t('providerProfile.addressDescription'))}
         </Text>
         <ProviderAddressInput
           value={providerAddress}
           onChange={setProviderAddress}
         />
 
-        <Text style={styles.label}>Languages *</Text>
+        <Text style={styles.label}>
+          {String(t('providerProfile.languagesRequired'))}
+        </Text>
         <View style={styles.languagesContainer}>
           {LANGUAGES.map(lang => (
             <TouchableOpacity
@@ -814,19 +881,25 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
           ))}
         </View>
 
-        <Text style={styles.label}>Verification Documents</Text>
+        <Text style={styles.label}>
+          {String(t('providerProfile.verificationDocuments'))}
+        </Text>
         <Text style={styles.subLabel}>
-          Upload documents to verify your identity and credentials
+          {String(t('providerProfile.verificationDocumentsDescription'))}
         </Text>
 
         {/* ID Proof */}
         <View style={styles.documentSection}>
           <View style={styles.documentLabelRow}>
-            <Text style={styles.documentLabel}>ID Proof (Aadhaar/PAN/Driving License) *</Text>
+            <Text style={styles.documentLabel}>
+              {String(t('providerProfile.idProofFull'))}
+            </Text>
             {existingProfile?.documents?.idProofVerified && (
               <View style={styles.verifiedBadge}>
                 <Icon name="verified" size={16} color="#4CAF50" />
-                <Text style={styles.verifiedBadgeText}>Verified</Text>
+                <Text style={styles.verifiedBadgeText}>
+                  {String(t('providerProfile.verified'))}
+                </Text>
               </View>
             )}
           </View>
@@ -866,9 +939,10 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
                 <>
                   <Icon name="cloud-upload" size={24} color="#007AFF" />
                   <Text style={styles.uploadButtonText}>
-                    {existingProfile?.documents?.idProofVerified && existingProfile?.approvalStatus !== 'rejected' 
-                      ? 'Document Verified' 
-                      : 'Upload ID Proof'}
+                    {existingProfile?.documents?.idProofVerified &&
+                    existingProfile?.approvalStatus !== 'rejected'
+                      ? String(t('providerProfile.documentVerified'))
+                      : String(t('providerProfile.uploadIdProof'))}
                   </Text>
                 </>
               )}
@@ -879,11 +953,15 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         {/* Address Proof */}
         <View style={styles.documentSection}>
           <View style={styles.documentLabelRow}>
-            <Text style={styles.documentLabel}>Address Proof (Utility Bill/Rental Agreement) *</Text>
+            <Text style={styles.documentLabel}>
+              {String(t('providerProfile.addressProofFull'))}
+            </Text>
             {existingProfile?.documents?.addressProofVerified && (
               <View style={styles.verifiedBadge}>
                 <Icon name="verified" size={16} color="#4CAF50" />
-                <Text style={styles.verifiedBadgeText}>Verified</Text>
+                <Text style={styles.verifiedBadgeText}>
+                  {String(t('providerProfile.verified'))}
+                </Text>
               </View>
             )}
           </View>
@@ -923,9 +1001,10 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
                 <>
                   <Icon name="cloud-upload" size={24} color="#007AFF" />
                   <Text style={styles.uploadButtonText}>
-                    {existingProfile?.documents?.addressProofVerified && existingProfile?.approvalStatus !== 'rejected' 
-                      ? 'Document Verified' 
-                      : 'Upload Address Proof'}
+                    {existingProfile?.documents?.addressProofVerified &&
+                    existingProfile?.approvalStatus !== 'rejected'
+                      ? String(t('providerProfile.documentVerified'))
+                      : String(t('providerProfile.uploadAddressProof'))}
                   </Text>
                 </>
               )}
@@ -936,15 +1015,21 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
         {/* Certificate (Optional) */}
         <View style={styles.documentSection}>
           <View style={styles.documentLabelRow}>
-            <Text style={styles.documentLabel}>Professional Certificate (Optional)</Text>
+            <Text style={styles.documentLabel}>
+              {String(t('providerProfile.professionalCertificate'))}
+            </Text>
             {existingProfile?.documents?.certificateVerified && (
               <View style={styles.verifiedBadge}>
                 <Icon name="verified" size={16} color="#4CAF50" />
-                <Text style={styles.verifiedBadgeText}>Verified</Text>
+                <Text style={styles.verifiedBadgeText}>
+                  {String(t('providerProfile.verified'))}
+                </Text>
               </View>
             )}
           </View>
-          <Text style={styles.optionalText}>Upload any relevant certificates or licenses</Text>
+          <Text style={styles.optionalText}>
+            {String(t('providerProfile.certificateDescription'))}
+          </Text>
           {certificate ? (
             <View style={styles.documentPreview}>
               <Image source={{uri: certificate}} style={styles.documentImage} />
@@ -981,9 +1066,10 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
                 <>
                   <Icon name="cloud-upload" size={24} color="#007AFF" />
                   <Text style={styles.uploadButtonText}>
-                    {existingProfile?.documents?.certificateVerified && existingProfile?.approvalStatus !== 'rejected' 
-                      ? 'Document Verified' 
-                      : 'Upload Certificate'}
+                    {existingProfile?.documents?.certificateVerified &&
+                    existingProfile?.approvalStatus !== 'rejected'
+                      ? String(t('providerProfile.documentVerified'))
+                      : String(t('providerProfile.uploadCertificate'))}
                   </Text>
                 </>
               )}
@@ -999,7 +1085,9 @@ export default function ServiceProviderProfileSetupScreen({navigation}: any) {
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.submitButtonText}>
-              {existingProfile ? 'Update Profile' : 'Create Profile'}
+              {existingProfile
+                ? String(t('providerProfile.updateProfile'))
+                : String(t('providerProfile.createProfile'))}
             </Text>
           )}
         </TouchableOpacity>

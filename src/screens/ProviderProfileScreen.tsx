@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useEffect, useCallback, useMemo} from 'react';
 import {useFocusEffect} from '@react-navigation/native';
 import {
   View,
@@ -15,10 +15,12 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {Select} from 'sapvt-ltd-app-packages';
 import {useStore} from '../store';
 import {getMyProfile, updateMyProfile} from '../services/api/providersApi';
+import {getServiceCategories} from '../services/api/serviceCategoriesApi';
 import {uploadAssetFromUri} from '../services/api/assetsApi';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {getUserId} from '../services/session';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
+import {pageBackdropColor} from '../components/AppBackdrop';
 import ProviderServiceAddressFields, {
   type ProviderServiceAddressValue,
 } from '../components/ProviderServiceAddressFields';
@@ -27,24 +29,19 @@ import {WorkShowcaseEditor} from '../components/WorkShowcaseEditor';
 import {KycDocumentsCard} from '../components/KycDocumentsCard';
 import useTranslation from '../hooks/useTranslation';
 import {APP_VERSION_NAME} from '../utils/appVersion';
-
-const SERVICE_TYPES = [
-  'Carpenter',
-  'Electrician',
-  'Plumber',
-  'Painter',
-  'Mason',
-  'Welder',
-  'AC Repair',
-  'Appliance Repair',
-  'Cleaning Service',
-  'Gardener',
-  'Roofer',
-  'Flooring',
-  'Tiles & Marble',
-  'Interior Designer',
-  'Other',
-];
+import {
+  isProfileIncomplete,
+  PARTNER_PROFILE_STEP_LABEL_KEY,
+  partnerProfileCompletionPercent,
+  partnerProfileSteps,
+} from '../utils/partnerProfile';
+import {
+  FALLBACK_JOBS,
+  JOB_OTHER,
+  catalogJobNames,
+  jobSelectOptions,
+  resolvedJobName,
+} from '../utils/jobSelect';
 
 interface ProviderProfile {
   name: string;
@@ -60,6 +57,7 @@ interface ProviderProfile {
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
   photos?: string[];
+  showWorkShowcase?: boolean;
   documents?: {
     idProof?: string;
     addressProof?: string;
@@ -82,7 +80,7 @@ function resolveServiceType(provider: any): string {
       '',
   ).trim();
   if (!raw) return '';
-  const normalized = SERVICE_TYPES.find(
+  const normalized = FALLBACK_JOBS.find(
     type => type.toLowerCase() === raw.toLowerCase() || type === raw,
   );
   return normalized || raw;
@@ -141,6 +139,7 @@ function mapProvider(provider: any): ProviderProfile {
     approvalStatus: provider.approvalStatus,
     rejectionReason: provider.rejectionReason,
     photos: Array.isArray(provider.photos) ? provider.photos : [],
+    showWorkShowcase: provider.showWorkShowcase === true,
     documents: provider.documents,
     address: merged,
   };
@@ -157,6 +156,8 @@ export default function ProviderProfileScreen({navigation}: any) {
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [editName, setEditName] = useState('');
   const [editServiceType, setEditServiceType] = useState('');
+  const [editCustomJob, setEditCustomJob] = useState('');
+  const [jobCatalog, setJobCatalog] = useState<string[]>(FALLBACK_JOBS);
   const [editExperience, setEditExperience] = useState('');
   const [editAddress, setEditAddress] = useState<ProviderServiceAddressValue>({
     type: 'home',
@@ -179,6 +180,7 @@ export default function ProviderProfileScreen({navigation}: any) {
   const beginEdit = useCallback((data: ProviderProfile) => {
     setEditName(data.name || '');
     setEditServiceType(data.serviceType || '');
+    setEditCustomJob('');
     setEditExperience(String(data.experience ?? 0));
     setEditAddress(
       normalizeAddress(data.address) || {
@@ -201,6 +203,7 @@ export default function ProviderProfileScreen({navigation}: any) {
     if (profile) {
       setEditName(profile.name || '');
       setEditServiceType(profile.serviceType || '');
+      setEditCustomJob('');
       setEditExperience(String(profile.experience ?? 0));
       setEditAddress(
         normalizeAddress(profile.address) || {
@@ -218,6 +221,16 @@ export default function ProviderProfileScreen({navigation}: any) {
     }
   }, [profile]);
 
+  const toggleDetails = useCallback(() => {
+    if (isEditing) {
+      cancelEdit();
+      return;
+    }
+    if (profile) {
+      beginEdit(profile);
+    }
+  }, [isEditing, profile, beginEdit, cancelEdit]);
+
   const loadProviderProfile = useCallback(async () => {
     if (!userId) {
       setLoading(false);
@@ -232,6 +245,7 @@ export default function ProviderProfileScreen({navigation}: any) {
         setProfile(mapped);
         setEditName(mapped.name);
         setEditServiceType(mapped.serviceType || '');
+        setEditCustomJob('');
         setEditExperience(String(mapped.experience ?? 0));
         setEditAddress(
           normalizeAddress(mapped.address) || {
@@ -262,6 +276,15 @@ export default function ProviderProfileScreen({navigation}: any) {
     void loadProviderProfile();
   }, [loadProviderProfile]);
 
+  useEffect(() => {
+    void getServiceCategories()
+      .then(cats => {
+        const names = catalogJobNames(cats);
+        if (names.length) setJobCatalog(names);
+      })
+      .catch(() => {});
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       if (!isEditing) {
@@ -280,7 +303,8 @@ export default function ProviderProfileScreen({navigation}: any) {
       );
       return;
     }
-    if (!editServiceType.trim()) {
+    const jobName = resolvedJobName(editServiceType, editCustomJob);
+    if (!jobName) {
       Alert.alert(
         String(t('common.error') || 'Error'),
         String(t('profile.serviceTypeRequired') || 'Service type is required'),
@@ -317,9 +341,9 @@ export default function ProviderProfileScreen({navigation}: any) {
 
       const updated = await updateMyProfile({
         name,
-        specialization: editServiceType.trim(),
-        specialty: editServiceType.trim(),
-        serviceType: editServiceType.trim(),
+        specialization: jobName,
+        specialty: jobName,
+        serviceType: jobName,
         experience: experienceNum,
         address: addressPayload,
         location: {
@@ -383,6 +407,26 @@ export default function ProviderProfileScreen({navigation}: any) {
     profile?.specialty ||
     String(t('profile.notSpecified'));
 
+  const completenessProfile = useMemo(
+    () =>
+      profile
+        ? ({
+            ...profile,
+            phoneNumber: profile.phone,
+            displayName: profile.name,
+          } as any)
+        : null,
+    [profile],
+  );
+  const completenessSteps = partnerProfileSteps(completenessProfile, {
+    phoneVerified: Boolean(currentUser?.phoneVerified),
+  });
+  const completenessPercent = partnerProfileCompletionPercent(
+    completenessProfile,
+    {phoneVerified: Boolean(currentUser?.phoneVerified)},
+  );
+  const incomplete = isProfileIncomplete(completenessProfile);
+
   const renderAvatar = (name: string, imageUrlRaw?: string) => {
     const imageUrl = (imageUrlRaw || '').trim();
     const hasValidImage =
@@ -445,19 +489,131 @@ export default function ProviderProfileScreen({navigation}: any) {
   if (loading) {
     return (
       <View
-        style={[styles.centerContainer, {backgroundColor: theme.background}]}>
+        style={[styles.centerContainer, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
         <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
 
   return (
-    <View style={[styles.root, {backgroundColor: theme.background}]}>
+    <View
+      style={[
+        styles.root,
+        {backgroundColor: pageBackdropColor(isDarkMode, theme.background)},
+      ]}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled">
+        {profile?.approvalStatus === 'pending' ? (
+          <View style={[styles.statusBanner, styles.pendingBanner]}>
+            <Icon name="hourglass-outline" size={18} color="#FF9500" />
+            <View style={{flex: 1, minWidth: 0}}>
+              <Text style={styles.statusTitle}>
+                {String(
+                  t('profile.pendingAdminApproval') || t('profile.profilePending'),
+                )}
+              </Text>
+              <Text style={styles.statusDetail}>
+                {String(
+                  t('profile.pendingAdminApprovalDetail') ||
+                    t('profile.completeToGoLiveDetail'),
+                )}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+        {profile?.approvalStatus === 'rejected' ? (
+          <View style={[styles.statusBanner, styles.rejectedBanner]}>
+            <Icon name="close-circle-outline" size={18} color="#FF3B30" />
+            <View style={{flex: 1, minWidth: 0}}>
+              <Text style={styles.statusTitle}>
+                {String(t('profile.rejected') || t('profile.profileRejected'))}
+              </Text>
+              {profile.rejectionReason ? (
+                <Text style={styles.statusDetail}>{profile.rejectionReason}</Text>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
+        {profile ? (
+          <View style={[styles.completenessCard, {backgroundColor: theme.card}]}>
+            <View style={styles.completenessHead}>
+              <Text style={[styles.completenessTitle, {color: theme.text}]}>
+                {String(t('profile.completenessTitle'))}
+              </Text>
+              <View style={styles.completenessScore}>
+                <Text style={[styles.completenessPercent, {color: theme.text}]}>
+                  {completenessPercent}%
+                </Text>
+                <Text style={[styles.completenessMeta, {color: theme.textSecondary}]}>
+                  {String(
+                    t('profile.itemsComplete', {
+                      done: completenessSteps.filter(s => s.done).length,
+                      total: completenessSteps.length,
+                    }) ||
+                      t('profile.completionCount', {
+                        done: completenessSteps.filter(s => s.done).length,
+                        total: completenessSteps.length,
+                      }),
+                  )}
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.progressTrack, {backgroundColor: theme.border}]}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${completenessPercent}%`,
+                    backgroundColor: theme.primary,
+                  },
+                ]}
+              />
+            </View>
+            <View style={styles.completenessSteps}>
+              {completenessSteps.map(step => (
+                <View key={step.key} style={styles.completenessStep}>
+                  <View
+                    style={[
+                      styles.stepDot,
+                      {
+                        backgroundColor: step.done
+                          ? theme.primary
+                          : theme.border,
+                      },
+                    ]}>
+                    {step.done ? (
+                      <Icon name="checkmark" size={12} color="#fff" />
+                    ) : null}
+                  </View>
+                  <Text
+                    style={[
+                      styles.stepLabel,
+                      {color: step.done ? theme.text : theme.textSecondary},
+                    ]}>
+                    {String(t(PARTNER_PROFILE_STEP_LABEL_KEY[step.key]))}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         <View style={[styles.profileHeader, {backgroundColor: theme.card}]}>
+          {profile ? (
+            <TouchableOpacity
+              onPress={() => beginEdit(profile)}
+              style={styles.identityEdit}
+              accessibilityRole="button"
+              accessibilityLabel={String(t('profile.editAria') || t('profile.edit'))}>
+              <Icon name="create-outline" size={16} color={theme.primary} />
+              <Text style={{color: theme.primary, fontWeight: '700', fontSize: 13}}>
+                {String(t('profile.edit') || 'Edit')}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           {renderAvatar(
             profile?.name || currentUser?.name || 'P',
             profile?.profileImage || profile?.photo,
@@ -501,6 +657,27 @@ export default function ProviderProfileScreen({navigation}: any) {
           </Text>
           {profile ? (
             <View style={styles.metaRow}>
+              {incomplete ? (
+                <View
+                  style={[
+                    styles.warnChip,
+                    {borderColor: theme.warning},
+                  ]}>
+                  <Text style={{color: theme.warning, fontSize: 12, fontWeight: '600'}}>
+                    {String(t('profile.incompleteBadge'))}
+                  </Text>
+                </View>
+              ) : (
+                <View
+                  style={[
+                    styles.okChip,
+                    {backgroundColor: `${theme.success}18`},
+                  ]}>
+                  <Text style={{color: theme.success, fontSize: 12, fontWeight: '600'}}>
+                    {String(t('profile.accountActive'))}
+                  </Text>
+                </View>
+              )}
               <Text style={[styles.metaText, {color: theme.textSecondary}]}>
                 {specialtyDisplay}
               </Text>
@@ -512,44 +689,7 @@ export default function ProviderProfileScreen({navigation}: any) {
               </View>
             </View>
           ) : null}
-
-          {profile?.approvalStatus === 'pending' ? (
-            <View style={[styles.statusBanner, styles.pendingBanner]}>
-              <Icon name="hourglass-outline" size={18} color="#FF9500" />
-              <Text style={styles.statusText}>
-                {String(t('profile.profilePending'))}
-              </Text>
-            </View>
-          ) : null}
-          {profile?.approvalStatus === 'rejected' ? (
-            <View style={[styles.statusBanner, styles.rejectedBanner]}>
-              <Icon name="close-circle-outline" size={18} color="#FF3B30" />
-              <Text style={styles.statusText}>
-                {String(t('profile.profileRejected'))}
-                {profile.rejectionReason ? `: ${profile.rejectionReason}` : ''}
-              </Text>
-            </View>
-          ) : null}
         </View>
-
-        {profile ? (
-          <>
-            <WorkShowcaseEditor
-              theme={theme}
-              photos={profile.photos || []}
-              onChange={next =>
-                setProfile(prev => (prev ? {...prev, photos: next} : prev))
-              }
-            />
-            <KycDocumentsCard
-              theme={theme}
-              documents={profile.documents}
-              onUpdated={docs =>
-                setProfile(prev => (prev ? {...prev, documents: docs} : prev))
-              }
-            />
-          </>
-        ) : null}
 
         {!profile ? (
           <View style={styles.section}>
@@ -569,36 +709,27 @@ export default function ProviderProfileScreen({navigation}: any) {
           </View>
         ) : (
           <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text
-                style={[
-                  styles.sectionTitleInline,
-                  {color: theme.textSecondary},
-                ]}>
-                {String(t('profile.professionalDetails')).toUpperCase()}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  if (isEditing) {
-                    void handleSaveProfile();
-                  } else {
-                    beginEdit(profile);
-                  }
-                }}
-                style={styles.editBtn}
-                disabled={saving}>
-                {saving ? (
-                  <ActivityIndicator size="small" color={theme.primary} />
-                ) : (
-                  <Icon
-                    name={isEditing ? 'checkmark' : 'create-outline'}
-                    size={22}
-                    color={theme.primary}
-                  />
-                )}
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={[styles.accordionHead, {backgroundColor: theme.card}]}
+              onPress={toggleDetails}
+              accessibilityRole="button"
+              accessibilityState={{expanded: isEditing}}>
+              <View style={{flex: 1, minWidth: 0}}>
+                <Text style={[styles.accordionTitle, {color: theme.text}]}>
+                  {String(t('profile.professionalDetails'))}
+                </Text>
+                <Text style={[styles.accordionSub, {color: theme.textSecondary}]}>
+                  {String(t('profile.professionalSub'))}
+                </Text>
+              </View>
+              <Icon
+                name={isEditing ? 'chevron-up' : 'chevron-down'}
+                size={22}
+                color={theme.textSecondary}
+              />
+            </TouchableOpacity>
 
+            {isEditing ? (
             <View style={[styles.infoCard, {backgroundColor: theme.card}]}>
               <Text style={[styles.fieldLabel, {color: theme.textSecondary}]}>
                 {String(t('profile.fullName'))}
@@ -624,13 +755,61 @@ export default function ProviderProfileScreen({navigation}: any) {
                 {String(t('profile.serviceType'))}
               </Text>
               {isEditing ? (
-                <Select
-                  options={SERVICE_TYPES.map(s => ({value: s, label: s}))}
-                  value={editServiceType}
-                  onChange={setEditServiceType}
-                  placeholder={String(t('profile.selectServiceType'))}
-                  title={String(t('profile.selectServiceType'))}
-                />
+                <>
+                  <Select
+                    variant="outlined"
+                    allowClear={false}
+                    colors={{
+                      text: theme.text,
+                      textSecondary: theme.textSecondary,
+                      card: theme.card,
+                      border: theme.border,
+                      background: theme.background,
+                      primary: theme.primary,
+                    }}
+                    options={jobSelectOptions(
+                      jobCatalog,
+                      editServiceType,
+                      String(t('profile.jobOther')),
+                    )}
+                    value={editServiceType}
+                    onChange={value => {
+                      if (value === JOB_OTHER) {
+                        setEditCustomJob(current =>
+                          current ||
+                          (editServiceType !== JOB_OTHER ? editServiceType : ''),
+                        );
+                      } else {
+                        setEditCustomJob('');
+                      }
+                      setEditServiceType(value);
+                    }}
+                    placeholder={String(t('profile.selectServiceType'))}
+                    title={String(t('profile.selectServiceType'))}
+                    showSearch
+                    searchPlaceholder={String(t('profile.searchServiceType'))}
+                    emptySearchText={String(t('profile.noServicesFound'))}
+                    allowCreate
+                    createLabel={String(
+                      t('profile.useCustomJob', {
+                        defaultValue: 'Use “{{query}}”',
+                      }),
+                    )}
+                    helperText={String(t('profile.jobSearchHint'))}
+                  />
+                  {editServiceType === JOB_OTHER ? (
+                    <TextInput
+                      style={[
+                        styles.fieldInput,
+                        {color: theme.text, borderColor: theme.border},
+                      ]}
+                      value={editCustomJob}
+                      onChangeText={setEditCustomJob}
+                      placeholder={String(t('profile.jobOtherPlaceholder'))}
+                      placeholderTextColor={theme.textSecondary}
+                    />
+                  ) : null}
+                </>
               ) : (
                 <Text style={[styles.fieldValue, {color: theme.text}]}>
                   {specialtyDisplay}
@@ -788,8 +967,16 @@ export default function ProviderProfileScreen({navigation}: any) {
                 </>
               ) : null}
 
-              {isEditing ? (
-                <View style={styles.editActions}>
+              <KycDocumentsCard
+                embedded
+                theme={theme}
+                documents={profile.documents}
+                onUpdated={docs =>
+                  setProfile(prev => (prev ? {...prev, documents: docs} : prev))
+                }
+              />
+
+              <View style={styles.editActions}>
                   <TouchableOpacity
                     style={[styles.cancelBtn, {borderColor: theme.border}]}
                     onPress={cancelEdit}
@@ -811,10 +998,20 @@ export default function ProviderProfileScreen({navigation}: any) {
                     )}
                   </TouchableOpacity>
                 </View>
-              ) : null}
             </View>
+            ) : null}
           </View>
         )}
+
+        {profile?.showWorkShowcase === true ? (
+          <WorkShowcaseEditor
+            theme={theme}
+            photos={profile.photos || []}
+            onChange={next =>
+              setProfile(prev => (prev ? {...prev, photos: next} : prev))
+            }
+          />
+        ) : null}
 
         {profile && userId ? (
           <View style={styles.section}>
@@ -890,7 +1087,78 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     marginHorizontal: 20,
     borderRadius: 12,
+    position: 'relative',
     ...commonStyles.shadowSmall,
+  },
+  identityEdit: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    zIndex: 2,
+  },
+  completenessCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+    ...commonStyles.shadowSmall,
+  },
+  completenessHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  completenessTitle: {fontSize: 15, fontWeight: '700', flex: 1},
+  completenessMeta: {fontSize: 12, fontWeight: '600'},
+  progressTrack: {height: 6, borderRadius: 99, overflow: 'hidden'},
+  progressFill: {height: 6, borderRadius: 99},
+  completenessSteps: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 12,
+  },
+  completenessStep: {
+    width: '47%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stepDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepLabel: {fontSize: 12, fontWeight: '600', flex: 1},
+  accordionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    ...commonStyles.shadowSmall,
+  },
+  accordionTitle: {fontSize: 16, fontWeight: '700'},
+  accordionSub: {fontSize: 13, marginTop: 2, lineHeight: 18},
+  warnChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  okChip: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   profileHeaderImage: {
     width: 88,
@@ -944,7 +1212,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 8,
-    marginTop: 14,
+    marginHorizontal: 20,
+    marginBottom: 12,
     gap: 8,
     alignSelf: 'stretch',
   },
@@ -964,6 +1233,19 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
   },
+  statusTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
+  },
+  statusDetail: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#4A5568',
+    marginTop: 4,
+  },
+  completenessScore: {alignItems: 'flex-end'},
+  completenessPercent: {fontSize: 22, fontWeight: '800'},
   infoCard: {
     marginHorizontal: 20,
     borderRadius: 12,

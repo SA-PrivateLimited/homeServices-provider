@@ -5,6 +5,29 @@
 
 import {apiGet, apiPut} from './apiClient';
 
+export type ProviderDocKey = 'idProof' | 'addressProof' | 'certificate';
+
+export interface ProviderDocuments {
+  idProof?: string;
+  addressProof?: string;
+  certificate?: string;
+  idProofNumber?: string;
+  addressProofNumber?: string;
+  certificateNumber?: string;
+  idProofType?: string;
+  addressProofType?: string;
+  certificateType?: string;
+  idProofVerified?: boolean;
+  addressProofVerified?: boolean;
+  certificateVerified?: boolean;
+  idProofRejected?: boolean;
+  addressProofRejected?: boolean;
+  certificateRejected?: boolean;
+  idProofRejectionReason?: string;
+  addressProofRejectionReason?: string;
+  certificateRejectionReason?: string;
+}
+
 export interface Provider {
   _id?: string;
   id?: string;
@@ -30,18 +53,12 @@ export interface Provider {
   totalReviews?: number;
   isOnline?: boolean;
   showRequestService?: boolean;
+  showWorkShowcase?: boolean;
   allowOfflineProviderOpenRequests?: boolean;
   languages?: string[];
   profileImage?: string;
   photo?: string;
-  documents?: {
-    idProof?: string;
-    addressProof?: string;
-    certificate?: string;
-    idProofVerified?: boolean;
-    addressProofVerified?: boolean;
-    certificateVerified?: boolean;
-  };
+  documents?: ProviderDocuments;
   address?: Record<string, unknown> | string | null;
   location?: {
     latitude?: number;
@@ -165,6 +182,43 @@ export async function getMyProfile(): Promise<Provider | null> {
  */
 export async function updateMyProfile(updates: Partial<Provider>): Promise<Provider> {
   return apiPut<Provider>('/providers/me', updates);
+}
+
+export async function saveProviderKycNumber(
+  docKey: ProviderDocKey,
+  value: string,
+  existing?: ProviderDocuments,
+  type?: string,
+): Promise<Provider> {
+  const trimmed = String(value || '').trim().slice(0, 40);
+  const trimmedType = String(type || '').trim().slice(0, 24);
+  const documents: ProviderDocuments = {
+    ...(existing || {}),
+    [`${docKey}Number`]: trimmed,
+    ...(trimmedType ? {[`${docKey}Type`]: trimmedType} : {}),
+  };
+  return updateMyProfile({documents});
+}
+
+export async function saveProviderKycUpload(
+  docKey: ProviderDocKey,
+  url: string,
+  existing?: ProviderDocuments,
+  number?: string,
+  type?: string,
+): Promise<Provider> {
+  const trimmedNumber = String(number || '').trim().slice(0, 40);
+  const trimmedType = String(type || '').trim().slice(0, 24);
+  const documents: ProviderDocuments = {
+    ...(existing || {}),
+    [docKey]: url,
+    ...(trimmedNumber ? {[`${docKey}Number`]: trimmedNumber} : {}),
+    ...(trimmedType ? {[`${docKey}Type`]: trimmedType} : {}),
+    [`${docKey}Verified`]: false,
+    [`${docKey}Rejected`]: false,
+    [`${docKey}RejectionReason`]: '',
+  };
+  return updateMyProfile({documents});
 }
 
 /**

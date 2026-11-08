@@ -56,6 +56,9 @@ const JobsStack = () => {
           fontWeight: '700',
           fontSize: 17,
         },
+        contentStyle: {
+          backgroundColor: isDarkMode ? theme.background : 'transparent',
+        },
         ...( {headerRightContainerStyle: {width: 96, paddingRight: 4}} as object ),
       }}>
       <Stack.Screen
@@ -92,6 +95,9 @@ const JobsHistoryStack = () => {
         headerTitleStyle: {
           fontWeight: '700',
           fontSize: 17,
+        },
+        contentStyle: {
+          backgroundColor: isDarkMode ? theme.background : 'transparent',
         },
         ...( {headerRightContainerStyle: {width: 96, paddingRight: 4}} as object ),
       }}>
@@ -155,6 +161,9 @@ const SettingsStack = () => {
         headerTintColor: theme.text,
         headerTitleStyle: {fontWeight: '700', fontSize: 17},
         headerBackTitleVisible: false,
+        contentStyle: {
+          backgroundColor: isDarkMode ? theme.background : 'transparent',
+        },
         ...( {headerRightContainerStyle: {width: 96, paddingRight: 4}} as object ),
         ...accountMenuHeader(navigation),
       })}>

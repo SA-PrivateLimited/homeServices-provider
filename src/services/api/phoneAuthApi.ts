@@ -71,7 +71,7 @@ export async function registerWithOtp(
   const body: Record<string, string> = {
     phoneNumber,
     pin,
-    fullName: opts.fullName || 'Provider',
+    fullName: opts.fullName || '',
     role: ROLE,
     idToken: opts.idToken,
   };

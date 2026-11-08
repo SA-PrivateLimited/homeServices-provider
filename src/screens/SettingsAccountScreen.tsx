@@ -18,6 +18,7 @@ import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
 import authService from '../services/authService';
 import {CommonActions} from '@react-navigation/native';
 import {CrystalSurface} from '../components/CrystalSurface';
+import {pageBackdropColor} from '../components/AppBackdrop';
 import {NotificationsSettingsCard} from '../components/NotificationsSettingsCard';
 import {
   allowBiometricOfferNextLogin,
@@ -183,7 +184,7 @@ export default function SettingsAccountScreen({navigation}: any) {
 
   return (
     <ScrollView
-      style={{backgroundColor: theme.background}}
+      style={{backgroundColor: pageBackdropColor(isDarkMode, theme.background)}}
       contentContainerStyle={styles.pad}>
       <NotificationsSettingsCard
         theme={theme}

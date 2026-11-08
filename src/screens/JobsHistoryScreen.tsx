@@ -26,6 +26,7 @@ import {formatJobDate, normalizeJobStatusKey} from '../utils/jobStatus';
 import {jobCustomerDisplayName} from '../utils/partnerDisplayName';
 import {historyFromWeb as s} from '../fromWebCss/historyFromWeb.styles';
 import {CrystalSurface, mixColor} from '../components/CrystalSurface';
+import {pageBackdropColor} from '../components/AppBackdrop';
 import {navigationRef} from '../navigation/rootNavigation';
 
 const PAGE_SIZE = 50;
@@ -167,7 +168,7 @@ export default function JobsHistoryScreen({navigation}: any) {
       : String(t('history.emptyCompletedMessage'));
 
   return (
-    <View style={[s.page, {backgroundColor: theme.background}]}>
+    <View style={[s.page, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
       <Text style={[s.pageSub, {color: theme.textSecondary}]}>
         {String(t('history.pageSub'))}
       </Text>

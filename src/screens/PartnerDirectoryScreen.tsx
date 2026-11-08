@@ -29,6 +29,7 @@ import {PartnerRequestFlow} from '../components/PartnerRequestFlow';
 import {SuggestPartnerModal} from '../components/SuggestPartnerModal';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
+import {pageBackdropColor} from '../components/AppBackdrop';
 
 const FILTERS: {key: LocationFilter; labelKey: string}[] = [
   {key: 'nearby', labelKey: 'collab.place.nearby'},
@@ -135,14 +136,14 @@ export default function PartnerDirectoryScreen({route}: any) {
 
   if (loading) {
     return (
-      <View style={[styles.center, {backgroundColor: theme.background}]}>
+      <View style={[styles.center, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
         <ActivityIndicator color={theme.primary} />
       </View>
     );
   }
 
   return (
-    <View style={[styles.root, {backgroundColor: theme.background}]}>
+    <View style={[styles.root, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
       <SearchBar value={q} onChange={setQ} placeholder={String(t('collab.searchPartners'))} />
       <Chips wrap style={{marginVertical: 8}}>
         {FILTERS.map(f => (

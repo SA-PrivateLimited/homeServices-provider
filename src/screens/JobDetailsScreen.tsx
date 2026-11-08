@@ -63,6 +63,7 @@ import {
 } from '../services/contactActions';
 import {speakNavigateToCustomer} from '../services/voicePromptService';
 import {jobDetailFromWeb as s} from '../fromWebCss/jobDetailFromWeb.styles';
+import {pageBackdropColor} from '../components/AppBackdrop';
 
 function statusLabelKey(status: string): string {
   switch (normalizeJobStatusKey(status)) {
@@ -340,7 +341,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
 
   if (loading) {
     return (
-      <View style={[s.page, s.center, {backgroundColor: theme.background}]}>
+      <View style={[s.page, s.center, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
         <ActivityIndicator size="large" color={theme.primary} />
         <Text style={[s.loadingText, {color: theme.textSecondary}]}>
           {tx('jobDetail.loading')}
@@ -351,7 +352,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
 
   if (!jobCard) {
     return (
-      <View style={[s.page, s.center, {backgroundColor: theme.background}]}>
+      <View style={[s.page, s.center, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
         <Text style={{color: theme.text}}>{tx('jobs.emptyTitle')}</Text>
         <Button
           variant="ghost"
@@ -437,7 +438,7 @@ export default function JobDetailsScreen({navigation, route}: any) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}>
       <ScrollView
-        style={[s.page, {backgroundColor: theme.background}]}
+        style={[s.page, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}
         contentContainerStyle={[
           s.content,
           {paddingBottom: Math.max(48, 28 + insets.bottom + 16)},

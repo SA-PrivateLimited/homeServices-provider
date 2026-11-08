@@ -1,5 +1,11 @@
 import {apiGet, apiPost, apiPut} from './apiClient';
-import {getMyProfile, type Provider} from './providersApi';
+import {
+  getMyProfile,
+  type Provider,
+  type ProviderDocuments,
+} from './providersApi';
+
+export type {ProviderDocKey, ProviderDocuments} from './providersApi';
 
 export type ServiceVerificationStatus =
   | 'approved'
@@ -65,15 +71,6 @@ export interface ProviderAddress {
   pincode?: string;
   latitude?: number;
   longitude?: number;
-}
-
-export interface ProviderDocuments {
-  idProof?: string;
-  addressProof?: string;
-  certificate?: string;
-  idProofVerified?: boolean;
-  addressProofVerified?: boolean;
-  certificateVerified?: boolean;
 }
 
 export interface ProviderProfile extends Provider {

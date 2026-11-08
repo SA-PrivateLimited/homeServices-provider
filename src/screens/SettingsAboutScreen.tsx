@@ -6,6 +6,7 @@ import useTranslation from '../hooks/useTranslation';
 import {useStore} from '../store';
 import {useResolvedTheme} from '../hooks/useResolvedTheme';
 import {CrystalSurface} from '../components/CrystalSurface';
+import {pageBackdropColor} from '../components/AppBackdrop';
 import {ShareAkansoPanel} from '../components/ShareAkansoPanel';
 import {APP_VERSION_NAME} from '../utils/appVersion';
 import {openExternalUrl} from '../utils/openExternalUrl';
@@ -20,7 +21,7 @@ export default function SettingsAboutScreen({navigation}: {navigation: any}) {
 
   return (
     <ScrollView
-      style={{backgroundColor: theme.background}}
+      style={{backgroundColor: pageBackdropColor(isDarkMode, theme.background)}}
       contentContainerStyle={styles.pad}>
       <CrystalSurface
         primary={theme.primary}

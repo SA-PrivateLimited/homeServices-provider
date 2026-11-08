@@ -36,6 +36,7 @@ import {
 import {canCallCustomerOnJob} from '../utils/customerContact';
 import {jobsFromWeb as s} from '../fromWebCss/jobsFromWeb.styles';
 import {CrystalSurface, mixColor} from '../components/CrystalSurface';
+import {pageBackdropColor} from '../components/AppBackdrop';
 import {AssistingCollaborationCard} from '../components/AssistingCollaborationCard';
 import {
   listAssistingCollaborations,
@@ -172,7 +173,7 @@ export default function JobsScreen({navigation}: any) {
       : String(t('jobs.emptyFilteredMessage'));
 
   return (
-    <View style={[s.page, {backgroundColor: theme.background}]}>
+    <View style={[s.page, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
       {assisting.length ? (
         <View style={{marginBottom: 12}} accessibilityLabel={String(t('collab.assistingTitle'))}>
           <Text style={[s.toolbarSub, {color: theme.text, fontWeight: '700', marginBottom: 8}]}>

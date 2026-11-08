@@ -21,6 +21,8 @@ import {
 import {uploadAssetFromUri} from '../services/api/assetsApi';
 import {getUserFacingErrorMessage} from '../utils/userFacingError';
 import {useResolvedTheme} from '../hooks/useResolvedTheme';
+import {useStore} from '../store';
+import {pageBackdropColor} from '../components/AppBackdrop';
 import {
   normalizeVerificationStatus,
   verificationStatusLabelKey,
@@ -30,6 +32,7 @@ export default function ServiceDetailsScreen({route}: any) {
   const serviceName = String(route?.params?.serviceName || '');
   const {t} = useTranslation();
   const theme = useResolvedTheme();
+  const {isDarkMode} = useStore();
   const [details, setDetails] = useState<PartnerServiceDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [experience, setExperience] = useState('');
@@ -103,7 +106,7 @@ export default function ServiceDetailsScreen({route}: any) {
 
   if (loading) {
     return (
-      <View style={[styles.center, {backgroundColor: theme.background}]}>
+      <View style={[styles.center, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
         <ActivityIndicator color={theme.primary} />
       </View>
     );
@@ -118,7 +121,7 @@ export default function ServiceDetailsScreen({route}: any) {
 
   return (
     <ScrollView
-      style={{backgroundColor: theme.background}}
+      style={{backgroundColor: pageBackdropColor(isDarkMode, theme.background)}}
       contentContainerStyle={styles.pad}>
       <Text style={[styles.h, {color: theme.text}]}>{serviceName}</Text>
       <Text style={[styles.status, {color: theme.text}]}>

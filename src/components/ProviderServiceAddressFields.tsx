@@ -263,6 +263,14 @@ export function ProviderServiceAddressFields({
 
   const hasCoords =
     typeof value.latitude === 'number' && typeof value.longitude === 'number';
+  const selectColors = {
+    text: theme.text,
+    textSecondary: theme.textSecondary,
+    card: theme.card,
+    border: theme.border,
+    background: theme.background,
+    primary: theme.primary,
+  };
 
   return (
     <View style={styles.wrap}>
@@ -340,6 +348,9 @@ export function ProviderServiceAddressFields({
             {labels.state || 'State'}
           </Text>
           <Select
+            variant="outlined"
+            allowClear={false}
+            colors={selectColors}
             options={stateOptions}
             value={value.stateId || ''}
             placeholder="Select state"
@@ -351,6 +362,9 @@ export function ProviderServiceAddressFields({
             {labels.district || 'District'}
           </Text>
           <Select
+            variant="outlined"
+            allowClear={false}
+            colors={selectColors}
             options={districtOptions}
             value={value.districtId || ''}
             placeholder="Select district"
@@ -387,7 +401,7 @@ export function ProviderServiceAddressFields({
 }
 
 const styles = StyleSheet.create({
-  wrap: {gap: 4},
+  wrap: {gap: 0},
   label: {
     fontSize: 12,
     fontWeight: '600',
@@ -399,7 +413,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 15,
     minHeight: 44,
   },
   currentBtn: {
