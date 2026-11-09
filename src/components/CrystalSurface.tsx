@@ -157,7 +157,7 @@ export function crystalSurfaceStyle(opts: CrystalOpts): ViewStyle {
   const glass = !isDark && (parseColor(opts.card)?.a ?? 1) <= 0.35;
   return {
     borderRadius: CRYSTAL_RADIUS,
-    overflow: 'visible',
+    overflow: 'hidden',
     backgroundColor: fill.base,
     shadowColor:
       (opts.intensity === 'job' || opts.intensity === 'history') && wash
@@ -165,26 +165,7 @@ export function crystalSurfaceStyle(opts: CrystalOpts): ViewStyle {
         : isDark
           ? '#000000'
           : '#1E3C5A',
-    ...(glass
-      ? surfaceLiftStyle(opts.card)
-      : {
-          shadowOffset: {width: 0, height: 6},
-          shadowOpacity:
-            opts.intensity === 'job'
-              ? isDark
-                ? 0.35
-                : 0.18
-              : opts.intensity === 'history'
-                ? isDark
-                  ? 0.22
-                  : 0.08
-                : isDark
-                  ? 0.28
-                  : 0.12,
-          shadowRadius: opts.intensity === 'history' ? 12 : 20,
-          elevation:
-            opts.intensity === 'job' ? 6 : opts.intensity === 'history' ? 3 : 8,
-        }),
+    ...surfaceLiftStyle(opts.card),
   };
 }
 
@@ -256,13 +237,16 @@ export function CrystalSurface({
         }),
         {
           borderRadius: resolvedRadius,
+          overflow: 'hidden',
           backgroundColor: fill.base,
           marginBottom: 0,
         },
         style,
       ]}>
-      {fill.wash ? (
-        <View pointerEvents="none" style={styles.washClip}>
+      {fill.wash && !isDark ? (
+        <View
+          pointerEvents="none"
+          style={[styles.washClip, {borderRadius: resolvedRadius}]}>
           {historyPattern ? (
             <>
               <View
@@ -285,8 +269,10 @@ export function CrystalSurface({
           )}
         </View>
       ) : null}
-      {fill.wash && !historyPattern ? (
-        <View pointerEvents="none" style={styles.sheenClip}>
+      {fill.wash && !historyPattern && !isDark ? (
+        <View
+          pointerEvents="none"
+          style={[styles.sheenClip, {borderRadius: resolvedRadius}]}>
           <View
             pointerEvents="none"
             style={[
@@ -296,7 +282,7 @@ export function CrystalSurface({
           />
         </View>
       ) : null}
-      {fill.wash ? (
+      {fill.wash && !isDark ? (
         <View
           pointerEvents="none"
           style={[styles.highlight, {backgroundColor: highlight}]}

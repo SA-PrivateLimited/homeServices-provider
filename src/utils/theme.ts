@@ -37,7 +37,7 @@ export interface ColorPalette {
 const defaultLight: Theme = {
   background: '#F5F7FA',
   /** Light sky glass — matches the app backdrop, not opaque white. */
-  card: 'rgba(226, 232, 240, 0.22)',
+  card: '#FFFFFF',
   text: '#1A202C',
   textSecondary: '#718096',
   primary: '#34C759',
@@ -85,6 +85,11 @@ const defaultDark: Theme = {
 /** Mutable — applyColorPalette updates in place before first paint. */
 export const lightTheme: Theme = {...defaultLight};
 export const darkTheme: Theme = {...defaultDark};
+
+/** Sticky app header — opaque white (night: #151E2E), never glass. */
+export function appHeaderBg(theme: Theme): string {
+  return theme.background === '#0B1220' ? '#151E2E' : '#FFFFFF';
+}
 
 /** Last admin branding palette (Brand theme). Null until branding applies. */
 let adminBrandPalette: ColorPalette | null = null;

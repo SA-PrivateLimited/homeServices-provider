@@ -7,7 +7,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {View} from 'react-native';
 import {SPLASH_SKY} from '../components/BootSplash';
 import {useStore} from '../store';
-import {resolveTheme} from '../utils/theme';
+import {resolveTheme, appHeaderBg} from '../utils/theme';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import useTranslation from '../hooks/useTranslation';
 import {
@@ -104,7 +104,7 @@ export default function AppNavigator({onReady}: {onReady?: () => void}) {
         colors: {
           primary: theme.primary,
           background: isDarkMode ? theme.background : 'transparent',
-          card: theme.card,
+          card: appHeaderBg(theme),
           text: theme.text,
           border: theme.border,
           notification: theme.primary,
@@ -122,7 +122,7 @@ export default function AppNavigator({onReady}: {onReady?: () => void}) {
           options={{
             headerShown: true,
             title: String(t('shell.jobDetails') || 'Job details'),
-            headerStyle: {backgroundColor: theme.card},
+            headerStyle: {backgroundColor: appHeaderBg(theme)},
             headerTintColor: theme.text,
           }}
         />
@@ -135,7 +135,7 @@ export default function AppNavigator({onReady}: {onReady?: () => void}) {
               t('providerProfile.serviceProviderProfile') ||
                 'Service Provider Profile Setup',
             ),
-            headerStyle: {backgroundColor: theme.card},
+            headerStyle: {backgroundColor: appHeaderBg(theme)},
             headerTintColor: theme.text,
             headerRight: () => (
               <View style={{marginRight: 10}}>
@@ -150,7 +150,7 @@ export default function AppNavigator({onReady}: {onReady?: () => void}) {
           options={{
             headerShown: true,
             title: String(t('collab.findPartner') || 'Find partner'),
-            headerStyle: {backgroundColor: theme.card},
+            headerStyle: {backgroundColor: appHeaderBg(theme)},
             headerTintColor: theme.text,
           }}
         />
@@ -165,7 +165,7 @@ export default function AppNavigator({onReady}: {onReady?: () => void}) {
           options={{
             headerShown: true,
             title: String(t('recommendations.shareContact') || 'Share Contact'),
-            headerStyle: {backgroundColor: theme.card},
+            headerStyle: {backgroundColor: appHeaderBg(theme)},
             headerTintColor: theme.text,
             headerRight: () => (
               <View style={{marginRight: 10}}>

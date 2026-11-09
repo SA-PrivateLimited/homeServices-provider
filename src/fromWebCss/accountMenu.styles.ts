@@ -19,9 +19,9 @@ export const appHeaderStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: '#FBFCFD',
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(226, 232, 240, 0.55)',
+    borderBottomColor: '#FFFFFF',
   },
   leading: {
     flex: 1,

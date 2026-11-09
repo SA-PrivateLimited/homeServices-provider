@@ -27,7 +27,7 @@ import {AccountMenuProvider} from '../components/account/AccountMenu';
 import {HeaderAccountActions} from '../components/account/HeaderAccountActions';
 import ProfileSetupModal from '../components/ProfileSetupModal';
 import {useStore} from '../store';
-import {lightTheme, darkTheme} from '../utils/theme';
+import {lightTheme, darkTheme, appHeaderBg} from '../utils/theme';
 import websocketService from '../services/websocketService';
 import useTranslation from '../hooks/useTranslation';
 import {IncomingBookingProvider} from '../components/IncomingBookingContext';
@@ -49,8 +49,9 @@ const JobsStack = () => {
       screenOptions={{
         headerShown: true,
         headerStyle: {
-          backgroundColor: theme.card,
+          backgroundColor: appHeaderBg(theme),
         },
+        headerShadowVisible: false,
         headerTintColor: theme.text,
         headerTitleStyle: {
           fontWeight: '700',
@@ -89,8 +90,9 @@ const JobsHistoryStack = () => {
       screenOptions={{
         headerShown: true,
         headerStyle: {
-          backgroundColor: theme.card,
+          backgroundColor: appHeaderBg(theme),
         },
+        headerShadowVisible: false,
         headerTintColor: theme.text,
         headerTitleStyle: {
           fontWeight: '700',
@@ -157,7 +159,8 @@ const SettingsStack = () => {
     <Stack.Navigator
       screenOptions={({navigation}) => ({
         headerShown: true,
-        headerStyle: {backgroundColor: theme.card},
+        headerStyle: {backgroundColor: appHeaderBg(theme)},
+        headerShadowVisible: false,
         headerTintColor: theme.text,
         headerTitleStyle: {fontWeight: '700', fontSize: 17},
         headerBackTitleVisible: false,
