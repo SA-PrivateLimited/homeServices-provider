@@ -2,6 +2,7 @@ import React from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import type {Theme} from '../utils/theme';
+import {CrystalSurface} from './CrystalSurface';
 import type {Provider} from '../services/api/providersApi';
 import {
   PARTNER_HOME_DASH_LABEL_KEY,
@@ -34,7 +35,12 @@ export function HomeProfileProgress({
     : 'SettingsProfile';
 
   return (
-    <View style={[styles.card, {backgroundColor: theme.card}]}>
+    <CrystalSurface
+      primary={theme.primary}
+      card={theme.card}
+      isDark={theme.background === '#0B1220'}
+      compact
+      contentStyle={styles.card}>
       <View style={styles.head}>
         <View style={styles.ring}>
           <Text style={[styles.ringText, {color: theme.primary}]}>
@@ -80,7 +86,7 @@ export function HomeProfileProgress({
           </TouchableOpacity>
         ))}
       </View>
-    </View>
+    </CrystalSurface>
   );
 }
 

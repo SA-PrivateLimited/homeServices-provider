@@ -12,14 +12,14 @@ import {
   TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {Select} from 'sapvt-ltd-app-packages';
+import {Card, Select} from 'sapvt-ltd-app-packages';
 import {useStore} from '../store';
 import {getMyProfile, updateMyProfile} from '../services/api/providersApi';
 import {getServiceCategories} from '../services/api/serviceCategoriesApi';
 import {uploadAssetFromUri} from '../services/api/assetsApi';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {getUserId} from '../services/session';
-import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
+import {lightTheme, darkTheme} from '../utils/theme';
 import {pageBackdropColor} from '../components/AppBackdrop';
 import ProviderServiceAddressFields, {
   type ProviderServiceAddressValue,
@@ -538,7 +538,7 @@ export default function ProviderProfileScreen({navigation}: any) {
         ) : null}
 
         {profile ? (
-          <View style={[styles.completenessCard, {backgroundColor: theme.card}]}>
+          <Card padding="none" style={styles.completenessCard}>
             <View style={styles.completenessHead}>
               <Text style={[styles.completenessTitle, {color: theme.text}]}>
                 {String(t('profile.completenessTitle'))}
@@ -598,10 +598,10 @@ export default function ProviderProfileScreen({navigation}: any) {
                 </View>
               ))}
             </View>
-          </View>
+          </Card>
         ) : null}
 
-        <View style={[styles.profileHeader, {backgroundColor: theme.card}]}>
+        <Card padding="none" style={styles.profileHeader}>
           {profile ? (
             <TouchableOpacity
               onPress={() => beginEdit(profile)}
@@ -689,11 +689,11 @@ export default function ProviderProfileScreen({navigation}: any) {
               </View>
             </View>
           ) : null}
-        </View>
+        </Card>
 
         {!profile ? (
           <View style={styles.section}>
-            <View style={[styles.infoCard, {backgroundColor: theme.card}]}>
+            <Card padding="none" style={styles.infoCard}>
               <Text style={[styles.emptyLead, {color: theme.textSecondary}]}>
                 {String(t('profile.setupRequiredLead'))}
               </Text>
@@ -705,15 +705,14 @@ export default function ProviderProfileScreen({navigation}: any) {
                   {String(t('profile.setUpProfile'))}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </Card>
           </View>
         ) : (
           <View style={styles.section}>
-            <TouchableOpacity
-              style={[styles.accordionHead, {backgroundColor: theme.card}]}
+            <Card
+              padding="none"
               onPress={toggleDetails}
-              accessibilityRole="button"
-              accessibilityState={{expanded: isEditing}}>
+              style={styles.accordionHead}>
               <View style={{flex: 1, minWidth: 0}}>
                 <Text style={[styles.accordionTitle, {color: theme.text}]}>
                   {String(t('profile.professionalDetails'))}
@@ -727,10 +726,10 @@ export default function ProviderProfileScreen({navigation}: any) {
                 size={22}
                 color={theme.textSecondary}
               />
-            </TouchableOpacity>
+            </Card>
 
             {isEditing ? (
-            <View style={[styles.infoCard, {backgroundColor: theme.card}]}>
+            <Card padding="none" style={styles.infoCard}>
               <Text style={[styles.fieldLabel, {color: theme.textSecondary}]}>
                 {String(t('profile.fullName'))}
               </Text>
@@ -998,7 +997,7 @@ export default function ProviderProfileScreen({navigation}: any) {
                     )}
                   </TouchableOpacity>
                 </View>
-            </View>
+            </Card>
             ) : null}
           </View>
         )}
@@ -1039,9 +1038,9 @@ export default function ProviderProfileScreen({navigation}: any) {
               />
             </TouchableOpacity>
             {reviewsOpen ? (
-              <View style={[styles.infoCard, {backgroundColor: theme.card}]}>
+              <Card padding="none" style={styles.infoCard}>
                 <ReviewsList providerId={userId} showHeader={false} />
-              </View>
+              </Card>
             ) : null}
           </View>
         ) : null}
@@ -1088,7 +1087,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     borderRadius: 12,
     position: 'relative',
-    ...commonStyles.shadowSmall,
   },
   identityEdit: {
     position: 'absolute',
@@ -1104,7 +1102,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     padding: 16,
-    ...commonStyles.shadowSmall,
   },
   completenessHead: {
     flexDirection: 'row',
@@ -1145,7 +1142,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 8,
-    ...commonStyles.shadowSmall,
   },
   accordionTitle: {fontSize: 16, fontWeight: '700'},
   accordionSub: {fontSize: 13, marginTop: 2, lineHeight: 18},
@@ -1250,7 +1246,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     borderRadius: 12,
     padding: 16,
-    ...commonStyles.shadowSmall,
   },
   fieldLabel: {fontSize: 12, fontWeight: '600', marginTop: 10, marginBottom: 4},
   fieldLabelTight: {

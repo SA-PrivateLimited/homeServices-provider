@@ -2,7 +2,7 @@ const path = require('path');
 const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
 
 const projectRoot = __dirname;
-const monorepoPackages = path.resolve(projectRoot, '../packages');
+const monorepoPackages = path.resolve(projectRoot, '../../packages');
 const appPackagesRoot = path.resolve(monorepoPackages, 'saPvtLtdAppPackages');
 const appNodeModules = path.resolve(projectRoot, 'node_modules');
 

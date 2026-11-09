@@ -37,7 +37,7 @@ export interface ColorPalette {
 const defaultLight: Theme = {
   background: '#F5F7FA',
   /** Light sky glass — matches the app backdrop, not opaque white. */
-  card: 'rgba(214, 236, 250, 0.88)',
+  card: 'rgba(226, 232, 240, 0.22)',
   text: '#1A202C',
   textSecondary: '#718096',
   primary: '#34C759',
@@ -217,11 +217,11 @@ export function applyNightVisionMode(isNightVision: boolean): void {
 
 export const commonStyles = {
   shadowSmall: {
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowColor: '#1E3C5A',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    elevation: 0,
   },
   shadowMedium: {
     shadowColor: '#000',

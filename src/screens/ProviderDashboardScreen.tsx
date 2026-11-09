@@ -566,14 +566,19 @@ export default function ProviderDashboardScreen({navigation}: any) {
           />
         ) : null}
 
-        <View style={[styles.growCard, {backgroundColor: theme.card}]}>
+        <CrystalSurface
+          primary={theme.primary}
+          card={theme.card}
+          isDark={isDarkMode}
+          compact
+          contentStyle={styles.growCard}>
           <Text style={[styles.growTitle, {color: theme.text}]}>
             {tx('home.growTitle')}
           </Text>
           <Text style={[styles.growBody, {color: theme.textSecondary}]}>
             {tx('home.growBody')}
           </Text>
-        </View>
+        </CrystalSurface>
       </ScrollView>
       <ConfirmDialog
         visible={receivePromptOpen}

@@ -130,7 +130,7 @@ function AccountMenuHost({
     (currentUser as {canSwitchToCustomer?: boolean})?.canSwitchToCustomer,
   );
   const primary = theme.primary || HEADER.primary;
-  const panelBg = isDarkMode ? '#151E2E' : theme.card || '#FFFFFF';
+  const panelBg = isDarkMode ? '#151E2E' : HEADER.card;
   const divider = isDarkMode
     ? 'rgba(148, 163, 184, 0.22)'
     : 'rgba(226, 232, 240, 0.85)';

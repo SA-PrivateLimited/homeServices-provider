@@ -3,6 +3,7 @@ import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import type {Theme} from '../utils/theme';
 import useTranslation from '../hooks/useTranslation';
+import {CrystalSurface} from './CrystalSurface';
 
 type Props = {
   theme: Theme;
@@ -72,11 +73,12 @@ export function HomeStatsRow({
       accessibilityLabel={String(t('home.statsLabel') || 'Summary')}>
       {tiles.map(tile => {
         const inner = (
-          <View
-            style={[
-              styles.tile,
-              {backgroundColor: theme.card, borderColor: theme.border},
-            ]}>
+          <CrystalSurface
+            primary={theme.primary}
+            card={theme.card}
+            isDark={theme.background === '#0B1220'}
+            compact
+            contentStyle={styles.tileInner}>
             <View style={styles.head}>
               <Icon name={tile.icon} size={18} color={tile.color} />
               <Text style={[styles.value, {color: theme.text}]}>{tile.value}</Text>
@@ -84,7 +86,7 @@ export function HomeStatsRow({
             <Text style={[styles.label, {color: theme.textSecondary}]}>
               {tile.label}
             </Text>
-          </View>
+          </CrystalSurface>
         );
         if (!tile.onPress) {
           return (
@@ -114,9 +116,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cell: {width: '48%', flexGrow: 1},
-  tile: {
-    borderWidth: 1,
-    borderRadius: 14,
+  tileInner: {
     padding: 12,
     gap: 6,
     minHeight: 76,
