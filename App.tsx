@@ -40,6 +40,7 @@ import GeolocationService from './src/services/geolocationService';
 import WebSocketService from './src/services/websocketService';
 import {loadAndApplyBranding} from './src/services/brandingService';
 import {resolveTheme} from './src/utils/theme';
+import {AppBackdrop} from './src/components/AppBackdrop';
 const App = () => {
   const {isDarkMode, hydrate, currentUser, colorTheme} = useStore();
   const [bootReady, setBootReady] = useState(false);
@@ -209,6 +210,7 @@ const App = () => {
       <AppThemeProvider colors={appThemeColors}>
         <ToastProvider>
           <View style={styles.root}>
+            <AppBackdrop dark={isDarkMode && !splashVisible}>
             <StatusBar
               barStyle={isDarkMode && !splashVisible ? 'light-content' : 'dark-content'}
               backgroundColor={splashVisible ? SPLASH_SKY : theme.background}
@@ -219,6 +221,7 @@ const App = () => {
                 <BootSplash onPainted={handleSplashPainted} />
               </View>
             ) : null}
+            </AppBackdrop>
           </View>
         </ToastProvider>
       </AppThemeProvider>

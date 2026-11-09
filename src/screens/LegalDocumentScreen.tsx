@@ -13,6 +13,7 @@ import {
   TERMS_OF_SERVICE_URL,
 } from '../config/support';
 import {openExternalUrl} from '../utils/openExternalUrl';
+import {pageBackdropColor} from '../components/AppBackdrop';
 
 export default function LegalDocumentScreen({route}: {route: any}) {
   const kind: 'privacy' | 'terms' =
@@ -38,7 +39,7 @@ export default function LegalDocumentScreen({route}: {route: any}) {
   };
 
   return (
-    <View style={[styles.wrap, {backgroundColor: theme.background}]}>
+    <View style={[styles.wrap, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
       <ScrollView contentContainerStyle={styles.pad}>
         <Text style={[styles.h, {color: theme.text}]}>{title}</Text>
         <Text style={[styles.body, {color: theme.textSecondary}]}>

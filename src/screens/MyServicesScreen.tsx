@@ -28,6 +28,7 @@ import {serviceCategoryIcon} from '../utils/serviceIcons';
 import {useResolvedTheme} from '../hooks/useResolvedTheme';
 import {useStore} from '../store';
 import {CrystalSurface} from '../components/CrystalSurface';
+import {pageBackdropColor} from '../components/AppBackdrop';
 
 export default function MyServicesScreen({navigation}: any) {
   const {t, i18n} = useTranslation();
@@ -91,7 +92,7 @@ export default function MyServicesScreen({navigation}: any) {
 
   if (loading) {
     return (
-      <View style={[styles.center, {backgroundColor: theme.background}]}>
+      <View style={[styles.center, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
         <ActivityIndicator color={theme.primary} />
       </View>
     );
@@ -99,7 +100,7 @@ export default function MyServicesScreen({navigation}: any) {
 
   return (
     <ScrollView
-      style={{backgroundColor: theme.background}}
+      style={{backgroundColor: pageBackdropColor(isDarkMode, theme.background)}}
       contentContainerStyle={styles.pad}>
       <Text style={[styles.lead, {color: theme.textSecondary}]}>
         {String(t('settings.myServicesLead'))}

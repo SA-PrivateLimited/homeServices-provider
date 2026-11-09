@@ -5,7 +5,7 @@ import {PROVIDER_WEB as W} from 'sapvt-ltd-app-packages';
 export const jobsFromWeb = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: W.background,
+    backgroundColor: 'transparent',
     paddingHorizontal: 14,
     paddingTop: 8,
   },

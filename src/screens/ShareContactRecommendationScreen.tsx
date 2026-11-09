@@ -23,6 +23,7 @@ import AlertModal from '../components/AlertModal';
 import {contactRecommendationsApi} from '../services/api/contactRecommendationsApi';
 import PhoneNumberInput from '../components/PhoneNumberInput';
 import {localTenDigits, toE164} from '../utils/phone';
+import {pageBackdropColor} from '../components/AppBackdrop';
 
 interface ShareContactRecommendationScreenProps {
   navigation: any;
@@ -182,7 +183,7 @@ export default function ShareContactRecommendationScreen({
   };
 
   return (
-    <View style={[styles.container, {backgroundColor: theme.background}]}>
+    <View style={[styles.container, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

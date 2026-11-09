@@ -13,6 +13,7 @@ import {lightTheme, darkTheme} from '../utils/theme';
 import type {AppNotification} from '../store';
 import useTranslation from '../hooks/useTranslation';
 import EmptyState from '../components/EmptyState';
+import {pageBackdropColor} from '../components/AppBackdrop';
 
 interface NotificationsScreenProps {
   navigation: any;
@@ -141,7 +142,7 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
   const unreadCount = userNotifications.filter(n => !n.read).length;
 
   return (
-    <View style={[styles.container, {backgroundColor: theme.background}]}>
+    <View style={[styles.container, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
       {userNotifications.length > 0 && (
         <View
           style={[

@@ -8,5 +8,6 @@
   "forbidden": "You don't have permission to do that.",
   "tooManyAttempts": "Too many attempts. Please wait and try again.",
   "timeout": "The request is taking too long. Please try again.",
-  "serverError": "Something went wrong on our side. Please try again in a moment."
+  "serverError": "Something went wrong on our side. Please try again in a moment.",
+  "enterName": "Please enter your full name."
 }

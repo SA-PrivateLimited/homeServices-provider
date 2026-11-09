@@ -5,6 +5,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {useStore} from '../../store';
 import useTranslation from '../../hooks/useTranslation';
 import {appHeaderStyles as s, HEADER} from '../../fromWebCss/accountMenu.styles';
+import {darkTheme, lightTheme, appHeaderBg} from '../../utils/theme';
 import {AccountMenu} from './AccountMenu';
 
 type Props = {
@@ -14,7 +15,8 @@ type Props = {
 export function AppHeader({navigation}: Props) {
   const insets = useSafeAreaInsets();
   const {t} = useTranslation();
-  const {currentUser} = useStore();
+  const {currentUser, isDarkMode} = useStore();
+  const theme = isDarkMode ? darkTheme : lightTheme;
   const u = currentUser as {name?: string; fullName?: string} | null;
   const name = u?.name?.trim() || u?.fullName?.trim() || '';
   const title = name
@@ -28,6 +30,8 @@ export function AppHeader({navigation}: Props) {
         {
           paddingTop: insets.top + 12,
           paddingBottom: 12,
+          backgroundColor: appHeaderBg(theme),
+          borderBottomColor: appHeaderBg(theme),
         },
       ]}>
       <View style={s.leading}>

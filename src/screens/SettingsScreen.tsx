@@ -6,6 +6,7 @@ import {useResolvedTheme} from '../hooks/useResolvedTheme';
 import type {Theme} from '../utils/theme';
 import useTranslation from '../hooks/useTranslation';
 import {CrystalSurface} from '../components/CrystalSurface';
+import {pageBackdropColor} from '../components/AppBackdrop';
 
 function SettingsRow({
   icon,
@@ -57,7 +58,7 @@ export default function SettingsScreen({navigation}: any) {
   void colorTheme;
 
   return (
-    <View style={[styles.root, {backgroundColor: theme.background}]}>
+    <View style={[styles.root, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.lead, {color: theme.textSecondary}]}>
           {tx('settings.lead')}

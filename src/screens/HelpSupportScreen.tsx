@@ -6,10 +6,13 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Icon} from 'sapvt-ltd-app-packages';
 import {PartnerHelpSupportPanel} from '../components/help/PartnerHelpSupportPanel';
 import {useResolvedTheme} from '../hooks/useResolvedTheme';
+import {useStore} from '../store';
+import {pageBackdropColor} from '../components/AppBackdrop';
 import useTranslation from '../hooks/useTranslation';
 
 export default function HelpSupportScreen() {
   const theme = useResolvedTheme();
+  const {isDarkMode} = useStore();
   const {t} = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -19,7 +22,7 @@ export default function HelpSupportScreen() {
 
   return (
     <ScrollView
-      style={[styles.root, {backgroundColor: theme.background}]}
+      style={[styles.root, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}
       contentContainerStyle={[
         styles.content,
         {

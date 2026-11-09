@@ -36,6 +36,7 @@ export interface ColorPalette {
 
 const defaultLight: Theme = {
   background: '#F5F7FA',
+  /** Light sky glass — matches the app backdrop, not opaque white. */
   card: '#FFFFFF',
   text: '#1A202C',
   textSecondary: '#718096',
@@ -47,7 +48,7 @@ const defaultLight: Theme = {
   success: '#34C759',
   warning: '#FF9500',
   shadow: '#000000',
-  tabBar: 'rgba(255,255,255,0.92)',
+  tabBar: 'rgba(214, 236, 250, 0.94)',
   placeholder: '#A0AEC0',
 };
 
@@ -69,7 +70,7 @@ export const NIGHT_VISION_SURFACES: Pick<
   background: '#0B1220',
   card: '#151E2E',
   text: '#E8EDF5',
-  textSecondary: '#94A3B8',
+  textSecondary: '#CBD5E1',
   border: '#273449',
   tabBar: '#151E2E',
   placeholder: '#64748B',
@@ -85,17 +86,36 @@ const defaultDark: Theme = {
 export const lightTheme: Theme = {...defaultLight};
 export const darkTheme: Theme = {...defaultDark};
 
+/** Sticky app header — opaque white (night: #151E2E), never glass. */
+export function appHeaderBg(theme: Theme): string {
+  return theme.background === '#0B1220' ? '#151E2E' : '#FFFFFF';
+}
+
 /** Last admin branding palette (Brand theme). Null until branding applies. */
 let adminBrandPalette: ColorPalette | null = null;
 
 let nightVisionActive = false;
+
+function isDefaultWhiteSurface(value?: string): boolean {
+  const n = String(value || '')
+    .trim()
+    .toLowerCase();
+  return (
+    !n ||
+    n === '#fff' ||
+    n === '#ffffff' ||
+    n === 'white' ||
+    n === '#f8fafc' ||
+    n === '#f5f7fa'
+  );
+}
 
 function writeBrandBaseFromPalette(colorPalette: ColorPalette): void {
   lightTheme.primary = colorPalette.primary;
   lightTheme.primaryDark = colorPalette.primaryDark || colorPalette.primary;
   if (colorPalette.secondary) lightTheme.secondary = colorPalette.secondary;
   if (colorPalette.background) lightTheme.background = colorPalette.background;
-  if (colorPalette.surface) {
+  if (colorPalette.surface && !isDefaultWhiteSurface(colorPalette.surface)) {
     lightTheme.card = colorPalette.surface;
     lightTheme.tabBar = colorPalette.surface;
   }
@@ -202,11 +222,11 @@ export function applyNightVisionMode(isNightVision: boolean): void {
 
 export const commonStyles = {
   shadowSmall: {
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowColor: '#1E3C5A',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    elevation: 0,
   },
   shadowMedium: {
     shadowColor: '#000',

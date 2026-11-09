@@ -35,6 +35,7 @@ import {ReceiveRequestsCard} from '../components/ReceiveRequestsCard';
 import {AvailabilityCard} from '../components/AvailabilityCard';
 import {EffectiveRequestStatus} from '../components/EffectiveRequestStatus';
 import {CrystalSurface} from '../components/CrystalSurface';
+import {pageBackdropColor} from '../components/AppBackdrop';
 import {glassTabOverlayPad} from '../navigation/GlassTabBar';
 import {getEffectiveRequestAvailability} from '../utils/effectiveRequestAvailability';
 import type {Provider} from '../services/api/providersApi';
@@ -42,9 +43,11 @@ import {IncomingRequestCard} from '../components/IncomingRequestCard';
 import {IncomingWaitingList} from '../components/IncomingWaitingList';
 import {PartnerIncomingCard} from '../components/PartnerIncomingCard';
 import {AssistingCollaborationCard} from '../components/AssistingCollaborationCard';
-import {ProfileCta, EmptyRequest} from '../components/ProfileCta';
+import {EmptyRequest} from '../components/ProfileCta';
+import {HomeProfileProgress} from '../components/HomeProfileProgress';
+import {HomeStatsRow} from '../components/HomeStatsRow';
 import {NotificationsSettingsCard} from '../components/NotificationsSettingsCard';
-import {isProfileIncomplete} from '../utils/partnerProfile';
+import {partnerHomeDashboardPercent} from '../utils/partnerProfile';
 import {AppHeader} from '../components/account/AppHeader';
 import {
   dismissReceiveRequestsPrompt,
@@ -89,6 +92,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
+  const [completedJobsCount, setCompletedJobsCount] = useState(0);
   const [profile, setProfile] = useState<Provider | null>(null);
   const [receivePromptOpen, setReceivePromptOpen] = useState(false);
 
@@ -149,8 +153,10 @@ export default function ProviderDashboardScreen({navigation}: any) {
       const activeJobs = jobCards.filter(
         j => j.status === 'accepted' || j.status === 'in-progress',
       );
+      const completedJobs = jobCards.filter(j => j.status === 'completed');
 
       setActiveJobsCount(activeJobs.length);
+      setCompletedJobsCount(completedJobs.length);
 
       try {
         const [incomingCollab, assistingRows] = await Promise.all([
@@ -237,7 +243,16 @@ export default function ProviderDashboardScreen({navigation}: any) {
   const serviceType =
     incomingBooking?.serviceType || tx('dashboard.serviceFallback');
   const distanceLabel = formatDistanceKm(incomingBooking?.distanceKm);
-  const showCta = isProfileIncomplete(profile as any);
+  const phoneVerified = Boolean(
+    currentUser?.phoneVerified ||
+      currentUser?.phoneNumber ||
+      currentUser?.phone ||
+      profile?.phoneVerified ||
+      profile?.phoneNumber ||
+      profile?.phone,
+  );
+  const showCta =
+    partnerHomeDashboardPercent(profile as any, {phoneVerified}) < 100;
   const showEmpty =
     !incomingBooking &&
     !partnerIncoming &&
@@ -272,7 +287,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
       <View
         style={[
           styles.container,
-          {backgroundColor: theme.background},
+          {backgroundColor: pageBackdropColor(isDarkMode, theme.background)},
         ]}>
         <AppHeader navigation={navigation} />
         <View style={[styles.loaderContainer, {flex: 1}]}>
@@ -290,7 +305,7 @@ export default function ProviderDashboardScreen({navigation}: any) {
   }
 
   return (
-    <View style={[styles.container, {backgroundColor: theme.background}]}>
+    <View style={[styles.container, {backgroundColor: pageBackdropColor(isDarkMode, theme.background)}]}>
       <AppHeader navigation={navigation} />
       <AlertModal
         visible={alertVisible}
@@ -482,6 +497,30 @@ export default function ProviderDashboardScreen({navigation}: any) {
           />
         ) : null}
 
+        <HomeStatsRow
+          theme={theme}
+          newRequests={
+            (incomingBooking ? 1 : 0) + (waitingNearby?.length || 0)
+          }
+          ongoing={activeJobsCount}
+          completed={completedJobsCount}
+          rating={profile?.rating}
+          onOngoing={() => navigation.navigate('Jobs')}
+          onCompleted={() => navigation.navigate('History')}
+          onRating={() =>
+            navigation.navigate('Settings', {screen: 'SettingsProfile'})
+          }
+        />
+
+        {showCta ? (
+          <HomeProfileProgress
+            theme={theme}
+            profile={profile}
+            phoneVerified={phoneVerified}
+            onOpen={screen => navigation.navigate('Settings', {screen})}
+          />
+        ) : null}
+
         {/* Active Jobs — matches web ActiveServicesSection */}
         {activeJobsCount > 0 ? (
           <TouchableOpacity
@@ -527,17 +566,19 @@ export default function ProviderDashboardScreen({navigation}: any) {
           />
         ) : null}
 
-        {showCta ? (
-          <ProfileCta
-            theme={theme}
-            title={tx('home.ctaTitle')}
-            body={tx('home.ctaBody')}
-            action={tx('home.ctaAction')}
-            onPress={() =>
-              navigation.navigate('Settings', {screen: 'SettingsProfile'})
-            }
-          />
-        ) : null}
+        <CrystalSurface
+          primary={theme.primary}
+          card={theme.card}
+          isDark={isDarkMode}
+          compact
+          contentStyle={styles.growCard}>
+          <Text style={[styles.growTitle, {color: theme.text}]}>
+            {tx('home.growTitle')}
+          </Text>
+          <Text style={[styles.growBody, {color: theme.textSecondary}]}>
+            {tx('home.growBody')}
+          </Text>
+        </CrystalSurface>
       </ScrollView>
       <ConfirmDialog
         visible={receivePromptOpen}
@@ -662,4 +703,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   actionButtonText: {flex: 1, fontSize: 16, fontWeight: '600'},
+  growCard: {padding: 16, borderRadius: 14, gap: 6},
+  growTitle: {fontSize: 16, fontWeight: '700'},
+  growBody: {fontSize: 13, lineHeight: 18},
 });
